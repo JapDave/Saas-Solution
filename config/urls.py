@@ -14,6 +14,7 @@ urlpatterns = [
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+
     # App routers (these will 404 until you implement them; that’s OK)
     path("api/", include("apps.accounts.urls")),
     path("api/", include("apps.organizations.urls")),
