@@ -15,19 +15,6 @@ class TimeStampedAbstract(models.Model):
         abstract = True
 
 
-
-class TimeStampedAbstract(models.Model):
-    """
-    Abstract class for created and updated timestamp fields.
-    """
-
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date created")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="Date updated")
-
-    class Meta:
-        abstract = True
-
-
 class UpdatedByCreatedByAbstract(models.Model):
     """
     Abstract class for created_by and updated_by fields.
