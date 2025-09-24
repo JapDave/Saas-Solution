@@ -1,0 +1,13 @@
+Django==5.1.1
+djangorestframework==3.15.2
+drf-spectacular==0.27.2
+djangorestframework-simplejwt==5.3.1
+django-filter==24.3
+psycopg[binary]==3.2.1
+gunicorn==22.0.0
+pytest==8.3.3
+pytest-django==4.8.0
+model-bakery==1.20.0
+dj-database-url==2.2.0
+python-dotenv==1.0.1
+whitenoise==6.7.0
