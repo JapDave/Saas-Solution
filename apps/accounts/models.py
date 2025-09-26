@@ -7,8 +7,10 @@ from django.db.models.functions import Lower
 
 from apps.common.models import BaseModel
 
-
 class AccountQuerySet(models.QuerySet):
+    def alive(self):
+        return self.filter(deleted_at__isnull=True)
+
     def search(self, q: str | None):
         if not q:
             return self
@@ -17,12 +19,15 @@ class AccountQuerySet(models.QuerySet):
             models.Q(contact_email__icontains=q)
         )
 
+class AccountManager(models.Manager.from_queryset(AccountQuerySet)):
+    def get_queryset(self):
+        # hide soft-deleted rows by default
+        return super().get_queryset().alive()
 
 class Account(BaseModel):
     """
-    Fields inherited from BaseModel:
-      - id (UUID pk), is_active, created_at, updated_at, deleted_at
-      - objects manager hides soft-deleted rows
+    Inherits BaseModel fields:
+      id (pk), is_active, created_at, updated_at, deleted_at
     """
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=500, blank=True, default="")
@@ -30,29 +35,27 @@ class Account(BaseModel):
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
-        on_delete=models.SET_NULL, related_name="accounts_created"
+        on_delete=models.SET_NULL, related_name="accounts_created",
     )
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
-        on_delete=models.SET_NULL, related_name="accounts_updated"
+        on_delete=models.SET_NULL, related_name="accounts_updated",
     )
 
-    # custom queryset layered on default manager
-    objects = models.Manager.from_queryset(AccountQuerySet)()
+    objects = AccountManager()               # hides soft-deleted
+    _all_objects = models.Manager()          # raw access if ever needed
 
     class Meta:
         db_table = "accounts_account"
-        indexes = [
-            models.Index(Lower("name"), name="ix_account_name_ci"),
-        ]
-        constraints = [
-            models.UniqueConstraint(Lower("name"), name="uq_account_name_ci"),
-        ]
+        indexes = [models.Index(Lower("name"), name="ix_account_name_ci")]
+        constraints = [models.UniqueConstraint(Lower("name"), name="uq_account_name_ci")]
 
     def clean(self):
         super().clean()
+        # name length
         if not (1 <= len(self.name) <= 100):
             raise ValidationError({"name": "Name must be 1-100 characters."})
+        # description length
         if self.description and len(self.description) > 500:
             raise ValidationError({"description": "Description must be ≤ 500 characters."})
 
