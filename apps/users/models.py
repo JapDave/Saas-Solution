@@ -67,7 +67,6 @@ class User(BaseModel, AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS: list[str] = []
 
     class Meta:
-        db_table = "users_user"
         indexes = [
             models.Index(Lower("email"), name="ix_user_email_ci"),
             models.Index(Lower("full_name"), name="ix_user_full_name_ci"),

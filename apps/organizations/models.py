@@ -1,38 +1,41 @@
-# apps/organizations/models.py
 from __future__ import annotations
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.db.models.functions import Lower
-from django.db.models import Q
 
 from apps.common.models import BaseModel
+from apps.accounts.models import Account
 
 
 class OrganizationQuerySet(models.QuerySet):
-    def search(self, q: str | None):
+    def alive(self):
+        return self.filter(deleted_at__isnull=True)
+
+    def search(self, q: str | None, account_id: int | None = None):
+        qs = self
+        if account_id is not None:
+            qs = qs.filter(account_id=account_id)
         if not q:
-            return self
-        return self.filter(
-            Q(name__icontains=q) |
-            Q(description__icontains=q)
+            return qs
+        return qs.filter(
+            models.Q(name__icontains=q) |
+            models.Q(description__icontains=q)
         )
 
-    def for_account(self, account_id):
-        return self.filter(account_id=account_id)
+
+class OrganizationManager(models.Manager.from_queryset(OrganizationQuerySet)):
+    def get_queryset(self):
+        # hide soft-deleted rows by default
+        return super().get_queryset().alive()
 
 
 class Organization(BaseModel):
     """
-    Inherits from BaseModel:
-      - id (UUID pk), is_active (bool), created_at, updated_at, deleted_at
-      - default manager hides soft-deleted rows
+    Inherits BaseModel fields:
+      id (pk), is_active, created_at, updated_at, deleted_at
     """
-    account = models.ForeignKey(
-        "accounts.Account",
-        on_delete=models.CASCADE,
-        related_name="organizations",
-    )
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="organizations")
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=500, blank=True, default="")
     logo_url = models.URLField(blank=True, default="")
@@ -46,30 +49,18 @@ class Organization(BaseModel):
         on_delete=models.SET_NULL, related_name="organizations_updated",
     )
 
-    # attach custom queryset on top of BaseModel manager
-    objects = models.Manager.from_queryset(OrganizationQuerySet)()
+    objects = OrganizationManager()          # hides soft-deleted
+    _all_objects = models.Manager()          # raw access if ever needed
 
     class Meta:
-        db_table = "organizations_organization"
         indexes = [
             models.Index(Lower("name"), name="ix_org_name_ci"),
             models.Index(models.F("account"), name="ix_org_account"),
         ]
         constraints = [
-            # Unique org name within an account, case-insensitive (PostgreSQL recommended)
-            models.UniqueConstraint(
-                Lower("name"),
-                "account",
-                name="uq_org_account_name_ci",
-            ),
+            # name unique *within account*, case-insensitive
+            models.UniqueConstraint(Lower("name"), "account", name="uq_org_name_per_account_ci"),
         ]
 
-    def clean(self):
-        super().clean()
-        if not (1 <= len(self.name) <= 100):
-            raise ValidationError({"name": "Name must be 1-100 characters."})
-        if self.description and len(self.description) > 500:
-            raise ValidationError({"description": "Description must be ≤ 500 characters."})
-
     def __str__(self):
-        return f"{self.name} @ {self.account_id}"
+        return f"{self.name} (acct={self.account_id})"

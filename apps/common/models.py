@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 
 class BaseQuerySet(models.QuerySet):
     def alive(self):
@@ -47,3 +48,26 @@ class BaseModel(models.Model):
             return
         self.deleted_at = None
         self.save(update_fields=["deleted_at", "updated_at"])
+
+class AuditLog(models.Model):
+    """Simple audit log record."""
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    method = models.CharField(max_length=8)
+    path = models.CharField(max_length=512, db_index=True)
+    view = models.CharField(max_length=256, blank=True, default="")
+    app_label = models.CharField(max_length=64, blank=True, default="")
+    model = models.CharField(max_length=64, blank=True, default="")
+    action = models.CharField(max_length=32, blank=True, default="")
+    object_id = models.CharField(max_length=64, blank=True, default="")
+    status_code = models.IntegerField()
+    success = models.BooleanField(default=False)
+    ip_addr = models.GenericIPAddressField(null=True, blank=True)
+    extra = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["path"]),
+            models.Index(fields=["app_label", "model", "action"]),
+        ]

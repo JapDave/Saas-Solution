@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "apps.users",
     "apps.common",
     "apps.accounts",
+    "apps.organizations",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -46,6 +47,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "apps.common.middlewares.audit.AuditLogMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -113,7 +115,9 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "apps.common.exception_handler.exception_handler",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_THROTTLE_CLASSES": ["apps.common.throttling.DynamicScopedRateThrottle"],
     "PAGE_SIZE": 10,
     # allow ?page_size=... in requests (used by the test)
     "PAGE_SIZE_QUERY_PARAM": "page_size",

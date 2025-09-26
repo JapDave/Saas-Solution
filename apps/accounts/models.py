@@ -46,18 +46,8 @@ class Account(BaseModel):
     _all_objects = models.Manager()          # raw access if ever needed
 
     class Meta:
-        db_table = "accounts_account"
         indexes = [models.Index(Lower("name"), name="ix_account_name_ci")]
         constraints = [models.UniqueConstraint(Lower("name"), name="uq_account_name_ci")]
-
-    def clean(self):
-        super().clean()
-        # name length
-        if not (1 <= len(self.name) <= 100):
-            raise ValidationError({"name": "Name must be 1-100 characters."})
-        # description length
-        if self.description and len(self.description) > 500:
-            raise ValidationError({"description": "Description must be ≤ 500 characters."})
 
     def __str__(self):
         return self.name

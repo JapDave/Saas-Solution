@@ -14,7 +14,7 @@ for _ in {1..60}; do
 done
 
 # Make migrations (usually dev-only; safe no-op if none)
-python manage.py makemigrations accounts users common || true
+python manage.py makemigrations accounts users organizations common || true
 
 # Apply migrations
 python manage.py migrate --noinput
