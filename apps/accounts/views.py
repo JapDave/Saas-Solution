@@ -7,7 +7,10 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from apps.common.paginations import StandardPagination
-from apps.common.permissions import IsAccountAdminOrOwnerViewOnlyForManager
+from apps.common.permissions import (
+    IsAccountAdminOrOwnerViewOnlyForManager,
+    get_assigned_account_ids,
+)
 from apps.common.exceptions import AccountNotFound
 
 from .models import Account
@@ -34,6 +37,20 @@ class AccountViewSet(viewsets.ModelViewSet):
     # Use UUID in URLs instead of integer pk
     lookup_field = "uuid"              # /api/accounts/<uuid>/
     lookup_url_kwarg = "uuid"          # router will pass as kwargs["uuid"]
+
+    def get_queryset(self):
+        qs = Account.objects.order_by("-created_at")
+        user = getattr(self.request, "user", None)
+        if not (user and user.is_authenticated):
+            return qs.none()
+        if user.is_superuser:
+            return qs
+        if user.is_staff:
+            assigned = get_assigned_account_ids(user)
+            if not assigned:
+                return qs.none()
+            return qs.filter(id__in=assigned)
+        return qs.filter(created_by_id=user.id)
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -78,3 +95,4 @@ class AccountViewSet(viewsets.ModelViewSet):
 
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+

@@ -84,6 +84,7 @@ def superadmin_client(superadmin_user):
 
 @pytest.fixture
 def manager_client(manager_user):
+    manager_user.get_assigned_account_ids = lambda: list(Account.objects.values_list("id", flat=True))
     return _authed_client(manager_user)
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.http import Http404
+from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.filters import OrderingFilter
@@ -25,7 +26,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     Permissions (IsOrgAdminOrOwnerWithAssignments):
       - Superadmin: full access
       - Staff: CRUD only for organizations under accounts assigned to them
-      - Regular users: only orgs they created; no global list/create
+      - Account owners/admins: list + CRUD for organizations inside their own accounts
     """
     permission_classes = [IsOrgAdminOrOwnerWithAssignments]
     pagination_class = StandardPagination
@@ -52,7 +53,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 return qs.none()
             return qs.filter(account_id__in=assigned)
 
-        return qs.filter(created_by_id=user.id)
+        return qs.filter(
+            Q(created_by_id=user.id) | Q(account__created_by_id=user.id)
+        ).distinct()
 
     def get_serializer_class(self):
         if self.action == "create":

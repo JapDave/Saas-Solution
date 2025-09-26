@@ -1,4 +1,5 @@
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import ValidationError
 
 class StandardPagination(PageNumberPagination):
     page_size = 10
@@ -7,12 +8,14 @@ class StandardPagination(PageNumberPagination):
 
     # make absolutely sure '?page_size=' is honored
     def get_page_size(self, request):
+        raw = request.query_params.get(self.page_size_query_param)
+        if raw is None:
+            return self.page_size
         try:
-            raw = request.query_params.get(self.page_size_query_param)
-            if raw is not None:
-                val = int(raw)
-                if val > 0:
-                    return min(val, self.max_page_size)
-        except Exception:
-            pass
-        return self.page_size
+            val = int(raw)
+        except (TypeError, ValueError):
+            raise ValidationError({self.page_size_query_param: f"Must be an integer between 1 and {self.max_page_size}."})
+        if val <= 0 or val > self.max_page_size:
+            raise ValidationError({self.page_size_query_param: f"Must be between 1 and {self.max_page_size}."})
+        return val
+

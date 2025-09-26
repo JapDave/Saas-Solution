@@ -1,0 +1,12 @@
+Outstanding Organization Requirements (pending subscription & ownership work)
+
+- REQ-ORG-004: Deactivate Organization – needs subscription-state validation and admin override before toggling `is_active`.
+- REQ-ORG-005: Delete Organization – must block when active subscriptions exist and return subscription details.
+- REQ-ORG-007: Assign Organization Owner – endpoint/service missing to promote a member to owner with membership checks.
+- REQ-ORG-008: Transfer Organization Ownership – workflow for current owner to hand off ownership not implemented.
+- Permission keys (organization:create/read/update/delete/list/assign_owner) not surfaced; rely on DRF classes. Implement once user-management module lands for consistent enforcement.
+
+- No audit coverage for permission changes / ownership transfers until those endpoints exist.
+Reminder: address these once the subscriptions, user-management, and role-management modules are ready, then update permissions/views/tests accordingly.
+
+

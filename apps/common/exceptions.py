@@ -101,7 +101,7 @@ class InvalidOrganizationData(CodedAPIException, ValidationError):
 
 
 class OrganizationNameExists(CodedAPIException):
-    status_code = 400
+    status_code = 409
     default_code = ORGANIZATION_NAME_EXISTS
     default_detail = "Organization name already exists in the account"
 

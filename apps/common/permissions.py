@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Iterable, Set, Any
 
 from rest_framework.permissions import BasePermission, SAFE_METHODS
+from apps.accounts.models import Account
 
 
 # ------------------------------------------------------------
@@ -47,6 +48,13 @@ def get_assigned_account_ids(user) -> Set[int]:
             except Exception:
                 continue
     return set()
+
+
+def _user_owns_account(user, account_id: int) -> bool:
+    try:
+        return Account.objects.filter(id=account_id, created_by_id=getattr(user, 'id', None)).exists()
+    except Exception:
+        return False
 
 
 # ------------------------------------------------------------
@@ -113,17 +121,17 @@ class IsOrgAdminOrOwnerWithAssignments(BasePermission):
           * May list organizations of accounts ASSIGNED to them
           * May create/update/patch/destroy organizations ONLY when the org's account
             is assigned to them
-      - Regular users:
-          * No global list/create
-          * May retrieve/update/patch/destroy organizations they own (created_by)
+      - Regular users (account owners/admins):
+          * May list organizations for accounts they own
+          * May create organizations only under accounts they own
+          * May retrieve/update/patch/destroy organizations they created or whose account they own
 
     Create rule detail:
-      - On POST, we verify request.data["account"] is among assigned account IDs.
-        If missing/invalid, we deny before serializer runs.
+      - On POST, staff must provide an assigned account; non-staff must provide an account they own.
 
     Object rule detail:
       - For object actions, staff must have the organization's account assigned.
-      - Regular users must be owner (created_by).
+      - Regular users must own the organization or its parent account.
     """
 
     def has_permission(self, request, view):
@@ -152,8 +160,15 @@ class IsOrgAdminOrOwnerWithAssignments(BasePermission):
             return action in {"retrieve", "update", "partial_update", "destroy"}
 
         # Regular users (non-staff, non-admin)
-        if action in {"list", "create"}:
-            return False
+        if action == "list":
+            return True
+        if action == "create":
+            account_id = request.data.get("account")
+            try:
+                account_id = int(account_id)
+            except Exception:
+                return False
+            return _user_owns_account(user, account_id)
         return action in {"retrieve", "update", "partial_update", "destroy"}
 
     def has_object_permission(self, request, view, obj):
@@ -166,5 +181,12 @@ class IsOrgAdminOrOwnerWithAssignments(BasePermission):
             account_id = getattr(getattr(obj, "account", None), "id", None)
             return account_id in get_assigned_account_ids(user)
 
-        # Regular users: must be owner
-        return getattr(obj, "created_by_id", None) == getattr(user, "id", None)
+        # Regular users: must own the object or its parent account
+        if getattr(obj, "created_by_id", None) == getattr(user, "id", None):
+            return True
+        account = getattr(obj, "account", None)
+        account_owner_id = getattr(account, "created_by_id", None)
+        if account_owner_id is not None:
+            return account_owner_id == getattr(user, "id", None)
+        account_id = getattr(account, "id", None) if account is not None else getattr(obj, "account_id", None)
+        return _user_owns_account(user, account_id)

@@ -53,18 +53,33 @@ def test_staff_no_assignments(manager_client_with_no_assignments, acc_a):
 
 
 @pytest.mark.django_db
-def test_user_owner_update(regular_client, org_owned_by_user, acc_a):
-    # user cannot list/create
+def test_account_owner_scope(regular_client, acc_owned_by_user, org_owned_by_user, acc_a, org_a):
     url = reverse("organizations-list")
+
+    # list is limited to orgs under accounts the user owns
     r = regular_client.get(url)
-    assert r.status_code == 403 and r.json().get("code") == "INSUFFICIENT_PERMISSIONS"
-    r = regular_client.post(url, {"account": acc_a.id, "name": "UHQ"}, format="json")
+    assert r.status_code == 200
+    ids = {item["id"] for item in r.json()["results"]}
+    assert org_owned_by_user.id in ids
+    assert org_a.id not in ids
+
+    # can create under own account
+    r = regular_client.post(url, {"account": acc_owned_by_user.id, "name": "UHQ"}, format="json")
+    assert r.status_code == 201
+
+    # cannot create under someone else's account
+    r = regular_client.post(url, {"account": acc_a.id, "name": "Nope"}, format="json")
     assert r.status_code == 403 and r.json().get("code") == "INSUFFICIENT_PERMISSIONS"
 
-    # can patch own org
-    u = reverse("organizations-detail", kwargs={"uuid": str(org_owned_by_user.uuid)})
-    r = regular_client.patch(u, {"description": "mine"}, format="json")
+    # can patch org inside an owned account
+    detail_url = reverse("organizations-detail", kwargs={"uuid": str(org_owned_by_user.uuid)})
+    r = regular_client.patch(detail_url, {"description": "mine"}, format="json")
     assert r.status_code == 200 and r.json()["description"] == "mine"
+
+    # org from other account is out of scope
+    other_detail = reverse("organizations-detail", kwargs={"uuid": str(org_a.uuid)})
+    r = regular_client.patch(other_detail, {"description": "nope"}, format="json")
+    assert r.status_code == 404 and r.json().get("code") == "ORGANIZATION_NOT_FOUND"
 
 
 # ---------------- Create ----------------
@@ -108,7 +123,7 @@ def test_create_uniques_per_account(admin_client, acc_a, acc_b):
 
     # duplicate in same account (case-insensitive)
     r = admin_client.post(url, {"account": acc_a.id, "name": "north"}, format="json")
-    assert r.status_code == 400 and r.json().get("code") in {"ORGANIZATION_NAME_EXISTS", "INVALID_ORGANIZATION_DATA"}
+    assert r.status_code == 409 and r.json().get("code") == "ORGANIZATION_NAME_EXISTS"
 
     # same name in different account ok
     r = admin_client.post(url, {"account": acc_b.id, "name": "north"}, format="json")
@@ -129,6 +144,10 @@ def test_list_and_filters(admin_client, org_a, org_b, org_c_in_b):
     assert admin_client.get(url + "?ordering=name").status_code == 200
     assert admin_client.get(url + "?is_active=true").status_code == 200
     assert admin_client.get(url + f"?account={org_a.account_id}").status_code == 200
+    bad = admin_client.get(url + "?page_size=-1")
+    payload = bad.json()
+    assert bad.status_code == 400 and "page_size" in payload.get("errors", {})
+
 
 
 @pytest.mark.django_db
@@ -168,7 +187,7 @@ def test_update_dup(admin_client, org_a, org_b):
         "is_active": True,
     }
     r = admin_client.put(url, payload, format="json")
-    assert r.status_code == 400 and r.json().get("code") in {"ORGANIZATION_NAME_EXISTS", "INVALID_ORGANIZATION_DATA"}
+    assert r.status_code == 409 and r.json().get("code") == "ORGANIZATION_NAME_EXISTS"
 
 
 @pytest.mark.django_db
