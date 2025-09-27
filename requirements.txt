@@ -13,3 +13,5 @@ python-dotenv==1.0.1
 
 django-cors-headers==4.9.0
 gunicorn==22.0.0
+
+django-soft-delete==1.0.21
