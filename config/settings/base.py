@@ -11,19 +11,15 @@ DEBUG = os.getenv("DEBUG", "0") == "1"
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h.strip()]
 
-# --- System email allow-list for privileged users/roles ---
-SYSTEM_EMAIL_DOMAINS = {
-    d.strip().lower()
-    for d in os.getenv("SYSTEM_EMAIL_DOMAINS", "hudhud.ai").split(",")
-    if d.strip()
-}
-
-
 # -------------------------------------------------------------------
 # Applications
 # -------------------------------------------------------------------
 INSTALLED_APPS = [
     # Django
+    "apps.users",
+    "apps.common",
+    "apps.accounts",
+    "apps.organizations",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -34,16 +30,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "django_filters",
     "drf_spectacular",
-    "corsheaders",
-    # Project apps (use full dotted paths under apps/*)
-    "apps.common",
-    "apps.accounts",
-    "apps.organizations",
-    "apps.users",
-    "apps.roles",
-    "apps.subscriptions",
-    "apps.teams",
-    "apps.files",
+    "corsheaders",   
 ]
 
 AUTH_USER_MODEL = "users.User"  # will work once you wire your custom user
@@ -60,6 +47,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "apps.common.middlewares.audit.AuditLogMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -122,32 +110,36 @@ TEMPLATES = [
 # REST / Auth / OpenAPI
 # -------------------------------------------------------------------
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
+    "EXCEPTION_HANDLER": "apps.common.exception_handler.exception_handler",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 25,
-}
-
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=int(os.getenv("JWT_ACCESS_MIN", "60"))),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=int(os.getenv("JWT_REFRESH_DAYS", "1"))),
-    "AUTH_HEADER_TYPES": ("Bearer",),
-    "SIGNING_KEY": os.getenv("JWT_SIGNING_KEY", SECRET_KEY),
+    "DEFAULT_THROTTLE_CLASSES": ["apps.common.throttling.DynamicScopedRateThrottle"],
+    "PAGE_SIZE": 10,
+    # allow ?page_size=... in requests (used by the test)
+    "PAGE_SIZE_QUERY_PARAM": "page_size",
+    # optional: cap max
+    "MAX_PAGE_SIZE": 100,
+    "DEFAULT_FILTER_BACKENDS": (
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.OrderingFilter",
+    ),
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "HudHud API",
-    "DESCRIPTION": "Accounts, Orgs, Users, Roles, Subscriptions, Teams, Files",
-    "VERSION": "1.0.0",
+    "TITLE":"Huhud Rest Api Backend",
+    "DESCRIPTION":"Accounts/Orgs/Users/Teams/Subscriptions",
+    "VERSION":"1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+}
 # -------------------------------------------------------------------
 # Static / Media / Storages
 # -------------------------------------------------------------------

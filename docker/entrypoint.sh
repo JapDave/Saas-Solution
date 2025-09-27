@@ -5,32 +5,46 @@ host="${DB_HOST:-db}"
 port="${DB_PORT:-5432}"
 
 echo "Waiting for Postgres at ${host}:${port}..."
-for i in {1..60}; do
-  nc -z "${host}" "${port}" && break || sleep 1
+for _ in {1..60}; do
+  if nc -z "${host}" "${port}" >/dev/null 2>&1; then
+    echo "Postgres is up."
+    break
+  fi
+  sleep 1
 done
 
+# Make migrations (usually dev-only; safe no-op if none)
+python manage.py makemigrations accounts users organizations common || true
+
+# Apply migrations
 python manage.py migrate --noinput
 
-# Create superuser if requested (idempotent)
-if [ "${DJANGO_SUPERUSER_USERNAME:-}" ]; then
-python <<'PY'
-import os
-import django
+# Create superuser only if env is provided
+if [ -n "${DJANGO_SUPERUSER_EMAIL:-}" ]; then
+  export DJANGO_SUPERUSER_PASSWORD="${DJANGO_SUPERUSER_PASSWORD:-admin123}"
+
+  python <<'PY'
+import os, sys, django
 django.setup()
 from django.contrib.auth import get_user_model
+
 User = get_user_model()
-username = os.environ["DJANGO_SUPERUSER_USERNAME"]
-email = os.environ.get("DJANGO_SUPERUSER_EMAIL","admin@example.com")
-password = os.environ.get("DJANGO_SUPERUSER_PASSWORD","admin123")
-u, created = User.objects.get_or_create(username=username, defaults={"email": email, "is_staff": True, "is_superuser": True})
-if created:
-    u.set_password(password); u.save(); print("Superuser created.")
-else:
-    print("Superuser exists.")
+email = os.environ["DJANGO_SUPERUSER_EMAIL"].strip()
+password = os.environ.get("DJANGO_SUPERUSER_PASSWORD", "admin123")
+
+try:
+    if User.objects.filter(email__iexact=email).exists():
+        print("Superuser already exists; nothing to do.")
+    else:
+        User.objects.create_superuser(email=email, password=password)
+        print("Superuser created.")
+except Exception as e:
+    print(f"[ENTRYPOINT] Failed to create superuser {email}: {e}", file=sys.stderr)
+    sys.exit(1)
 PY
 fi
 
-# Collect static (safe even in dev; no-op if none)
+# Collect static (no-op if none)
 python manage.py collectstatic --noinput || true
 
 # Run dev server if DEBUG=1, else gunicorn
