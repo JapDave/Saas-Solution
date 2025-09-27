@@ -5,19 +5,13 @@ import uuid
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-# Third party lib
-from safedelete.models import SafeDeleteModel
-from safedelete.models import SOFT_DELETE
-
 # Project imports
-from apps.common.models import UserDateAbstract
+from apps.common.models import BaseModel
 
-class Subscription(UserDateAbstract, SafeDeleteModel):
+class Subscription(BaseModel):
     """
     Represents a subscription of an organization to a specific module.
     """
-    _safedelete_policy = SOFT_DELETE
-
     class Status(models.TextChoices):
         ACTIVE = "active", _("Active")
         EXPIRED = "expired", _("Expired")

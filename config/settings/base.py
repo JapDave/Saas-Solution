@@ -14,24 +14,30 @@ ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "*").split(",") i
 # -------------------------------------------------------------------
 # Applications
 # -------------------------------------------------------------------
-INSTALLED_APPS = [
-    # Django
-    "apps.users",
-    "apps.common",
-    "apps.accounts",
-    "apps.organizations",
+DJANGO_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    # 3rd party
+]
+THIRD_PARTY_APPS = [
     "rest_framework",
     "django_filters",
     "drf_spectacular",
-    "corsheaders",   
+    "corsheaders",
 ]
+LOCAL_APPS = [
+    "apps.users",
+    "apps.common",
+    "apps.accounts",
+    "apps.organizations",
+    "apps.subscriptions",
+    "apps.products",
+]
+
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 AUTH_USER_MODEL = "users.User"  # will work once you wire your custom user
 
