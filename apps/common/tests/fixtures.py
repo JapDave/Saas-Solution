@@ -1,11 +1,9 @@
 import pytest
-from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from apps.accounts.models import Account
-from apps.organizations.models import Organization
-
-User = get_user_model()
+from apps.accounts.tests.factories import AccountFactory
+from apps.organizations.tests.factories import OrganizationFactory
+from apps.users.tests.factories import UserFactory, StaffUserFactory, SuperUserFactory
 
 
 # ---------------------------------------------------------------------------
@@ -14,11 +12,7 @@ User = get_user_model()
 
 @pytest.fixture(autouse=True)
 def _allow_staff_domains(settings):
-    """
-    Your User model restricts staff/superuser emails to certain domains.
-    Keep tests stable by allowing a small set; adjust names if your code
-    reads a single canonical setting.
-    """
+    """Ensure staff/superuser email domain checks never fail in tests."""
     allowed = ["hudhud.ai", "example.com", "test.com", "local.test"]
     settings.ALLOWED_STAFF_EMAIL_DOMAINS = allowed
     settings.ALLOWED_SYSTEM_EMAIL_DOMAINS = allowed
@@ -36,44 +30,31 @@ def api_client():
 
 
 def _authed_client(user):
-    c = APIClient()
-    c.force_authenticate(user=user)
-    return c
+    client = APIClient()
+    client.force_authenticate(user=user)
+    return client
 
 
 # ---------------------------------------------------------------------------
 # Users / Roles
 # ---------------------------------------------------------------------------
 
-def _make_user(email, *, is_superuser=False, is_staff=False, password="pass1234", **extra):
-    return User.objects.create_user(
-        email=email,
-        password=password,
-        is_superuser=is_superuser,
-        is_staff=is_staff,
-        **extra,
-    )
-
-
 @pytest.fixture
 @pytest.mark.django_db
 def superadmin_user():
-    # System SuperAdmin — full power
-    return _make_user("superadmin@hudhud.ai", is_superuser=True, is_staff=True)
+    return SuperUserFactory(email="superadmin@hudhud.ai")
 
 
 @pytest.fixture
 @pytest.mark.django_db
 def manager_user():
-    # Manager — privileged but not superuser
-    return _make_user("manager@hudhud.ai", is_superuser=False, is_staff=True)
+    return StaffUserFactory(email="manager@hudhud.ai")
 
 
 @pytest.fixture
 @pytest.mark.django_db
 def regular_user():
-    # Regular end-user — no staff/superuser flags
-    return _make_user("user@example.com", is_superuser=False, is_staff=False)
+    return UserFactory(email="user@example.com")
 
 
 # Clients for each role
@@ -84,6 +65,8 @@ def superadmin_client(superadmin_user):
 
 @pytest.fixture
 def manager_client(manager_user):
+    from apps.accounts.models import Account
+
     manager_user.get_assigned_account_ids = lambda: list(Account.objects.values_list("id", flat=True))
     return _authed_client(manager_user)
 
@@ -119,7 +102,7 @@ def admin_client(superadmin_client):
 @pytest.fixture
 @pytest.mark.django_db
 def acc_a(admin_user):
-    return Account.objects.create(
+    return AccountFactory(
         name="Acme",
         contact_email="owner@acme.com",
         description="",
@@ -131,7 +114,7 @@ def acc_a(admin_user):
 @pytest.fixture
 @pytest.mark.django_db
 def acc_b(admin_user):
-    return Account.objects.create(
+    return AccountFactory(
         name="Beta Co",
         contact_email="ops@beta.co",
         description="",
@@ -143,7 +126,7 @@ def acc_b(admin_user):
 @pytest.fixture
 @pytest.mark.django_db
 def acc_owned_by_user(regular_user):
-    return Account.objects.create(
+    return AccountFactory(
         name="UserCo",
         contact_email="userco@example.com",
         description="",
@@ -154,51 +137,29 @@ def acc_owned_by_user(regular_user):
 
 @pytest.fixture
 @pytest.mark.django_db
-def org_a(acc_a, admin_user):
-    return Organization.objects.create(
-        account=acc_a,
-        name="Alpha",
-        description="",
-        logo_url="",
-        created_by=admin_user,
-        updated_by=admin_user,
-    )
+def org_a(acc_a):
+    return OrganizationFactory(account=acc_a, name="Alpha", description="")
 
 
 @pytest.fixture
 @pytest.mark.django_db
-def org_b(acc_a, admin_user):
-    return Organization.objects.create(
-        account=acc_a,
-        name="Bravo",
-        description="",
-        logo_url="",
-        created_by=admin_user,
-        updated_by=admin_user,
-    )
+def org_b(acc_a):
+    return OrganizationFactory(account=acc_a, name="Bravo", description="")
 
 
 @pytest.fixture
 @pytest.mark.django_db
-def org_c_in_b(acc_b, admin_user):
-    return Organization.objects.create(
-        account=acc_b,
-        name="Charlie",
-        description="",
-        logo_url="",
-        created_by=admin_user,
-        updated_by=admin_user,
-    )
+def org_c_in_b(acc_b):
+    return OrganizationFactory(account=acc_b, name="Charlie", description="")
 
 
 @pytest.fixture
 @pytest.mark.django_db
 def org_owned_by_user(acc_owned_by_user, regular_user):
-    return Organization.objects.create(
+    return OrganizationFactory(
         account=acc_owned_by_user,
         name="UserOrg",
         description="",
-        logo_url="",
         created_by=regular_user,
         updated_by=regular_user,
     )
@@ -210,10 +171,6 @@ def org_owned_by_user(acc_owned_by_user, regular_user):
 
 @pytest.fixture
 def manager_client_assigned_acc_a(manager_user, acc_a):
-    """
-    Attach a lightweight get_assigned_account_ids() to the same user instance
-    used for authentication so permissions can resolve assignments.
-    """
     manager_user.get_assigned_account_ids = lambda: [acc_a.id]
     return _authed_client(manager_user)
 
