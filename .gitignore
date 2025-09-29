@@ -28,3 +28,7 @@ docker/*/tmp/
 # Ignore all migrations EXCEPT __init__.py so packages remain valid
 **/migrations/*
 !**/migrations/__init__.py
+
+.DS_Store
+
+loc.py
