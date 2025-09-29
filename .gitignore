@@ -28,3 +28,4 @@ docker/*/tmp/
 .DS_Store
 
 loc.py
+docker/*/tmp/

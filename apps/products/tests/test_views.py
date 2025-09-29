@@ -4,8 +4,8 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 
-from .factories import ProductFactory, ModuleFactory
-from ..serializers import ProductSerializer, ModuleSerializer
+from apps.products.factories import ProductFactory, ModuleFactory
+from apps.products.serializers import ProductSerializer, ModuleSerializer
 
 User = get_user_model()
 
