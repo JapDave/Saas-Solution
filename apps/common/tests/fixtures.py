@@ -101,7 +101,7 @@ def admin_client(superadmin_client):
 
 @pytest.fixture
 @pytest.mark.django_db
-def acc_a(admin_user):
+def primary_account(admin_user):
     return AccountFactory(
         name="Acme",
         contact_email="owner@acme.com",
@@ -113,7 +113,7 @@ def acc_a(admin_user):
 
 @pytest.fixture
 @pytest.mark.django_db
-def acc_b(admin_user):
+def secondary_account(admin_user):
     return AccountFactory(
         name="Beta Co",
         contact_email="ops@beta.co",
@@ -125,7 +125,7 @@ def acc_b(admin_user):
 
 @pytest.fixture
 @pytest.mark.django_db
-def acc_owned_by_user(regular_user):
+def account_owned_by_regular_user(regular_user):
     return AccountFactory(
         name="UserCo",
         contact_email="userco@example.com",
@@ -137,27 +137,27 @@ def acc_owned_by_user(regular_user):
 
 @pytest.fixture
 @pytest.mark.django_db
-def org_a(acc_a):
-    return OrganizationFactory(account=acc_a, name="Alpha", description="")
+def primary_account_alpha_organization(primary_account):
+    return OrganizationFactory(account=primary_account, name="Alpha", description="")
 
 
 @pytest.fixture
 @pytest.mark.django_db
-def org_b(acc_a):
-    return OrganizationFactory(account=acc_a, name="Bravo", description="")
+def primary_account_bravo_organization(primary_account):
+    return OrganizationFactory(account=primary_account, name="Bravo", description="")
 
 
 @pytest.fixture
 @pytest.mark.django_db
-def org_c_in_b(acc_b):
-    return OrganizationFactory(account=acc_b, name="Charlie", description="")
+def secondary_account_charlie_organization(secondary_account):
+    return OrganizationFactory(account=secondary_account, name="Charlie", description="")
 
 
 @pytest.fixture
 @pytest.mark.django_db
-def org_owned_by_user(acc_owned_by_user, regular_user):
+def organization_owned_by_regular_user(account_owned_by_regular_user, regular_user):
     return OrganizationFactory(
-        account=acc_owned_by_user,
+        account=account_owned_by_regular_user,
         name="UserOrg",
         description="",
         created_by=regular_user,
@@ -170,8 +170,8 @@ def org_owned_by_user(acc_owned_by_user, regular_user):
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-def manager_client_assigned_acc_a(manager_user, acc_a):
-    manager_user.get_assigned_account_ids = lambda: [acc_a.id]
+def manager_client_assigned_to_primary_account(manager_user, primary_account):
+    manager_user.get_assigned_account_ids = lambda: [primary_account.id]
     return _authed_client(manager_user)
 
 

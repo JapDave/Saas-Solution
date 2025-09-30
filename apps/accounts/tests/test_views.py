@@ -8,12 +8,12 @@ from django.urls import reverse
 class TestAccountPermissions:
     """Permissions and ownership scenarios for account endpoints."""
 
-    def test_staff_view(self, manager_client, acc_a, acc_b):
+    def test_staff_view(self, manager_client, primary_account, secondary_account):
         url = reverse("accounts-list")
         response = manager_client.get(url)
         assert response.status_code == 200
 
-        detail_url = reverse("accounts-detail", kwargs={"uuid": str(acc_a.uuid)})
+        detail_url = reverse("accounts-detail", kwargs={"uuid": str(primary_account.uuid)})
         detail_response = manager_client.get(detail_url)
         assert detail_response.status_code == 200
 
@@ -40,7 +40,7 @@ class TestAccountPermissions:
         assert delete_response.status_code == 403
         assert delete_response.json().get("code") == "INSUFFICIENT_PERMISSIONS"
 
-    def test_user_owner_update(self, regular_client, acc_owned_by_user):
+    def test_user_owner_update(self, regular_client, account_owned_by_regular_user):
         list_url = reverse("accounts-list")
 
         list_response = regular_client.get(list_url)
@@ -52,7 +52,7 @@ class TestAccountPermissions:
         assert create_response.status_code == 403
         assert create_response.json().get("code") == "INSUFFICIENT_PERMISSIONS"
 
-        detail_url = reverse("accounts-detail", kwargs={"uuid": str(acc_owned_by_user.uuid)})
+        detail_url = reverse("accounts-detail", kwargs={"uuid": str(account_owned_by_regular_user.uuid)})
         patch_response = regular_client.patch(detail_url, {"description": "mine"}, format="json")
         assert patch_response.status_code == 200
         assert patch_response.json()["description"] == "mine"
@@ -117,29 +117,29 @@ class TestAccountCreate:
 class TestAccountRead:
     """Listing and retrieval behaviour for accounts."""
 
-    def test_list(self, admin_client, acc_a, acc_b):
+    def test_list(self, admin_client, primary_account, secondary_account):
         url = reverse("accounts-list")
         response = admin_client.get(url)
         assert response.status_code == 200
         ids = {item["id"] for item in response.json()["results"]}
-        assert acc_a.id in ids and acc_b.id in ids
+        assert primary_account.id in ids and secondary_account.id in ids
 
         assert admin_client.get(url + "?ordering=name").status_code == 200
         assert admin_client.get(url + "?is_active=true").status_code == 200
 
-    def test_get(self, admin_client, acc_a):
-        url = reverse("accounts-detail", kwargs={"uuid": str(acc_a.uuid)})
+    def test_get(self, admin_client, primary_account):
+        url = reverse("accounts-detail", kwargs={"uuid": str(primary_account.uuid)})
         response = admin_client.get(url)
         assert response.status_code == 200
-        assert response.json()["id"] == acc_a.id
+        assert response.json()["id"] == primary_account.id
 
 
 @pytest.mark.django_db
 class TestAccountUpdateDelete:
     """Update, partial update, and deletion scenarios."""
 
-    def test_update_ok(self, admin_client, acc_a):
-        url = reverse("accounts-detail", kwargs={"uuid": str(acc_a.uuid)})
+    def test_update_ok(self, admin_client, primary_account):
+        url = reverse("accounts-detail", kwargs={"uuid": str(primary_account.uuid)})
         payload = {
             "name": "Acme Updated",
             "description": "updated",
@@ -153,20 +153,20 @@ class TestAccountUpdateDelete:
         assert body["description"] == "updated"
         assert body["is_active"] is True
 
-    def test_update_dup(self, admin_client, acc_a, acc_b):
-        url = reverse("accounts-detail", kwargs={"uuid": str(acc_b.uuid)})
+    def test_update_dup(self, admin_client, primary_account, secondary_account):
+        url = reverse("accounts-detail", kwargs={"uuid": str(secondary_account.uuid)})
         payload = {
-            "name": acc_a.name,
-            "description": acc_b.description or "",
-            "contact_email": acc_b.contact_email,
+            "name": primary_account.name,
+            "description": secondary_account.description or "",
+            "contact_email": secondary_account.contact_email,
             "is_active": True,
         }
         response = admin_client.put(url, payload, format="json")
         assert response.status_code == 400
         assert response.json().get("code") in {"ACCOUNT_NAME_EXISTS", "INVALID_ACCOUNT_DATA"}
 
-    def test_patch_validation(self, admin_client, acc_a):
-        url = reverse("accounts-detail", kwargs={"uuid": str(acc_a.uuid)})
+    def test_patch_validation(self, admin_client, primary_account):
+        url = reverse("accounts-detail", kwargs={"uuid": str(primary_account.uuid)})
         invalid = admin_client.patch(url, {"name": 123}, format="json")
         data = invalid.json()
         assert invalid.status_code == 400
@@ -187,8 +187,8 @@ class TestAccountUpdateDelete:
         assert response.status_code == 404
         assert response.json().get("code") == "ACCOUNT_NOT_FOUND"
 
-    def test_delete(self, admin_client, acc_a):
-        url = reverse("accounts-detail", kwargs={"uuid": str(acc_a.uuid)})
+    def test_delete(self, admin_client, primary_account):
+        url = reverse("accounts-detail", kwargs={"uuid": str(primary_account.uuid)})
         assert admin_client.delete(url).status_code == 204
 
         follow_up = admin_client.get(url)
