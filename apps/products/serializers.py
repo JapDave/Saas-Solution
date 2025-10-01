@@ -10,6 +10,7 @@ class ModuleSerializer(serializers.ModelSerializer):
         model = Module
         fields = [
             "id",
+            "uuid",
             "key",
             "code",
             "name",
@@ -25,11 +26,13 @@ class ModuleSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     """Serializer for the Product model."""
+    available_module_keys = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = [
             "id",
+            "uuid",
             "key",
             "name",
             "description",
@@ -40,3 +43,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def get_available_module_keys(self, obj):
+        "Return object's related module keys "
+        return obj.modules.values_list("key", flat=True).distinct()
