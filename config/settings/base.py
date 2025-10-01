@@ -33,6 +33,7 @@ LOCAL_APPS = [
     "apps.common",
     "apps.accounts",
     "apps.organizations",
+    "apps.teams",
     "apps.products",
     "apps.subscriptions",
 ]

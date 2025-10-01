@@ -24,3 +24,5 @@ htmlcov/
 # Docker artifacts
 *.log
 docker/*/tmp/
+
+Business-Requirements/

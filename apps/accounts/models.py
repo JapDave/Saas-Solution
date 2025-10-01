@@ -1,17 +1,19 @@
 # apps/accounts/models.py
 from __future__ import annotations
 from django.db import models
-from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.db.models.functions import Lower
 
 from apps.common.models import BaseModel
 
 class AccountQuerySet(models.QuerySet):
+    """Custom queryset with helpers that ignore soft-deleted accounts."""
     def alive(self):
+        """Return only accounts that have not been soft deleted."""
         return self.filter(deleted_at__isnull=True)
 
     def search(self, q: str | None):
+        """Filter accounts by a case-insensitive match on name or contact email."""
         if not q:
             return self
         return self.filter(
@@ -20,6 +22,7 @@ class AccountQuerySet(models.QuerySet):
         )
 
 class AccountManager(models.Manager.from_queryset(AccountQuerySet)):
+    """Default manager that hides soft-deleted accounts from queries."""
     def get_queryset(self):
         # hide soft-deleted rows by default
         return super().get_queryset().alive()

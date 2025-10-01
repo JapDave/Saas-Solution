@@ -27,9 +27,9 @@ from .serializers import (
     UserUpdateSerializer,
 )
 from .services import (
-    actor_accessible_account_ids,
-    actor_accessible_organization_ids,
-    assert_actor_can_manage_user,
+    get_user_accessible_account_ids,
+    get_user_accessible_organization_ids,
+    ensure_user_can_manage_user,
     ensure_user_not_owner_for_deactivate,
     ensure_user_not_owner_for_delete,
 )
@@ -56,8 +56,8 @@ class UserViewSet(viewsets.ModelViewSet):
             return qs.none()
         if user.is_superuser:
             return qs
-        account_ids = actor_accessible_account_ids(user)
-        organization_ids = actor_accessible_organization_ids(user)
+        account_ids = get_user_accessible_account_ids(user)
+        organization_ids = get_user_accessible_organization_ids(user)
         filters = Q(id=user.id)
         if account_ids:
             filters |= Q(memberships__organization__account_id__in=account_ids)
@@ -87,9 +87,9 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         target = self.get_object()
-        actor = request.user
-        allow_self = actor.id == target.id
-        assert_actor_can_manage_user(actor, target, require_permission="user:update", allow_self=allow_self)
+        request_user = request.user
+        allow_self = request_user.id == target.id
+        ensure_user_can_manage_user(request_user, target, require_permission="user:update", allow_self=allow_self)
         serializer = self.get_serializer(target, data=request.data, partial=True, context={"request": request})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -102,7 +102,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         target = self.get_object()
         ensure_user_not_owner_for_delete(target)
-        assert_actor_can_manage_user(request.user, target, require_permission="user:delete")
+        ensure_user_can_manage_user(request.user, target, require_permission="user:delete")
         target.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -112,17 +112,17 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = UserStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         is_active = serializer.validated_data["is_active"]
-        actor = request.user
-        assert_actor_can_manage_user(actor, target, require_permission="user:deactivate", allow_self=False)
+        request_user = request.user
+        ensure_user_can_manage_user(request_user, target, require_permission="user:deactivate", allow_self=False)
         if not is_active:
             ensure_user_not_owner_for_deactivate(target)
         with transaction.atomic():
             previous_state = target.is_active
             target.is_active = is_active
-            target.updated_by = actor
+            target.updated_by = request_user
             target.save(update_fields=["is_active", "updated_by", "updated_at"])
             AuditLog.objects.create(
-                user=actor,
+                user=request_user,
                 method=request.method,
                 path=request.path,
                 view="UserViewSet.status_change",
@@ -140,7 +140,7 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="memberships")
     def add_membership(self, request, uuid=None):
         target = self.get_object()
-        assert_actor_can_manage_user(request.user, target, require_permission="user:manage_membership")
+        ensure_user_can_manage_user(request.user, target, require_permission="user:manage_membership")
         serializer = MembershipMutationSerializer(
             data=request.data,
             context={"request": request, "user": target},
@@ -153,7 +153,7 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["delete"], url_path="memberships/(?P<organization_id>[^/]+)")
     def remove_membership(self, request, uuid=None, organization_id=None):
         target = self.get_object()
-        assert_actor_can_manage_user(request.user, target, require_permission="user:manage_membership")
+        ensure_user_can_manage_user(request.user, target, require_permission="user:manage_membership")
         serializer = MembershipRemovalSerializer(
             data={"organization": organization_id},
             context={"request": request, "user": target},

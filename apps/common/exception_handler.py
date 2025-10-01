@@ -33,6 +33,11 @@ DEFAULT_DOMAIN_MAP: dict[str, DomainConf] = {
         "invalid": "INVALID_ORGANIZATION_DATA",
         "prefixes": ["apps.organizations.", "apps.organization."],
     },
+    "teams": {
+        "not_found": "TEAM_NOT_FOUND",
+        "invalid": "INVALID_TEAM_DATA",
+        "prefixes": ["apps.teams."],
+    },
 }
 
 

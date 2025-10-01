@@ -140,6 +140,44 @@ class InvalidLogoUrl(CodedAPIException):
     status_code = 400
     default_code = INVALID_LOGO_URL
     default_detail = "Logo URL is invalid or inaccessible"
+# ---- Team codes ----------------------------------------------------------
+TEAM_NOT_FOUND = "TEAM_NOT_FOUND"
+TEAM_NAME_EXISTS = "TEAM_NAME_EXISTS"
+INVALID_TEAM_DATA = "INVALID_TEAM_DATA"
+TEAM_SIZE_LIMIT_EXCEEDED = "TEAM_SIZE_LIMIT_EXCEEDED"
+SUBSCRIPTION_LIMIT_EXCEEDED = "SUBSCRIPTION_LIMIT_EXCEEDED"
+
+
+class TeamNotFound(CodedAPIException, NotFound):
+    status_code = 404
+    default_code = TEAM_NOT_FOUND
+    default_detail = "Team does not exist or has been deleted"
+
+
+class InvalidTeamData(CodedAPIException, ValidationError):
+    status_code = 400
+    default_code = INVALID_TEAM_DATA
+    default_detail = "Team data validation failed"
+
+
+class TeamNameExists(CodedAPIException):
+    status_code = 409
+    default_code = TEAM_NAME_EXISTS
+    default_detail = "Team name already exists within the organization"
+
+
+class TeamSizeLimitExceeded(CodedAPIException):
+    status_code = 400
+    default_code = TEAM_SIZE_LIMIT_EXCEEDED
+    default_detail = "Team size exceeds subscription limits"
+
+
+class SubscriptionLimitExceeded(CodedAPIException):
+    status_code = 409
+    default_code = SUBSCRIPTION_LIMIT_EXCEEDED
+    default_detail = "Organization subscription limits prevent this operation"
+
+
 # ---- Users --------------------------------------------------------------
 USER_NOT_FOUND = "USER_NOT_FOUND"
 EMAIL_ALREADY_EXISTS = "EMAIL_ALREADY_EXISTS"

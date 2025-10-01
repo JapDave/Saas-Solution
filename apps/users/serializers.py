@@ -16,7 +16,7 @@ from apps.common.exceptions import (
 from apps.organizations.models import Organization
 
 from .models import UserOrganization
-from .services import assert_actor_can_manage_organization
+from .services import ensure_user_can_manage_organization
 
 User = get_user_model()
 
@@ -63,7 +63,7 @@ class MembershipInputSerializer(serializers.Serializer):
 
 
 class UserReadSerializer(serializers.ModelSerializer):
-    memberships = MembershipSerializer(many=True, read_only=True, source="memberships")
+    memberships = MembershipSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
@@ -115,9 +115,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
         if not value:
             raise InvalidUserData(detail="User must be assigned to at least one organization.")
         request = self.context.get("request")
-        actor = getattr(request, "user", None)
-        if actor is None:
-            raise InvalidUserData(detail="Actor context required.")
+        request_user = getattr(request, "user", None)
+        if request_user is None:
+            raise InvalidUserData(detail="request_user context required.")
         seen_orgs = set()
         for item in value:
             organization = item.get("organization")
@@ -126,14 +126,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
             if organization.id in seen_orgs:
                 raise InvalidUserData(detail="Duplicate organization entries are not allowed.")
             seen_orgs.add(organization.id)
-            assert_actor_can_manage_organization(actor, organization, permission_key="user:create")
+            ensure_user_can_manage_organization(request_user, organization, permission_key="user:create")
         return value
 
     def create(self, validated_data: Dict[str, Any]) -> User:
         memberships = validated_data.pop("memberships", [])
         password = validated_data.pop("password")
         request = self.context.get("request")
-        actor = getattr(request, "user", None)
+        request_user = getattr(request, "user", None)
         with transaction.atomic():
             try:
                 user = User.objects.create_user(**validated_data)
@@ -141,8 +141,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 if "email" in str(exc).lower():
                     raise EmailAlreadyExists()
                 raise InvalidUserData(detail="Unable to create user.") from exc
-            user.created_by = actor
-            user.updated_by = actor
+            user.created_by = request_user
+            user.updated_by = request_user
             user.set_password(password)
             user.save(update_fields=["password", "created_by", "updated_by", "updated_at"])
 
@@ -152,7 +152,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 membership_instance = UserOrganization(
                     user=user,
                     organization=organization,
-                    assigned_by=actor,
+                    assigned_by=request_user,
                     permission_keys=permissions,
                 )
                 try:
@@ -174,10 +174,10 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance: User, validated_data: Dict[str, Any]) -> User:
         request = self.context.get("request")
-        actor = getattr(request, "user", None)
+        request_user = getattr(request, "user", None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        instance.updated_by = actor
+        instance.updated_by = request_user
         try:
             instance.full_clean()
         except ValidationError as exc:  # type: ignore[name-defined]
@@ -196,14 +196,14 @@ class MembershipMutationSerializer(serializers.Serializer):
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         request = self.context.get("request")
-        actor = getattr(request, "user", None)
+        request_user = getattr(request, "user", None)
         organization = attrs["organization"]
-        assert_actor_can_manage_organization(actor, organization, permission_key="user:manage_membership")
+        ensure_user_can_manage_organization(request_user, organization, permission_key="user:manage_membership")
         return attrs
 
     def create(self, validated_data: Dict[str, Any]) -> UserOrganization:
         request = self.context.get("request")
-        actor = getattr(request, "user", None)
+        request_user = getattr(request, "user", None)
         user: User = self.context["user"]
         organization = validated_data["organization"]
         permissions = list({perm.strip() for perm in validated_data.get("permissions", []) if perm.strip()})
@@ -212,7 +212,7 @@ class MembershipMutationSerializer(serializers.Serializer):
         membership = UserOrganization(
             user=user,
             organization=organization,
-            assigned_by=actor,
+            assigned_by=request_user,
             permission_keys=permissions,
         )
         try:
@@ -228,9 +228,9 @@ class MembershipRemovalSerializer(serializers.Serializer):
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         request = self.context.get("request")
-        actor = getattr(request, "user", None)
+        request_user = getattr(request, "user", None)
         organization = attrs["organization"]
-        assert_actor_can_manage_organization(actor, organization, permission_key="user:manage_membership")
+        ensure_user_can_manage_organization(request_user, organization, permission_key="user:manage_membership")
         return attrs
 
     def remove(self) -> None:
