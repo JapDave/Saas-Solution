@@ -1,7 +1,9 @@
 from __future__ import annotations
-from typing import Iterable, Set, Any
+
+from typing import Any, Iterable, Set
 
 from rest_framework.permissions import BasePermission, SAFE_METHODS
+
 from apps.accounts.models import Account
 
 
@@ -9,14 +11,15 @@ from apps.accounts.models import Account
 # Helpers to resolve a user's assigned Account IDs (flexible)
 # ------------------------------------------------------------
 
-def _iter_ids(v: Any) -> Iterable[int]:
+
+def _iter_ids(value: Any) -> Iterable[int]:
+    """Normalise assorted iterable or queryset inputs into an ``Iterable[int]`` of IDs."""
+
     try:
-        # QuerySet / Manager with values_list
-        return v.values_list("id", flat=True)
+        return value.values_list("id", flat=True)  # type: ignore[attr-defined]
     except Exception:
         try:
-            # Iterable of model instances / ints
-            return (getattr(x, "id", x) for x in v)  # type: ignore[reportUnknownParameterType]
+            return (getattr(item, "id", item) for item in value)  # type: ignore[reportUnknownParameterType]
         except Exception:
             return ()
 
@@ -51,8 +54,10 @@ def get_assigned_account_ids(user) -> Set[int]:
 
 
 def _user_owns_account(user, account_id: int) -> bool:
+    """Return ``True`` when ``user`` owns the account with ``account_id``."""
+
     try:
-        return Account.objects.filter(id=account_id, created_by_id=getattr(user, 'id', None)).exists()
+        return Account.objects.filter(id=account_id, created_by_id=getattr(user, "id", None)).exists()
     except Exception:
         return False
 
@@ -60,6 +65,7 @@ def _user_owns_account(user, account_id: int) -> bool:
 # ------------------------------------------------------------
 # Accounts permission
 # ------------------------------------------------------------
+
 
 class IsAccountAdminOrOwnerViewOnlyForManager(BasePermission):
     """
@@ -112,6 +118,7 @@ class IsAccountAdminOrOwnerViewOnlyForManager(BasePermission):
 # ------------------------------------------------------------
 # Organizations permission (with account assignments)
 # ------------------------------------------------------------
+
 
 class IsOrgAdminOrOwnerWithAssignments(BasePermission):
     """
