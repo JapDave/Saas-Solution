@@ -1,13 +1,14 @@
 from django.db import IntegrityError
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema
-from rest_framework import status, viewsets
+from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError, PermissionDenied
-from rest_framework.response import Response
 
 from apps.roles.models import Role, RoleAssignment
 from apps.roles.serializers import RoleSerializer, RoleAssignmentSerializer
 from apps.organizations.models import Organization
+from apps.roles.permissions import IsSaaSAdmin
+
 
 
 @extend_schema(tags=["Roles"])
@@ -24,6 +25,7 @@ class RoleViewSet(viewsets.ModelViewSet):
     serializer_class = RoleSerializer
     queryset = Role.objects.all()
     lookup_field = "uuid"
+    permission_class = [IsSaaSAdmin]
 
     def get_queryset(self):
         """
