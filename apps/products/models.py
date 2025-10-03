@@ -21,10 +21,6 @@ class Product(BaseModel):
     key = models.CharField(_("Key"), max_length=50, unique=True)
     name = models.CharField(_("Name"), max_length=100)
     description = models.CharField(_("Description"), max_length=500)
-    available_module_keys = ArrayField(
-        models.CharField(max_length=50), size=10, default=list, blank=True,
-        verbose_name=_("Available Module Keys")
-    )
     target_segments = ArrayField(
         models.CharField(max_length=50), size=10, default=list, blank=True,
         verbose_name=_("Target Segments")
@@ -74,6 +70,10 @@ class Module(BaseModel):
         blank=True,
         default=list,
         verbose_name=_("Exposed Permissions"))
+    products = models.ManyToManyField(
+        Product,
+        related_name="modules"
+    )
 
     def __str__(self):
         return self.name

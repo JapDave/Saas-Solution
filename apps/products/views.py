@@ -24,6 +24,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Product.objects.filter(is_active=True)
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, ]
+    lookup_field = "uuid"
 
 
 class ModuleViewSet(viewsets.ReadOnlyModelViewSet):
@@ -34,6 +35,7 @@ class ModuleViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Module.objects.filter(is_active=True)
     serializer_class = ModuleSerializer
     permission_classes = [IsAuthenticated, ]
+    lookup_field = "uuid"
 
     @action(detail=True, methods=["get"], url_path="config-schema", url_name="config-schema")
     def config_schema(self, request, pk=None, *args, **kwargs):

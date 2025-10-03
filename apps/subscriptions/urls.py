@@ -6,7 +6,7 @@ from apps.subscriptions.views import (
 )
 router = DefaultRouter()
 router.register(
-    r"organizations/(?P<organization_id>\d+)/subscriptions",
+    r"organizations/(?P<organization_uuid>[^/.]+)/subscriptions",
     SubscriptionViewSet,
     basename="subscription"
 )
