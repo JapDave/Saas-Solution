@@ -12,6 +12,7 @@ from apps.common.permissions import (
     get_assigned_account_ids,
 )
 from apps.common.exceptions import AccountNotFound
+from apps.subscriptions.services import ensure_account_has_no_active_subscriptions
 
 from .models import Account
 from .serializers import AccountCreateSerializer, AccountUpdateSerializer, AccountReadSerializer
@@ -93,6 +94,7 @@ class AccountViewSet(viewsets.ModelViewSet):
             # coded 404
             raise AccountNotFound()
 
+        ensure_account_has_no_active_subscriptions(obj)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

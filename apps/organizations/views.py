@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from apps.common.exceptions import OrganizationNotFound
 from apps.common.paginations import StandardPagination
 from apps.common.permissions import IsOrgAdminOrOwnerWithAssignments, get_assigned_account_ids
+from apps.subscriptions.services import ensure_organization_has_no_active_subscriptions
 
 from .models import Organization
 from .serializers import (
@@ -96,5 +97,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         except Http404:
             raise OrganizationNotFound()
 
+        ensure_organization_has_no_active_subscriptions(obj)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
