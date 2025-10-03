@@ -2,18 +2,11 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from .models import Account
+from apps.common.serializers import CharFieldStrict
 from apps.common.exceptions import AccountNameExists, ContactEmailExists, InvalidAccountData
 from apps.subscriptions.services import ensure_account_has_no_active_subscriptions
 
-
-class CharFieldStrict(serializers.CharField):
-    """CharField variant that rejects non-string input before coercion."""
-
-    def to_internal_value(self, data):
-        if not isinstance(data, str):
-            raise serializers.ValidationError("Must be a string.")
-        return super().to_internal_value(data)
+from .models import Account
 
 
 class AccountCreateSerializer(serializers.ModelSerializer):
@@ -66,7 +59,7 @@ class AccountUpdateSerializer(serializers.ModelSerializer):
             raise AccountNameExists()
         if email is not None and Account.objects.filter(contact_email__iexact=email).exclude(pk=instance.pk).exists():
             raise ContactEmailExists()
-        if attrs.get('is_active') is False and instance and instance.is_active:
+        if attrs.get("is_active") is False and instance and instance.is_active:
             ensure_account_has_no_active_subscriptions(instance)
         return attrs
 

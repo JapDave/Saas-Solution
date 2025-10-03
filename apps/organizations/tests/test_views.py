@@ -2,6 +2,18 @@ import uuid
 
 import pytest
 from django.urls import reverse
+from rest_framework.test import APIClient
+
+from apps.organizations.tests.factories import OrganizationFactory
+from apps.roles.models import RoleAssignment
+from apps.roles.constants import ROLE_ORGANIZATION_OWNER
+from apps.roles.services import assign_organization_owner
+from apps.users.tests.factories import UserFactory, UserOrganizationFactory
+
+
+@pytest.fixture
+def api_client():
+    return APIClient()
 
 
 @pytest.mark.django_db
@@ -232,3 +244,97 @@ class TestOrganizationUpdateDelete:
         response = admin_client.delete(url)
         assert response.status_code == 404
         assert response.json().get("code") == "ORGANIZATION_NOT_FOUND"
+
+
+
+@pytest.mark.django_db
+class TestOrganizationOwnership:
+    def test_assign_owner(self, api_client):
+        organization = OrganizationFactory()
+        actor = organization.created_by
+        assign_organization_owner(
+            organization=organization,
+            user=actor,
+            assigned_by=actor,
+        )
+
+        target = UserFactory()
+        UserOrganizationFactory(user=target, organization=organization)
+
+        api_client.force_authenticate(actor)
+        url = reverse(
+            'organizations-assign-owner',
+            kwargs={'uuid': str(organization.uuid)},
+        )
+        response = api_client.post(
+            url,
+            {'user': str(target.uuid)},
+            format='json',
+        )
+        assert response.status_code == 201
+        assert RoleAssignment.objects.filter(
+            organization=organization,
+            user=target,
+            role__name=ROLE_ORGANIZATION_OWNER,
+            deleted_at__isnull=True,
+        ).exists()
+
+    def test_assign_owner_requires_membership(self, api_client):
+        organization = OrganizationFactory()
+        actor = organization.created_by
+        assign_organization_owner(
+            organization=organization,
+            user=actor,
+            assigned_by=actor,
+        )
+
+        outsider = UserFactory()
+
+        api_client.force_authenticate(actor)
+        url = reverse(
+            'organizations-assign-owner',
+            kwargs={'uuid': str(organization.uuid)},
+        )
+        response = api_client.post(
+            url,
+            {'user': str(outsider.uuid)},
+            format='json',
+        )
+        assert response.status_code == 400
+        assert 'user' in response.json()
+
+    def test_transfer_owner(self, api_client):
+        organization = OrganizationFactory()
+        actor = organization.created_by
+        assign_organization_owner(
+            organization=organization,
+            user=actor,
+            assigned_by=actor,
+        )
+
+        successor = UserFactory()
+        UserOrganizationFactory(user=successor, organization=organization)
+
+        api_client.force_authenticate(actor)
+        url = reverse(
+            'organizations-transfer-owner',
+            kwargs={'uuid': str(organization.uuid)},
+        )
+        response = api_client.post(
+            url,
+            {'new_owner': str(successor.uuid)},
+            format='json',
+        )
+        assert response.status_code == 200
+        assert RoleAssignment.objects.filter(
+            organization=organization,
+            user=successor,
+            role__name=ROLE_ORGANIZATION_OWNER,
+            deleted_at__isnull=True,
+        ).exists()
+        assert not RoleAssignment.objects.filter(
+            organization=organization,
+            user=actor,
+            role__name=ROLE_ORGANIZATION_OWNER,
+            deleted_at__isnull=True,
+        ).exists()

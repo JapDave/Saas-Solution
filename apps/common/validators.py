@@ -17,3 +17,20 @@ def email_has_allowed_system_domain(email: str) -> bool:
         configured = {str(item).lower() for item in configured}
 
     return domain in configured
+
+
+def user_has_active_membership(user, organization) -> bool:
+    """Return True when the user is an active member of the organization."""
+
+    if not user or not getattr(user, "is_active", False) or organization is None:
+        return False
+    try:
+        from apps.users.models import UserOrganization
+    except ModuleNotFoundError:
+        return False
+    return UserOrganization.objects.filter(
+        user=user,
+        organization=organization,
+        is_active=True,
+        deleted_at__isnull=True,
+    ).exists()

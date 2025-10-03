@@ -7,10 +7,8 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from apps.common.paginations import StandardPagination
-from apps.common.permissions import (
-    IsAccountAdminOrOwnerViewOnlyForManager,
-    get_assigned_account_ids,
-)
+from apps.common.permissions import get_assigned_account_ids
+from apps.roles.permissions import AccountPermission
 from apps.common.exceptions import AccountNotFound
 from apps.subscriptions.services import ensure_account_has_no_active_subscriptions
 
@@ -19,17 +17,9 @@ from .serializers import AccountCreateSerializer, AccountUpdateSerializer, Accou
 
 
 class AccountViewSet(viewsets.ModelViewSet):
-    """
-    Views = pure logic: auth, pagination, filter/order, serializer selection, save, response.
-    All validation lives in the serializers.
-
-    Permissions (IsAccountAdminOrOwnerViewOnlyForManager):
-      - Superadmin: full access
-      - Saas Manager: view-only (list/retrieve), cannot create/update/delete
-      - Regular users: owner can retrieve/update/patch/destroy; no list/create
-    """
+    """Account API wiring: pagination/filtering plus role-aware permissions."""
     queryset = Account.objects.order_by("-created_at")
-    permission_classes = [IsAccountAdminOrOwnerViewOnlyForManager]
+    permission_classes = [AccountPermission]
     pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering_fields = ["created_at", "updated_at", "name"]
@@ -97,4 +87,9 @@ class AccountViewSet(viewsets.ModelViewSet):
         ensure_account_has_no_active_subscriptions(obj)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
 

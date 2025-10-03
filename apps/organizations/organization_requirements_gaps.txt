@@ -1,9 +1,8 @@
-ï»¿Outstanding Organization Requirements (pending ownership workflow)
+Organization Requirements – Outstanding Items
 
-- REQ-ORG-007: Assign Organization Owner - endpoint/service missing to promote a member to owner with membership checks.
-- REQ-ORG-008: Transfer Organization Ownership - workflow for current owner to hand off ownership not implemented.
-- Permission keys (organization:create/read/update/delete/list/assign_owner) not surfaced; rely on DRF classes. Implement once user-management module lands for consistent enforcement.
+Resolved:
+- REQ-ORG-007 / REQ-ORG-008: Ownership assignment and transfer now handled via `OrganizationViewSet` actions using `assign_organization_owner` / `transfer_organization_owner` services with membership validation and last-owner protection (see apps/organizations/views.py:134 and apps/roles/services.py:118).
+- Role-aware permission keys are enforced through `OrganizationPermission` and the new owner endpoints use the role module exclusively.
 
-- No audit coverage for permission changes / ownership transfers until those endpoints exist.
-Reminder: address these once the role-management module is ready, then update permissions/views/tests accordingly.
-
+Still outstanding:
+- Audit coverage for ownership changes remains to be implemented; hook AuditLog entries into the assign/transfer owner flows to capture before/after role state and acting user context.
