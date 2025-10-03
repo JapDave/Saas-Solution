@@ -24,6 +24,28 @@ class BaseRolePermission(BasePermission):
         """Retrieves user roles from the request object, set by RoleMiddleware."""
         return getattr(request, "_user_roles_in_org", set())
 
+    def _get_user_roles(self, request, view):
+        """
+        Caches the user's role names for the current organization in the request
+        to avoid redundant database queries.
+        """
+        if hasattr(request, "_user_roles_in_org"):
+            return request._user_roles_in_org
+
+        user = request.user
+        organization_uuid = view.kwargs.get("organization_uuid")
+
+        if not user or not user.is_authenticated or not organization_uuid:
+            request._user_roles_in_org = set()
+            return set()
+
+        roles = user.role_assignments.filter(
+            organization__uuid=organization_uuid, is_active=True
+        ).values_list("role__name", flat=True)
+
+        request._user_roles_in_org = set(roles)
+        return request._user_roles_in_org
+
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False

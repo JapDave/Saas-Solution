@@ -2,6 +2,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from apps.roles.models import Role, RoleAssignment
+from apps.users.models import User
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -12,6 +13,7 @@ class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
         fields = [
+            "id",
             "uuid",
             "organization",
             "name",
@@ -66,18 +68,25 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
     """
     Serializer for the RoleAssignment model.
     """
-
-    user_id = serializers.UUIDField(write_only=True, source="user")
-    role_id = serializers.UUIDField(source="role")
+    user = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=User.objects.all(),
+        required=False,
+    )
+    role = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=Role.objects.all(),
+        required=False,
+    )
+    organization = serializers.UUIDField(read_only=True, source="organization.uuid")
 
     class Meta:
         model = RoleAssignment
         fields = [
+            "id",
             "uuid",
             "user",
-            "user_id",
             "role",
-            "role_id",
             "organization",
             "assigned_by",
             "assigned_at",

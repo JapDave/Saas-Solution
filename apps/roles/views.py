@@ -1,31 +1,39 @@
+# Django imports
 from django.db import IntegrityError
 from django.utils.translation import gettext_lazy as _
+
+# Third-party imports
 from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError, PermissionDenied
 
-from apps.roles.models import Role, RoleAssignment
-from apps.roles.serializers import RoleSerializer, RoleAssignmentSerializer
+# Local imports
+from apps.roles.models import Role
+from apps.roles.models import RoleAssignment
 from apps.organizations.models import Organization
-from apps.roles.permissions import IsSaaSAdmin
 
+from apps.roles.serializers import RoleSerializer
+from apps.roles.serializers import RoleAssignmentSerializer
+
+from apps.roles.permissions import IsOrganizationOwner
+from apps.roles.permissions import IsOrganizationAdmin
 
 
 @extend_schema(tags=["Roles"])
 class RoleViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing Roles within an organization.
-    - REQ-ROLE-001: Create Custom Role
-    - REQ-ROLE-002: Retrieve Role Information
-    - REQ-ROLE-003: Update Custom Role
-    - REQ-ROLE-004: Delete Custom Role
-    - REQ-ROLE-007: List Roles with Pagination
+    - Create Custom Role
+    - Retrieve Role Information
+    - Update Custom Role
+    - Delete Custom Role
+    - List Roles with Pagination
     """
 
     serializer_class = RoleSerializer
     queryset = Role.objects.all()
     lookup_field = "uuid"
-    permission_class = [IsSaaSAdmin]
+    permission_classes = [IsOrganizationOwner, IsOrganizationAdmin]
 
     def get_queryset(self):
         """
@@ -43,7 +51,10 @@ class RoleViewSet(viewsets.ModelViewSet):
 
         # REQ-ROLE-001: Check organization role limits
         if organization.roles.count() >= 100:
-            raise ValidationError(_("Organization has reached the maximum limit of 100 custom roles."))
+            err_msg = _(
+                "The organization has reached the maximum number of roles (100)."
+            )
+            raise ValidationError(err_msg)
 
         try:
             serializer.save(
@@ -88,13 +99,14 @@ class RoleAssignmentViewSet(
 ):
     """
     API endpoint for assigning and removing roles from users.
-    - REQ-ROLE-005: Assign Role to User
-    - REQ-ROLE-006: Remove Role from User
+    - Assign Role to User
+    - Remove Role from User
     """
 
     serializer_class = RoleAssignmentSerializer
     queryset = RoleAssignment.objects.all()
     lookup_field = "uuid"
+    permission_classes = [IsOrganizationOwner, IsOrganizationAdmin]
 
     def get_queryset(self):
         """
