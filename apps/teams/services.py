@@ -13,6 +13,7 @@ from apps.common.exceptions import (
     TeamSizeLimitExceeded,
 )
 from apps.common.permissions import get_assigned_account_ids
+from apps.subscriptions.services import get_subscription_configuration
 from apps.users.services import (
     get_user_accessible_account_ids,
     get_user_accessible_organization_ids,
@@ -35,6 +36,8 @@ _DEFAULT_LIMITS: Dict[str, int] = {
     "team_retention_days": 365,
 }
 
+TEAMS_MODULE_KEY = "TEAMS_MANAGEMENT"
+
 
 def _is_authenticated(user) -> bool:
     return bool(user and getattr(user, "is_authenticated", False))
@@ -51,6 +54,13 @@ def _settings_limits() -> Dict[str, int]:
             if str(k) in _DEFAULT_LIMITS and v is not None
         }
     raise TypeError("TEAM_DEFAULT_LIMITS must be a mapping when provided.")
+
+
+def _subscription_overrides(organization) -> Dict[str, Any]:
+    config = get_subscription_configuration(organization, TEAMS_MODULE_KEY)
+    if not isinstance(config, dict):
+        return {}
+    return {str(k): config[k] for k in _DEFAULT_LIMITS.keys() if config.get(k) is not None}
 
 
 def _organization_overrides(organization) -> Dict[str, Any]:
@@ -74,6 +84,7 @@ def resolve_team_limits(organization) -> TeamLimits:
 
     base = dict(_DEFAULT_LIMITS)
     base.update(_settings_limits())
+    base.update(_subscription_overrides(organization))
     base.update(_organization_overrides(organization))
 
     def _coerce(key: str) -> int | None:
@@ -183,7 +194,7 @@ def user_has_team_permission(
 
 
 def filter_teams_for_user(queryset, user):
-    """Scope teams to those visible to the requesting user."""
+    """Scope teams to those visible to the actor."""
 
     if not _is_authenticated(user):
         return queryset.none()
