@@ -17,7 +17,6 @@ from apps.organizations.models import Organization
 from apps.roles.serializers import RoleSerializer
 from apps.roles.serializers import RoleAssignmentSerializer
 
-from apps.roles.permissions import IsOrganizationOwner
 from apps.roles.permissions import IsOrganizationAdmin
 
 
@@ -35,7 +34,7 @@ class RoleViewSet(viewsets.ModelViewSet):
     serializer_class = RoleSerializer
     queryset = Role.objects.all()
     lookup_field = "uuid"
-    permission_classes = [IsOrganizationOwner, IsOrganizationAdmin]
+    permission_classes = [IsOrganizationAdmin]
 
     def get_queryset(self):
         """
@@ -47,11 +46,11 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        REQ-ROLE-001: Create a new custom role for an organization.
+        Create a new custom role for an organization.
         """
         organization = Organization.objects.get(uuid=self.kwargs["organization_uuid"])
 
-        # REQ-ROLE-001: Check organization role limits
+        # Check organization role limits
         if organization.roles.count() >= 100:
             err_msg = _(
                 "The organization has reached the maximum number of roles (100)."
@@ -70,7 +69,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         """
-        REQ-ROLE-003: Update a custom role.
+        Update a custom role.
         """
         role = self.get_object()
         if role.role_type != Role.RoleType.USER_CUSTOM:
@@ -79,7 +78,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """
-        REQ-ROLE-004: Soft-delete a custom role.
+        Soft-delete a custom role.
         """
         if instance.role_type != Role.RoleType.USER_CUSTOM:
             raise PermissionDenied(_("Cannot delete a system or predefined role."))
@@ -105,7 +104,7 @@ class RoleAssignmentViewSet(
     serializer_class = RoleAssignmentSerializer
     queryset = RoleAssignment.objects.all()
     lookup_field = "uuid"
-    permission_classes = [IsOrganizationOwner, IsOrganizationAdmin]
+    permission_classes = [IsOrganizationAdmin]
 
     def _get_organization(self):
         if not hasattr(self, "_organization_cache"):

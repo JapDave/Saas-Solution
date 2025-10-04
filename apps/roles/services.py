@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Set
+from typing import Iterable, Set
 
 from django.db import transaction
 from django.db.models import Q
@@ -12,7 +12,24 @@ from apps.organizations.models import Organization
 from apps.roles.constants import (
     ROLE_ORGANIZATION_OWNER,
     ROLE_ORGANIZATION_ADMINISTRATOR,
+    ROLE_PERMISSION_TEMPLATES,
 )
+
+
+def _normalize_permission_keys(permissions: Iterable[str] | None) -> list[str]:
+    normalised: list[str] = []
+    seen: set[str] = set()
+    for perm in permissions or []:
+        if not isinstance(perm, str):
+            continue
+        value = perm.strip().lower()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalised.append(value)
+    normalised.sort()
+    return normalised
+
 
 
 @dataclass
@@ -20,6 +37,87 @@ class ServiceResult:
     ok: bool
     role: Role | None = None
     error: str | None = None
+
+@dataclass
+class RoleSyncResult:
+    created: list[RoleAssignment]
+    reactivated: list[RoleAssignment]
+    removed: list[RoleAssignment]
+    retained: list[RoleAssignment]
+
+
+@transaction.atomic
+def sync_user_role_assignments(*, user, organization, roles: Iterable[Role], assigned_by) -> RoleSyncResult:
+    """Ensure ``user`` holds exactly the provided ``roles`` within ``organization``."""
+
+    role_list = list(roles or [])
+    if role_list:
+        unique_roles = []
+        seen_role_ids: set[int] = set()
+        for role in role_list:
+            if role.id in seen_role_ids:
+                continue
+            seen_role_ids.add(role.id)
+            unique_roles.append(role)
+        role_list = unique_roles
+    desired_role_ids = {role.id for role in role_list}
+
+    existing_assignments = {
+        assignment.role_id: assignment
+        for assignment in RoleAssignment.all_objects.filter(
+            user=user,
+            organization=organization,
+        ).select_related("role")
+    }
+
+    created: list[RoleAssignment] = []
+    reactivated: list[RoleAssignment] = []
+    retained: list[RoleAssignment] = []
+
+    for role in role_list:
+        assignment = existing_assignments.get(role.id)
+        if assignment:
+            if assignment.deleted_at is not None or not assignment.is_active:
+                assignment.deleted_at = None
+                assignment.is_active = True
+                assignment.assigned_by = assigned_by
+                assignment.save(update_fields=["deleted_at", "is_active", "assigned_by", "updated_at"])
+                reactivated.append(assignment)
+            else:
+                if getattr(assigned_by, "id", None) and assignment.assigned_by_id != getattr(assigned_by, "id", None):
+                    assignment.assigned_by = assigned_by
+                    assignment.save(update_fields=["assigned_by", "updated_at"])
+                retained.append(assignment)
+        else:
+            assignment = RoleAssignment(
+                organization=organization,
+                user=user,
+                role=role,
+                assigned_by=assigned_by,
+            )
+            assignment.full_clean()
+            assignment.save()
+            created.append(assignment)
+            existing_assignments[role.id] = assignment
+
+    active_qs = RoleAssignment.objects.filter(user=user, organization=organization)
+    if desired_role_ids:
+        to_remove_qs = active_qs.exclude(role_id__in=desired_role_ids)
+    else:
+        to_remove_qs = active_qs
+
+    removed: list[RoleAssignment] = []
+    for assignment in to_remove_qs.select_related("role"):
+        removed.append(assignment)
+        assignment.delete()
+
+    return RoleSyncResult(
+        created=created,
+        reactivated=reactivated,
+        removed=removed,
+        retained=retained,
+    )
+
 
 
 @transaction.atomic
@@ -39,8 +137,8 @@ def create_organization_owner_role(
         role = Role.objects.create(
             organization=organization,
             name=account_name,
-            description=account_description,
-            permissions=permissions,
+            description=account_description or "",
+            permissions=_normalize_permission_keys(permissions),
             role_type=Role.RoleType.PREDEFINED_CUSTOM,
             is_active=account_is_active,
             created_by=created_by,
@@ -73,13 +171,8 @@ def resolve_user_permissions(*, user, organization_id: int) -> Set[str]:
 
     permissions: Set[str] = set()
     for assignment in assignments:
-        role_permissions = assignment.role.permissions or []
-        for permission in role_permissions:
-            if not isinstance(permission, str):
-                continue
-            value = permission.strip()
-            if value:
-                permissions.add(value.lower())
+        role_permissions = _normalize_permission_keys(getattr(assignment.role, "permissions", None))
+        permissions.update(role_permissions)
     return permissions
 
 
@@ -135,12 +228,16 @@ def ensure_organization_owner_role(*, organization, created_by):
         organization__isnull=True,
         name=ROLE_ORGANIZATION_OWNER,
     ).first()
-    permissions = template.permissions if template else []
+    permissions = template.permissions if template else ROLE_PERMISSION_TEMPLATES.get(
+        ROLE_ORGANIZATION_OWNER,
+        (),
+    )
+    description = getattr(template, "description", "") if template else ""
     result = create_organization_owner_role(
         organization=organization,
         created_by=created_by,
         permissions=permissions,
-        account_description=getattr(template, 'description', None),
+        account_description=description,
     )
     if not result.ok or not result.role:
         raise RuntimeError(result.error or 'Failed to create organization owner role')
@@ -221,3 +318,5 @@ def transfer_organization_owner(*, organization, new_owner, assigned_by, current
             # leave the newly assigned owner in place but surface the error.
             raise
     return assignment
+
+

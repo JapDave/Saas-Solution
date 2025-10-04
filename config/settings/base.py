@@ -36,13 +36,12 @@ LOCAL_APPS = [
     "apps.teams",
     "apps.products",
     "apps.subscriptions",
-    "apps.products",
     "apps.roles",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
-AUTH_USER_MODEL = "users.User"  # will work once you wire your custom user
+AUTH_USER_MODEL = "users.User"
 
 # -------------------------------------------------------------------
 # Middleware (order matters)

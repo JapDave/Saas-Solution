@@ -1,7 +1,0 @@
-Outstanding User Requirements (roles module integration)
-
-- REQ-USER-001 / REQ-USER-004 / REQ-USER-005: `UserOrganization` membership changes still ignore the new RoleAssignment model. Wire `MembershipMutationSerializer` / `MembershipRemovalSerializer` (apps/users/serializers.py) and related services so they create, update, and remove `RoleAssignment` records (apps/roles/models.py:66) in sync, leveraging `apps.roles.utils.has_role` for validation.
-- REQ-USER-003 / REQ-USER-006 / REQ-USER-007: Audit coverage remains partial. Extend the existing AuditLog writes to capture before/after membership + role state, and include permission-change events coming from role assignment mutations.
-- REQ-USER-008 / REQ-USER-009: Rate limiting, permission caching, and subscription-based filtering still stubbed. Implement `apps.roles.services.resolve_user_permissions` (invoked by `resolve_effective_permission_keys` in apps/users/services.py:142) and connect throttling/caching once the role assignments sync is in place.
-
-Action: Complete the above integrations so user flows honour role assignments and emit full audit telemetry, then revisit this file.

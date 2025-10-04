@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Sequence
+
 ROLE_SAAS_ADMINISTRATOR = "SaaS Administrator"
 ROLE_SAAS_ACCOUNT_MANAGER = "SaaS Account Manager"
 ROLE_ACCOUNT_OWNER = "Account Owner"
@@ -5,14 +9,11 @@ ROLE_ACCOUNT_ADMINISTRATOR = "Account Administrator"
 ROLE_ORGANIZATION_OWNER = "Organization Owner"
 ROLE_ORGANIZATION_ADMINISTRATOR = "Organization Administrator"
 
-# A set of roles that are considered system-level (not tied to an organization)
 SYSTEM_ROLES = {
     ROLE_SAAS_ADMINISTRATOR,
     ROLE_SAAS_ACCOUNT_MANAGER,
 }
 
-
-# Permission keys used across the platform
 PERMISSION_ACCOUNTS_LIST = "accounts:list"
 PERMISSION_ACCOUNTS_READ = "accounts:read"
 PERMISSION_ACCOUNTS_CREATE = "accounts:create"
@@ -26,17 +27,153 @@ PERMISSION_ORGANIZATIONS_UPDATE = "organizations:update"
 PERMISSION_ORGANIZATIONS_DELETE = "organizations:delete"
 PERMISSION_ORGANIZATIONS_ASSIGN_OWNER = "organizations:assign_owner"
 
+PERMISSION_USER_CREATE = "user:create"
+PERMISSION_USER_READ = "user:read"
+PERMISSION_USER_VIEW = "user:view"
+PERMISSION_USER_UPDATE = "user:update"
+PERMISSION_USER_DELETE = "user:delete"
+PERMISSION_USER_DEACTIVATE = "user:deactivate"
+PERMISSION_USER_MANAGE_MEMBERSHIP = "user:manage_membership"
+
 PERMISSION_TEAMS_LIST = "teams:list"
 PERMISSION_TEAMS_CREATE = "teams:create"
 PERMISSION_TEAMS_READ = "teams:read"
 PERMISSION_TEAMS_UPDATE = "teams:update"
 PERMISSION_TEAMS_DELETE = "teams:delete"
 PERMISSION_TEAMS_MANAGE_MEMBERS = "teams:manage_members"
+PERMISSION_TEAMS_VIEW_ALL = "teams:view_all"
 
-SYSTEM_PERMISSIONS = {
+PERMISSION_BILLING_VIEW = "billing:view"
+PERMISSION_BILLING_MANAGE = "billing:manage"
+
+ACCOUNTS_PERMISSION_KEYS: Sequence[str] = (
     PERMISSION_ACCOUNTS_LIST,
     PERMISSION_ACCOUNTS_READ,
     PERMISSION_ACCOUNTS_CREATE,
     PERMISSION_ACCOUNTS_UPDATE,
     PERMISSION_ACCOUNTS_DELETE,
+)
+
+ORGANIZATION_PERMISSION_KEYS: Sequence[str] = (
+    PERMISSION_ORGANIZATIONS_LIST,
+    PERMISSION_ORGANIZATIONS_CREATE,
+    PERMISSION_ORGANIZATIONS_READ,
+    PERMISSION_ORGANIZATIONS_UPDATE,
+    PERMISSION_ORGANIZATIONS_DELETE,
+    PERMISSION_ORGANIZATIONS_ASSIGN_OWNER,
+)
+
+USER_PERMISSION_KEYS: Sequence[str] = (
+    PERMISSION_USER_CREATE,
+    PERMISSION_USER_READ,
+    PERMISSION_USER_VIEW,
+    PERMISSION_USER_UPDATE,
+    PERMISSION_USER_DELETE,
+    PERMISSION_USER_DEACTIVATE,
+    PERMISSION_USER_MANAGE_MEMBERSHIP,
+)
+
+TEAM_PERMISSION_KEYS: Sequence[str] = (
+    PERMISSION_TEAMS_LIST,
+    PERMISSION_TEAMS_READ,
+    PERMISSION_TEAMS_VIEW_ALL,
+    PERMISSION_TEAMS_CREATE,
+    PERMISSION_TEAMS_UPDATE,
+    PERMISSION_TEAMS_DELETE,
+    PERMISSION_TEAMS_MANAGE_MEMBERS,
+)
+
+BILLING_PERMISSION_KEYS: Sequence[str] = (
+    PERMISSION_BILLING_VIEW,
+    PERMISSION_BILLING_MANAGE,
+)
+
+ALL_PERMISSION_KEYS: Sequence[str] = tuple(
+    sorted(
+        {
+            *ACCOUNTS_PERMISSION_KEYS,
+            *ORGANIZATION_PERMISSION_KEYS,
+            *USER_PERMISSION_KEYS,
+            *TEAM_PERMISSION_KEYS,
+            *BILLING_PERMISSION_KEYS,
+        }
+    )
+)
+
+SYSTEM_PERMISSIONS = {
+    *ACCOUNTS_PERMISSION_KEYS,
+    *BILLING_PERMISSION_KEYS,
+}
+
+ROLE_PERMISSION_TEMPLATES = {
+    ROLE_SAAS_ADMINISTRATOR: ALL_PERMISSION_KEYS,
+    ROLE_SAAS_ACCOUNT_MANAGER: tuple(
+        sorted(
+            {
+                PERMISSION_ACCOUNTS_LIST,
+                PERMISSION_ACCOUNTS_READ,
+                PERMISSION_ACCOUNTS_UPDATE,
+                PERMISSION_ORGANIZATIONS_LIST,
+                PERMISSION_ORGANIZATIONS_READ,
+                PERMISSION_ORGANIZATIONS_UPDATE,
+                PERMISSION_USER_READ,
+                PERMISSION_USER_VIEW,
+            }
+        )
+    ),
+    ROLE_ACCOUNT_OWNER: tuple(
+        sorted(
+            {
+                *ACCOUNTS_PERMISSION_KEYS,
+                *ORGANIZATION_PERMISSION_KEYS,
+                *USER_PERMISSION_KEYS,
+                *TEAM_PERMISSION_KEYS,
+                *BILLING_PERMISSION_KEYS,
+            }
+        )
+    ),
+    ROLE_ACCOUNT_ADMINISTRATOR: tuple(
+        sorted(
+            {
+                PERMISSION_ACCOUNTS_LIST,
+                PERMISSION_ACCOUNTS_READ,
+                PERMISSION_ACCOUNTS_UPDATE,
+                PERMISSION_ORGANIZATIONS_LIST,
+                PERMISSION_ORGANIZATIONS_READ,
+                PERMISSION_ORGANIZATIONS_UPDATE,
+                PERMISSION_USER_READ,
+                PERMISSION_USER_VIEW,
+                PERMISSION_USER_MANAGE_MEMBERSHIP,
+                PERMISSION_TEAMS_LIST,
+                PERMISSION_TEAMS_READ,
+                PERMISSION_TEAMS_MANAGE_MEMBERS,
+            }
+        )
+    ),
+    ROLE_ORGANIZATION_OWNER: tuple(
+        sorted(
+            {
+                PERMISSION_ORGANIZATIONS_READ,
+                PERMISSION_ORGANIZATIONS_UPDATE,
+                PERMISSION_ORGANIZATIONS_DELETE,
+                PERMISSION_ORGANIZATIONS_ASSIGN_OWNER,
+                *USER_PERMISSION_KEYS,
+                *TEAM_PERMISSION_KEYS,
+            }
+        )
+    ),
+    ROLE_ORGANIZATION_ADMINISTRATOR: tuple(
+        sorted(
+            {
+                PERMISSION_ORGANIZATIONS_READ,
+                PERMISSION_ORGANIZATIONS_UPDATE,
+                PERMISSION_USER_READ,
+                PERMISSION_USER_VIEW,
+                PERMISSION_USER_MANAGE_MEMBERSHIP,
+                PERMISSION_TEAMS_LIST,
+                PERMISSION_TEAMS_READ,
+                PERMISSION_TEAMS_MANAGE_MEMBERS,
+            }
+        )
+    ),
 }

@@ -13,10 +13,17 @@ class ProductFactory(DjangoModelFactory):
     key = factory.Sequence(lambda n: f"PRODUCT_KEY_{n}")
     name = factory.Faker("company")
     description = factory.Faker("paragraph", nb_sentences=3)
-    available_module_keys = factory.LazyFunction(list)
     target_segments = factory.LazyFunction(list)
     use_cases = factory.LazyFunction(list)
     is_active = True
+
+    @factory.post_generation
+    def modules(self, create, extracted, **kwargs):
+        if not create:
+            return
+        if extracted:
+            for module in extracted:
+                self.modules.add(module)
 
 
 class ModuleFactory(DjangoModelFactory):
@@ -38,3 +45,6 @@ class ModuleFactory(DjangoModelFactory):
     configurable_attributes = factory.LazyFunction(dict)
     exposed_permissions = factory.LazyFunction(list)
     is_active = True
+
+
+

@@ -121,55 +121,61 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-@action(detail=True, methods=["post"], url_path="assign-owner")
-def assign_owner(self, request, uuid=None):
-    organization = self.get_object()
-    serializer = OrganizationOwnerAssignSerializer(
-        data=request.data,
-        context={"organization": organization},
-    )
-    serializer.is_valid(raise_exception=True)
-    user = serializer.validated_data["user"]
-    try:
-        assignment = assign_organization_owner(
-            organization=organization,
-            user=user,
-            assigned_by=request.user,
+    @action(detail=True, methods=["post"], url_path="assign-owner")
+    def assign_owner(self, request, uuid=None):
+        organization = self.get_object()
+        serializer = OrganizationOwnerAssignSerializer(
+            data=request.data,
+            context={"organization": organization},
         )
-    except Exception as exc:
-        raise ValidationError({"detail": str(exc)}) from exc
-    read = RoleAssignmentSerializer(
-        assignment,
-        context={"request": request},
-    )
-    return Response(read.data, status=status.HTTP_201_CREATED)
-
-@action(detail=True, methods=["post"], url_path="transfer-owner")
-def transfer_owner(self, request, uuid=None):
-    organization = self.get_object()
-    serializer = OrganizationOwnerTransferSerializer(
-        data=request.data,
-        context={"organization": organization},
-    )
-    serializer.is_valid(raise_exception=True)
-    new_owner = serializer.validated_data["new_owner"]
-    current_owner = serializer.validated_data.get("current_owner") or request.user
-
-    # Only an existing organization owner may transfer ownership.
-    if not has_role(request.user, ROLE_ORGANIZATION_OWNER, str(organization.uuid)):
-        raise PermissionDenied("Only organization owners may transfer ownership.")
-
-    try:
-        assignment = transfer_organization_owner(
-            organization=organization,
-            new_owner=new_owner,
-            assigned_by=request.user,
-            current_owner=current_owner,
+        try:
+            serializer.is_valid(raise_exception=True)
+        except ValidationError as exc:
+            detail = getattr(exc, "detail", exc.args)
+            if isinstance(detail, dict) and "user" in detail:
+                return Response({"user": detail["user"]}, status=status.HTTP_400_BAD_REQUEST)
+            raise
+        user = serializer.validated_data["user"]
+        try:
+            assignment = assign_organization_owner(
+                organization=organization,
+                user=user,
+                assigned_by=request.user,
+            )
+        except Exception as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        read = RoleAssignmentSerializer(
+            assignment,
+            context={"request": request},
         )
-    except ValueError as exc:
-        raise ValidationError({"detail": str(exc)}) from exc
-    read = RoleAssignmentSerializer(
-        assignment,
-        context={"request": request},
-    )
-    return Response(read.data, status=status.HTTP_200_OK)
+        return Response(read.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="transfer-owner")
+    def transfer_owner(self, request, uuid=None):
+        organization = self.get_object()
+        serializer = OrganizationOwnerTransferSerializer(
+            data=request.data,
+            context={"organization": organization},
+        )
+        serializer.is_valid(raise_exception=True)
+        new_owner = serializer.validated_data["new_owner"]
+        current_owner = serializer.validated_data.get("current_owner") or request.user
+
+        # Only an existing organization owner may transfer ownership.
+        if not has_role(request.user, ROLE_ORGANIZATION_OWNER, str(organization.uuid)):
+            raise PermissionDenied("Only organization owners may transfer ownership.")
+
+        try:
+            assignment = transfer_organization_owner(
+                organization=organization,
+                new_owner=new_owner,
+                assigned_by=request.user,
+                current_owner=current_owner,
+            )
+        except ValueError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        read = RoleAssignmentSerializer(
+            assignment,
+            context={"request": request},
+        )
+        return Response(read.data, status=status.HTTP_200_OK)

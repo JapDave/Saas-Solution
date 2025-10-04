@@ -35,16 +35,39 @@ class RoleSerializer(serializers.ModelSerializer):
 
     def validate_permissions(self, permissions):
         """
-        REQ-ROLE-001: Validate all permissions are available through subscriptions.
-        Placeholder for subscription-based permission validation.
+        Validate permission limits and normalise keys.
         """
+        if not isinstance(permissions, (list, tuple)):
+            raise serializers.ValidationError(
+                {"permissions": _("Permissions must be provided as a list of strings.")}
+            )
         if len(permissions) > 200:
             raise serializers.ValidationError(
-                _("A role cannot have more than 200 permissions.")
+                {"permissions": _("A role cannot have more than 200 permissions.")}
             )
-        # TODO: Implement logic to check if the organization's subscription
-        # allows for the given permissions.
-        return permissions
+
+        normalised = []
+        seen = set()
+        for perm in permissions:
+            if not isinstance(perm, str):
+                raise serializers.ValidationError(
+                    {"permissions": _("Each permission must be a string key.")}
+                )
+            value = perm.strip().lower()
+            if not value:
+                raise serializers.ValidationError(
+                    {"permissions": _("Permission keys cannot be blank.")}
+                )
+            if ':' not in value:
+                raise serializers.ValidationError(
+                    {"permissions": _("Permission keys must use the 'scope:action' format.")}
+                )
+            if value not in seen:
+                seen.add(value)
+                normalised.append(value)
+
+        normalised.sort()
+        return normalised
 
     def validate(self, data):
         """

@@ -15,6 +15,7 @@ from apps.common.exceptions import (
 )
 from apps.common.models import AuditLog
 from apps.common.paginations import StandardPagination
+from apps.roles.models import RoleAssignment
 
 from .models import UserOrganization
 from .serializers import (
@@ -40,10 +41,52 @@ User = get_user_model()
 class UserViewSet(viewsets.ModelViewSet):
     """User lifecycle management across organizations."""
 
+    def _log_user_event(
+        self,
+        *,
+        request,
+        view_name: str,
+        model: str,
+        action: str,
+        object_id: str | None,
+        status_code: int,
+        extra: dict | None = None,
+    ) -> None:
+        AuditLog.objects.create(
+            user=request.user,
+            method=request.method,
+            path=request.path,
+            view=view_name,
+            app_label="users",
+            model=model,
+            action=action,
+            object_id=str(object_id or ""),
+            status_code=status_code,
+            success=200 <= status_code < 400,
+            extra=extra or {},
+        )
+
     permission_classes = [IsAuthenticated]
     pagination_class = StandardPagination
     lookup_field = "uuid"
     lookup_url_kwarg = "uuid"
+
+    def get_throttle_scope(self, request):
+        action = getattr(self, "action", None)
+        if action == "add_membership":
+            return "user.membership_add"
+        if action == "remove_membership":
+            return "user.membership_remove"
+        if action == "switch_organization":
+            return "user.session_switch"
+        if action == "create":
+            return "user.create"
+        if action in {"partial_update", "status_change"}:
+            return "user.update"
+        if action == "list":
+            return "user.list"
+        return None
+
 
     def get_queryset(self):
         user = getattr(self.request, "user", None)
@@ -82,7 +125,20 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        after_memberships = [
+            self._capture_membership_state(user, membership.organization)
+            for membership in user.memberships.all()
+        ]
         read = UserReadSerializer(user, context={"request": request})
+        self._log_user_event(
+            request=request,
+            view_name="UserViewSet.create",
+            model="User",
+            action="create",
+            object_id=str(user.uuid),
+            status_code=status.HTTP_201_CREATED,
+            extra={"memberships_before": [], "memberships_after": after_memberships},
+        )
         return Response(read.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, *args, **kwargs):
@@ -121,17 +177,13 @@ class UserViewSet(viewsets.ModelViewSet):
             target.is_active = is_active
             target.updated_by = request_user
             target.save(update_fields=["is_active", "updated_by", "updated_at"])
-            AuditLog.objects.create(
-                user=request_user,
-                method=request.method,
-                path=request.path,
-                view="UserViewSet.status_change",
-                app_label="users",
+            self._log_user_event(
+                request=request,
+                view_name="UserViewSet.status_change",
                 model="User",
                 action="status_change",
                 object_id=str(target.id),
                 status_code=status.HTTP_200_OK,
-                success=True,
                 extra={"from": previous_state, "to": is_active},
             )
         read = UserReadSerializer(target, context={"request": request})
@@ -146,9 +198,27 @@ class UserViewSet(viewsets.ModelViewSet):
             context={"request": request, "user": target},
         )
         serializer.is_valid(raise_exception=True)
+        organization = serializer.validated_data["organization"]
+        before_state = self._capture_membership_state(target, organization)
         membership = serializer.save()
+        after_state = self._capture_membership_state(target, organization)
         read = MembershipSerializer(membership, context={"request": request})
-        return Response(read.data, status=status.HTTP_201_CREATED)
+        response = Response(read.data, status=status.HTTP_201_CREATED)
+        self._log_user_event(
+            request=request,
+            view_name="UserViewSet.add_membership",
+            model="UserOrganization",
+            action="membership_add",
+            object_id=str(membership.uuid),
+            status_code=status.HTTP_201_CREATED,
+            extra={
+                "target_user": str(target.uuid),
+                "organization_uuid": str(membership.organization.uuid),
+                "before": before_state,
+                "after": after_state,
+            },
+        )
+        return response
 
     @action(detail=True, methods=["delete"], url_path="memberships/(?P<organization_id>[^/]+)")
     def remove_membership(self, request, uuid=None, organization_id=None):
@@ -159,7 +229,24 @@ class UserViewSet(viewsets.ModelViewSet):
             context={"request": request, "user": target},
         )
         serializer.is_valid(raise_exception=True)
+        organization = serializer.validated_data["organization"]
+        before_state = self._capture_membership_state(target, organization)
         serializer.remove()
+        after_state = self._capture_membership_state(target, organization)
+        self._log_user_event(
+            request=request,
+            view_name="UserViewSet.remove_membership",
+            model="UserOrganization",
+            action="membership_remove",
+            object_id=str(before_state.get("membership_uuid") or organization_id or ""),
+            status_code=status.HTTP_204_NO_CONTENT,
+            extra={
+                "target_user": str(target.uuid),
+                "organization_uuid": str(getattr(organization, "uuid", organization_id)),
+                "before": before_state,
+                "after": after_state,
+            },
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["post"], url_path="switch-organization")
@@ -173,8 +260,45 @@ class UserViewSet(viewsets.ModelViewSet):
             raise InsufficientPermissions() from exc
         if not membership.is_active or membership.deleted_at is not None:
             raise InsufficientPermissions()
+        has_active_role = RoleAssignment.objects.filter(
+            user=request.user,
+            organization_id=membership.organization_id,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).exists()
+        if not has_active_role:
+            raise InsufficientPermissions()
         request.session["active_organization_id"] = membership.organization_id
         return Response({"organization": membership.organization_id}, status=status.HTTP_200_OK)
+
+    def _capture_membership_state(self, user, organization) -> dict:
+        membership = (
+            UserOrganization.objects.filter(
+                user=user,
+                organization=organization,
+                deleted_at__isnull=True,
+                is_active=True,
+            ).first()
+        )
+        assignments = (
+            RoleAssignment.objects.filter(
+                user=user,
+                organization=organization,
+                deleted_at__isnull=True,
+                is_active=True,
+            )
+            .select_related("role")
+            .order_by("role__name")
+        )
+        return {
+            "membership_exists": membership is not None,
+            "membership_uuid": str(membership.uuid) if membership else None,
+            "permissions": list(membership.permission_keys if membership else []),
+            "roles": [
+                {"uuid": str(assignment.role.uuid), "name": assignment.role.name}
+                for assignment in assignments
+            ],
+        }
 
     def retrieve(self, request, *args, **kwargs):
         user = self.get_object()
@@ -195,3 +319,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return super().get_object()
         except Exception as exc:
             raise UserNotFound() from exc
+
+
+
+

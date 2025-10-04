@@ -46,8 +46,14 @@ class BaseRolePermission(BasePermission):
 
     def has_permission(self, request, view):
         user = getattr(request, "user", None)
-        if not user or not user.is_authenticated:
+        if not user or not getattr(user, "is_authenticated", False):
             return False
+
+        if getattr(user, "is_superuser", False):
+            return True
+
+        if has_role(user, ROLE_SAAS_ADMINISTRATOR):
+            return True
 
         user_roles = self._get_user_roles(request, view)
         return bool(self.required_roles.intersection(user_roles))
@@ -104,7 +110,7 @@ class AccountPermission(BasePermission):
         if action == "list":
             return has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False)
         if action == "create":
-            return has_role(user, ROLE_SAAS_ADMINISTRATOR) or getattr(user, "is_staff", False)
+            return has_role(user, ROLE_SAAS_ADMINISTRATOR)
         return True  # defer to object checks
 
     def has_object_permission(self, request, view, obj):
@@ -186,8 +192,14 @@ class HasRole(BasePermission):
 
     def has_permission(self, request, view):
         user = getattr(request, "user", None)
-        if not user or not user.is_authenticated:
+        if not user or not getattr(user, "is_authenticated", False):
             return False
+
+        if getattr(user, "is_superuser", False):
+            return True
+
+        if has_role(user, ROLE_SAAS_ADMINISTRATOR):
+            return True
 
         organization_uuid = None
         if hasattr(view, "kwargs"):
@@ -233,3 +245,4 @@ class HasPermission(BasePermission):
 
         organization_identifier = self._resolve_organization(request, view)
         return has_permission(user, self.permission_key, organization_identifier)
+

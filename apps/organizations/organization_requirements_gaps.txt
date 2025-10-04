@@ -1,8 +1,0 @@
-Organization Requirements – Outstanding Items
-
-Resolved:
-- REQ-ORG-007 / REQ-ORG-008: Ownership assignment and transfer now handled via `OrganizationViewSet` actions using `assign_organization_owner` / `transfer_organization_owner` services with membership validation and last-owner protection (see apps/organizations/views.py:134 and apps/roles/services.py:118).
-- Role-aware permission keys are enforced through `OrganizationPermission` and the new owner endpoints use the role module exclusively.
-
-Still outstanding:
-- Audit coverage for ownership changes remains to be implemented; hook AuditLog entries into the assign/transfer owner flows to capture before/after role state and acting user context.
