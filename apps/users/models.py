@@ -67,7 +67,7 @@ class User(BaseModel, AbstractBaseUser, PermissionsMixin):
     """Custom user supporting multi-organization membership and soft delete."""
 
     email = models.EmailField(unique=True)
-    full_name = models.CharField(max_length=100)
+    full_name = models.CharField(max_length=100, blank=True)
     profile_image = models.URLField(blank=True, null=True)
     user_preferences = models.JSONField(default=dict, blank=True)
     is_staff = models.BooleanField(default=False, db_index=True)
@@ -104,10 +104,10 @@ class User(BaseModel, AbstractBaseUser, PermissionsMixin):
         super().clean()
         if (self.is_staff or self.is_superuser) and not _email_has_allowed_system_domain(self.email):
             raise ValidationError({"email": _("Staff/Superuser must use an allowed system email domain.")})
-        if not self.full_name or not self.full_name.strip():
-            raise ValidationError({"full_name": _("full_name is required and cannot be blank.")})
-        if len(self.full_name) > 100:
+        name = (self.full_name or "").strip()
+        if len(name) > 100:
             raise ValidationError({"full_name": _("full_name must be 100 characters or fewer.")})
+        self.full_name = name
         if self.pk:
             existing_email = (
                 type(self)
@@ -216,6 +216,11 @@ class UserOrganization(BaseModel):
                 current.add(perm)
         self.permission_keys = sorted(current)
         self.save(update_fields=["permission_keys", "updated_at"])
+        try:
+            from apps.users.services import invalidate_user_permission_cache  # type: ignore
+            invalidate_user_permission_cache(self.user_id, self.organization_id)
+        except Exception:
+            pass
 
     def remove_permissions(self, permissions: Iterable[str]):
         current = set(self.permission_keys or [])
@@ -223,6 +228,12 @@ class UserOrganization(BaseModel):
             current.discard(perm)
         self.permission_keys = sorted(current)
         self.save(update_fields=["permission_keys", "updated_at"])
+        try:
+            from apps.users.services import invalidate_user_permission_cache  # type: ignore
+            invalidate_user_permission_cache(self.user_id, self.organization_id)
+        except Exception:
+            pass
+
 
     def deactivate(self):
         if self.deleted_at:
@@ -233,3 +244,4 @@ class UserOrganization(BaseModel):
 
     def __str__(self):
         return f"{self.user_id} -> {self.organization_id}"
+

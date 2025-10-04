@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu
 
 host="${DB_HOST:-db}"
 port="${DB_PORT:-5432}"
@@ -18,6 +18,7 @@ python manage.py makemigrations accounts users organizations common products sub
 
 # Apply migrations
 python manage.py migrate --noinput
+python manage.py initialize_roles
 
 # Create superuser only if env is provided
 if [ -n "${DJANGO_SUPERUSER_EMAIL:-}" ]; then
@@ -53,3 +54,4 @@ if [ "${DEBUG:-0}" = "1" ]; then
 else
   gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
 fi
+

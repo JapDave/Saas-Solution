@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List
 
+from uuid import UUID
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from apps.common.exceptions import (
@@ -14,11 +17,79 @@ from apps.common.exceptions import (
     UserNotMember,
 )
 from apps.organizations.models import Organization
+from apps.roles.constants import ROLE_ORGANIZATION_OWNER
+from apps.roles.services import sync_user_role_assignments
+from apps.roles.utils import has_role
+from apps.roles.models import Role, RoleAssignment
 
 from .models import UserOrganization
 from .services import ensure_user_can_manage_organization
 
 User = get_user_model()
+
+
+
+def _normalize_permission_keys(values: Iterable[str]) -> List[str]:
+    normalized: List[str] = []
+    seen: set[str] = set()
+    for value in values or []:
+        if not isinstance(value, str):
+            continue
+        token = value.strip().lower()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        normalized.append(token)
+    normalized.sort()
+    return normalized
+
+
+def _collect_permissions_from_roles(roles: Iterable[Role]) -> List[str]:
+    collected: List[str] = []
+    for role in roles or []:
+        collected.extend(role.permissions or [])
+    return _normalize_permission_keys(collected)
+
+
+def _merge_permission_keys(*groups: Iterable[str]) -> List[str]:
+    combined: List[str] = []
+    for group in groups:
+        combined.extend(group or [])
+    return _normalize_permission_keys(combined)
+
+
+def _resolve_roles_for_membership(*, organization: Organization, role_ids: Iterable[Any]) -> List[Role]:
+    if not role_ids:
+        raise InvalidUserData(detail='At least one role must be assigned to the organization membership.')
+
+    try:
+        uuids = [UUID(str(value)) for value in role_ids]
+    except (TypeError, ValueError) as exc:
+        raise InvalidUserData(detail='Role identifiers must be valid UUID strings.') from exc
+
+    roles = list(Role.objects.filter(uuid__in=uuids))
+    if len({role.uuid for role in roles}) != len({UUID(str(value)) for value in role_ids}):
+        existing = {role.uuid for role in roles}
+        missing = [str(uuid) for uuid in uuids if uuid not in existing]
+        raise InvalidUserData(detail=f"Roles not found: {', '.join(missing)}")
+
+    invalid = [role for role in roles if role.organization_id != organization.id]
+    if invalid:
+        raise InvalidUserData(detail='All roles must belong to the target organization.')
+
+    inactive = [role for role in roles if not role.is_active]
+    if inactive:
+        raise InvalidUserData(detail='Inactive roles cannot be assigned.')
+
+    ordered: List[Role] = []
+    seen_ids: set[int] = set()
+    role_map = {role.uuid: role for role in roles}
+    for uuid_key in uuids:
+        role = role_map.get(uuid_key)
+        if role and role.id not in seen_ids:
+            ordered.append(role)
+            seen_ids.add(role.id)
+    return ordered
 
 
 class MembershipSerializer(serializers.ModelSerializer):
@@ -27,6 +98,19 @@ class MembershipSerializer(serializers.ModelSerializer):
     account_id = serializers.IntegerField(source="organization.account_id", read_only=True)
     account_uuid = serializers.UUIDField(source="organization.account.uuid", read_only=True)
     permissions = serializers.ListField(child=serializers.CharField(), source="permission_keys", read_only=True)
+    roles = serializers.SerializerMethodField()
+
+    def get_roles(self, obj):
+        assignments = RoleAssignment.objects.filter(
+            user=obj.user,
+            organization=obj.organization,
+            deleted_at__isnull=True,
+            is_active=True,
+        ).select_related("role").order_by("role__name")
+        return [
+            {"uuid": str(assignment.role.uuid), "name": assignment.role.name}
+            for assignment in assignments
+        ]
 
     class Meta:
         model = UserOrganization
@@ -39,6 +123,7 @@ class MembershipSerializer(serializers.ModelSerializer):
             "account_id",
             "account_uuid",
             "permissions",
+            "roles",
             "is_active",
             "assigned_by",
             "assigned_at",
@@ -52,14 +137,18 @@ class MembershipSerializer(serializers.ModelSerializer):
 class MembershipInputSerializer(serializers.Serializer):
     organization = serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all())
     permissions = serializers.ListField(child=serializers.CharField(), allow_empty=True, required=False)
+    roles = serializers.ListField(child=serializers.UUIDField(), allow_empty=False, required=False)
 
     def validate_permissions(self, permissions: Iterable[str]):
-        cleaned = []
-        for perm in permissions or []:
-            if not isinstance(perm, str) or not perm.strip():
-                raise serializers.ValidationError("Each permission must be a non-empty string.")
-            cleaned.append(perm.strip())
-        return cleaned
+        return _normalize_permission_keys(permissions)
+
+    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+        organization = attrs["organization"]
+        role_ids = self.initial_data.get("roles")
+        roles = _resolve_roles_for_membership(organization=organization, role_ids=role_ids)
+        attrs["roles"] = roles
+        attrs["permissions"] = _merge_permission_keys(attrs.get("permissions", []), _collect_permissions_from_roles(roles))
+        return attrs
 
 
 class UserReadSerializer(serializers.ModelSerializer):
@@ -148,7 +237,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
             for membership in memberships:
                 organization = membership["organization"]
-                permissions = membership.get("permissions", [])
+                roles = membership.get("roles", [])
+                permissions = list(membership.get("permissions", []))
                 membership_instance = UserOrganization(
                     user=user,
                     organization=organization,
@@ -160,6 +250,12 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 except ValidationError as exc:
                     raise InvalidUserData(detail=str(exc)) from exc
                 membership_instance.save()
+                sync_user_role_assignments(
+                    user=user,
+                    organization=organization,
+                    roles=roles,
+                    assigned_by=request_user,
+                )
         return user
 
 
@@ -193,22 +289,30 @@ class UserStatusUpdateSerializer(serializers.Serializer):
 class MembershipMutationSerializer(serializers.Serializer):
     organization = serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all())
     permissions = serializers.ListField(child=serializers.CharField(), allow_empty=True, required=False)
+    roles = serializers.ListField(child=serializers.UUIDField(), allow_empty=False, required=False)
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         request = self.context.get("request")
         request_user = getattr(request, "user", None)
         organization = attrs["organization"]
         ensure_user_can_manage_organization(request_user, organization, permission_key="user:manage_membership")
+        role_ids = self.initial_data.get("roles")
+        roles = _resolve_roles_for_membership(organization=organization, role_ids=role_ids)
+        attrs["roles"] = roles
+        attrs["permissions"] = _merge_permission_keys(attrs.get("permissions", []), _collect_permissions_from_roles(roles))
         return attrs
 
     def create(self, validated_data: Dict[str, Any]) -> UserOrganization:
         request = self.context.get("request")
         request_user = getattr(request, "user", None)
+        if request_user is None:
+            raise InvalidUserData(detail="request_user context required.")
         user: User = self.context["user"]
         organization = validated_data["organization"]
-        permissions = list({perm.strip() for perm in validated_data.get("permissions", []) if perm.strip()})
         if UserOrganization.objects.filter(user=user, organization=organization).exists():
             raise UserAlreadyMember()
+        roles = validated_data.get("roles", [])
+        permissions = list(validated_data.get("permissions", []))
         membership = UserOrganization(
             user=user,
             organization=organization,
@@ -220,6 +324,12 @@ class MembershipMutationSerializer(serializers.Serializer):
         except ValidationError as exc:
             raise InvalidUserData(detail=str(exc)) from exc
         membership.save()
+        sync_user_role_assignments(
+            user=user,
+            organization=organization,
+            roles=roles,
+            assigned_by=request_user,
+        )
         return membership
 
 
@@ -240,4 +350,35 @@ class MembershipRemovalSerializer(serializers.Serializer):
             membership = UserOrganization.objects.get(user=user, organization=organization)
         except UserOrganization.DoesNotExist as exc:
             raise UserNotMember() from exc
+
+        org_uuid = str(getattr(organization, "uuid", ""))
+        try:
+            is_owner = has_role(user, ROLE_ORGANIZATION_OWNER, org_uuid)
+        except ValueError:
+            is_owner = False
+
+        if is_owner:
+            remaining_owner_exists = RoleAssignment.objects.filter(
+                organization=organization,
+                role__name=ROLE_ORGANIZATION_OWNER,
+                is_active=True,
+                deleted_at__isnull=True,
+            ).exclude(user=user).exists()
+            if not remaining_owner_exists:
+                raise serializers.ValidationError(
+                    {"organization": _("Organization must retain at least one owner.")}
+                )
+
+        assignments = RoleAssignment.objects.filter(
+            user=user,
+            organization=organization,
+            deleted_at__isnull=True,
+        ).select_related("role")
+        for assignment in assignments:
+            assignment.delete()
+
         membership.delete()
+
+
+
+

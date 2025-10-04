@@ -1,103 +1,94 @@
+from __future__ import annotations
+
+from typing import Iterable, List
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.roles.constants import (
+    ROLE_ACCOUNT_ADMINISTRATOR,
+    ROLE_ACCOUNT_OWNER,
+    ROLE_ORGANIZATION_ADMINISTRATOR,
+    ROLE_ORGANIZATION_OWNER,
+    ROLE_PERMISSION_TEMPLATES,
+    ROLE_SAAS_ACCOUNT_MANAGER,
+    ROLE_SAAS_ADMINISTRATOR,
+)
 from apps.roles.models import Role
 
-from apps.roles.constants import (
-    ROLE_SAAS_ADMINISTRATOR,
-    ROLE_SAAS_ACCOUNT_MANAGER,
-    ROLE_ACCOUNT_OWNER,
-    ROLE_ACCOUNT_ADMINISTRATOR,
-    ROLE_ORGANIZATION_OWNER,
-    ROLE_ORGANIZATION_ADMINISTRATOR,
-)
 
-# A placeholder for a centralized permission definition.
-# In a real application, this would likely be a more structured enum or class.
-PERMISSIONS = {
-    "FULL_ACCESS": ["*"],
-    "ACCOUNT_MANAGEMENT": [
-        "accounts.view",
-        "accounts.edit",
-        "organizations.view",
-        "users.view",
-    ],
-    "ACCOUNT_OWNER": [
-        "accounts.view",
-        "accounts.edit",
-        "organizations.create",
-        "organizations.view",
-        "organizations.edit",
-        "organizations.delete",
-        "users.invite",
-        "users.view",
-        "users.edit",
-        "users.delete",
-        "billing.view",
-        "billing.manage",
-    ],
-    "ORGANIZATION_OWNER": [
-        "organizations.view",
-        "organizations.edit",
-        "users.invite",
-        "users.view",
-        "users.edit",
-        "users.delete",
-        "subscriptions.view",
-    ],
-}
+def _normalize_permissions(keys: Iterable[str]) -> List[str]:
+    normalized: List[str] = []
+    for key in keys or []:
+        if not isinstance(key, str):
+            continue
+        value = key.strip().lower()
+        if not value:
+            continue
+        if value not in normalized:
+            normalized.append(value)
+    return normalized
 
 
 class Command(BaseCommand):
-    help = "Initializes the database with immutable system and user roles."
+    help = "Initializes the database with immutable system and user role templates."
 
-    ROLES_TO_CREATE = [
-        # 7.1.1 System Roles
+    ROLE_DEFINITIONS = (
         {
             "name": ROLE_SAAS_ADMINISTRATOR,
             "role_type": Role.RoleType.SYSTEM,
-            "description": "Full platform access, can manage all organizations and users.",
-            "permissions": PERMISSIONS["FULL_ACCESS"],
+            "description": "Full platform access across all accounts, organizations, and modules.",
         },
         {
             "name": ROLE_SAAS_ACCOUNT_MANAGER,
             "role_type": Role.RoleType.SYSTEM,
-            "description": "Can manage assigned accounts and their organizations.",
-            "permissions": PERMISSIONS["ACCOUNT_MANAGEMENT"],
+            "description": "Manages assigned accounts and visibility into their organizations and users.",
         },
-        # 7.1.2 User Roles (Templates)
         {
             "name": ROLE_ACCOUNT_OWNER,
             "role_type": Role.RoleType.USER,
-            "description": "Full access to account and all its organizations.",
-            "permissions": PERMISSIONS["ACCOUNT_OWNER"],
+            "description": "Account-level template with full control over account resources.",
         },
         {
             "name": ROLE_ACCOUNT_ADMINISTRATOR,
             "role_type": Role.RoleType.USER,
-            "description": "Administrative access to account organizations.",
-            "permissions": PERMISSIONS["ACCOUNT_OWNER"],  # Placeholder
+            "description": "Account-level administrative template with scoped management capabilities.",
         },
-    ]
+        {
+            "name": ROLE_ORGANIZATION_OWNER,
+            "role_type": Role.RoleType.USER,
+            "description": "Organization template with ownership and full management rights.",
+        },
+        {
+            "name": ROLE_ORGANIZATION_ADMINISTRATOR,
+            "role_type": Role.RoleType.USER,
+            "description": "Organization template for day-to-day administration duties.",
+        },
+    )
 
     @transaction.atomic
     def handle(self, *args, **options):
         self.stdout.write("Starting role initialization...")
 
-        for role_data in self.ROLES_TO_CREATE:
+        for definition in self.ROLE_DEFINITIONS:
+            role_name = definition["name"]
+            role_type = definition["role_type"]
+            description = definition["description"]
+            template_permissions = ROLE_PERMISSION_TEMPLATES.get(role_name, ())
+            permissions = _normalize_permissions(template_permissions)
+
             role, created = Role.objects.update_or_create(
-                name=role_data["name"],
-                organization__isnull=True,  # These are global/template roles
-                role_type=role_data["role_type"],
+                name=role_name,
+                organization__isnull=True,
+                role_type=role_type,
                 defaults={
-                    "description": role_data["description"],
-                    "permissions": role_data["permissions"],
+                    "description": description,
+                    "permissions": permissions,
                     "is_active": True,
                 },
             )
-            if created:
-                self.stdout.write(self.style.SUCCESS(f'Successfully created role: "{role.name}"'))
-            else:
-                self.stdout.write(f'Role "{role.name}" already exists, updated.')
+
+            action = "created" if created else "updated"
+            self.stdout.write(self.style.SUCCESS(f"Role '{role.name}' {action}."))
 
         self.stdout.write(self.style.SUCCESS("Role initialization complete."))

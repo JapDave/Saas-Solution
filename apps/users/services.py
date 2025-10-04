@@ -5,6 +5,7 @@ from typing import Dict, Iterable, Optional, Set
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.core.cache import cache
 
 from apps.accounts.models import Account
 from apps.common.exceptions import CannotDeactivateOwner, CannotDeleteOwner, InsufficientPermissions
@@ -14,6 +15,21 @@ from apps.organizations.models import Organization
 from .models import UserOrganization
 
 User = get_user_model()
+
+_PERMISSION_CACHE_PREFIX = "users:permissions"
+_PERMISSION_CACHE_TIMEOUT = 300
+
+
+def _permission_cache_key(user_id: int, organization_id: int) -> str:
+    return f"{_PERMISSION_CACHE_PREFIX}:{user_id}:{organization_id}"
+
+
+def invalidate_user_permission_cache(user_id: int | None, organization_id: int | None) -> None:
+    if not user_id or organization_id is None:
+        return
+    cache.delete(_permission_cache_key(int(user_id), int(organization_id)))
+
+
 
 
 def _is_authenticated(user) -> bool:
@@ -146,6 +162,14 @@ def resolve_effective_permission_keys(user, organization_id: int) -> Set[str]:
     contribute permissions without changing call sites in the user domain.
     """
     permissions = set(get_user_membership_permissions(user, organization_id=organization_id).get(organization_id, set()))
+
+    user_id = getattr(user, "id", None)
+    cache_key = _permission_cache_key(user_id, organization_id) if user_id else None
+    if cache_key:
+        cached_permissions = cache.get(cache_key)
+        if cached_permissions is not None:
+            return set(cached_permissions)
+
     try:
         from apps.roles import services as role_services  # type: ignore
     except (ModuleNotFoundError, ImportError):
@@ -154,7 +178,11 @@ def resolve_effective_permission_keys(user, organization_id: int) -> Set[str]:
         additional = role_services.resolve_user_permissions(user=user, organization_id=organization_id)
         if additional:
             permissions.update(additional)
-    return permissions
+
+    sorted_permissions = sorted(permissions)
+    if cache_key:
+        cache.set(cache_key, sorted_permissions, _PERMISSION_CACHE_TIMEOUT)
+    return set(sorted_permissions)
 
 
 def is_account_or_organization_owner(user) -> bool:
@@ -175,4 +203,6 @@ def ensure_user_not_owner_for_deactivate(target) -> None:
 def ensure_user_not_owner_for_delete(target) -> None:
     if is_account_or_organization_owner(target):
         raise CannotDeleteOwner()
+
+
 

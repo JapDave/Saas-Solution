@@ -29,7 +29,7 @@ class TestUserModel:
 
     def test_delete_soft_deactivates_memberships(self):
         user = UserFactory()
-        membership = UserOrganizationFactory(user=user, permission_keys=["users:read"])
+        membership = UserOrganizationFactory(user=user, permission_keys=["user:read"])
         user_id = user.id
         membership_id = membership.id
 
@@ -71,16 +71,16 @@ class TestUserOrganizationModel:
             membership.full_clean()
 
     def test_add_permissions_deduplicates(self):
-        membership = UserOrganizationFactory(permission_keys=["users:read"])
-        membership.add_permissions(["users:update", "users:read"])
+        membership = UserOrganizationFactory(permission_keys=["user:read"])
+        membership.add_permissions(["user:update", "user:read"])
         membership.refresh_from_db()
-        assert membership.permission_keys == ["users:read", "users:update"]
+        assert membership.permission_keys == ["user:read", "user:update"]
 
     def test_remove_permissions(self):
-        membership = UserOrganizationFactory(permission_keys=["users:read", "users:update"])
-        membership.remove_permissions(["users:read", "nonexistent:perm"])
+        membership = UserOrganizationFactory(permission_keys=["user:read", "user:update"])
+        membership.remove_permissions(["user:read", "nonexistent:perm"])
         membership.refresh_from_db()
-        assert membership.permission_keys == ["users:update"]
+        assert membership.permission_keys == ["user:update"]
 
     def test_str_representation(self):
         membership = UserOrganizationFactory()

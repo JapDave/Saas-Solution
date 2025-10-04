@@ -54,6 +54,27 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
     alpha_labs_id = alpha_labs_resp.data["id"]
     bravo_rd_id = bravo_rd_resp.data["id"]
 
+    alpha_hq_org = Organization.objects.get(id=alpha_hq_id)
+    alpha_labs_org = Organization.objects.get(id=alpha_labs_id)
+    role_hq = Role.objects.create(
+        organization=alpha_hq_org,
+        name="Alpha HQ Member",
+        description="Alpha HQ member",
+        permissions=["user:read"],
+        role_type=Role.RoleType.USER_CUSTOM,
+        is_active=True,
+        created_by=alpha_hq_org.created_by,
+    )
+    role_labs = Role.objects.create(
+        organization=alpha_labs_org,
+        name="Alpha Labs Editor",
+        description="Alpha Labs editor",
+        permissions=["user:read", "user:update"],
+        role_type=Role.RoleType.USER_CUSTOM,
+        is_active=True,
+        created_by=alpha_labs_org.created_by,
+    )
+
     manager_client = APIClient()
     manager_user.get_assigned_account_ids = lambda: [alpha_account_id]
     manager_client.force_authenticate(user=manager_user)
@@ -77,8 +98,16 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
             "password": "StrongPass123",
             "full_name": "Org Member",
             "memberships": [
-                {"organization": alpha_hq_id, "permissions": ["users:read"]},
-                {"organization": alpha_labs_id, "permissions": ["users:read", "users:update"]},
+                {
+                    "organization": alpha_hq_id,
+                    "permissions": ["user:read"],
+                    "roles": [str(role_hq.uuid)],
+                },
+                {
+                    "organization": alpha_labs_id,
+                    "permissions": ["user:read", "user:update"],
+                    "roles": [str(role_labs.uuid)],
+                },
             ],
         },
         format="json",
@@ -87,9 +116,22 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
     member_uuid = create_user_resp.data["uuid"]
     member_id = create_user_resp.data["id"]
 
+    assert RoleAssignment.objects.filter(
+        organization_id=alpha_hq_id,
+        user__uuid=member_uuid,
+        role=role_hq,
+        deleted_at__isnull=True,
+    ).exists()
+    assert RoleAssignment.objects.filter(
+        organization_id=alpha_labs_id,
+        user__uuid=member_uuid,
+        role=role_labs,
+        deleted_at__isnull=True,
+    ).exists()
+
     duplicate_membership_resp = manager_client.post(
         reverse("users-add-membership", kwargs={"uuid": member_uuid}),
-        {"organization": bravo_rd_id, "permissions": ["users:read"]},
+        {"organization": bravo_rd_id, "permissions": ["user:read"]},
         format="json",
     )
     assert duplicate_membership_resp.status_code == 403
@@ -122,3 +164,7 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
 
     user_memberships = UserOrganization.objects.filter(user=member)
     assert user_memberships.count() == 2
+
+
+
+

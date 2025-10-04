@@ -1,7 +1,0 @@
-Outstanding User Requirements (blocked on upcoming modules)
-
-- REQ-USER-001 / REQ-USER-004 / REQ-USER-005: Role assignments are not created, updated, or removed when memberships change. We currently persist only `UserOrganization` records; the Role & Permission module will need to supply `RoleAssignment` handling and subscription-filtered permission keys.
-- REQ-USER-003 / REQ-USER-006 / REQ-USER-007: Audit trail for user updates/deactivations/deletions is partial. Status changes are logged, but broader before/after snapshots and permission-change events depend on the future authorization/audit tooling.
-- REQ-USER-008 / REQ-USER-009: Rate limiting, permission-resolution caching, and subscription-based filtering are stubbed; implementation is deferred until Subscription Management and Role services expose the necessary APIs.
-
-Action: revisit once Role-and-Permission Management and Subscription Management land, then wire user flows to their services and extend audit coverage.
