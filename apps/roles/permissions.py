@@ -4,8 +4,6 @@ from rest_framework.permissions import BasePermission
 
 from apps.roles.utils import has_role, has_permission
 
-from apps.accounts.models import Account
-from apps.accounts.services import get_assigned_account_ids
 from apps.roles.constants import (
     ROLE_SAAS_ADMINISTRATOR,
     ROLE_SAAS_ACCOUNT_MANAGER,

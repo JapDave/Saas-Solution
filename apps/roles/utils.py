@@ -70,18 +70,10 @@ def has_role(
             f"An organization_uuid must be provided to check for the non-system role: '{normalised_name}'"
         )
 
-    assignments = user.role_assignments.filter(role__name=normalised_name, is_active=True)
+    assignments = user.role_assignments.filter(role__name=role_name, is_active=True)
 
-    if organization_uuid is not None:
-        org_uuid, org_id = _split_org_identifier(organization_uuid)
-        org_filters = Q()
-        if org_uuid:
-            org_filters |= Q(organization__uuid=org_uuid)
-        if org_id is not None:
-            org_filters |= Q(organization_id=org_id)
-        if not org_filters:
-            return False
-        return assignments.filter(org_filters).exists()
+    if organization_uuid:
+        return assignments.filter(organization__uuid=organization_uuid).exists()
 
     return assignments.filter(organization__isnull=True).exists()
 
