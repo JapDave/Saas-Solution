@@ -34,7 +34,7 @@ class RoleViewSet(viewsets.ModelViewSet):
     serializer_class = RoleSerializer
     queryset = Role.objects.all()
     lookup_field = "uuid"
-    # permission_classes = [IsOrganizationOwner, IsOrganizationAdmin]
+    permission_classes = [IsOrganizationOwner, IsOrganizationAdmin]
 
     def get_queryset(self):
         """

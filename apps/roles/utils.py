@@ -37,10 +37,11 @@ def has_role(
         )
 
     assignments = user.role_assignments.filter(role__name=role_name, is_active=True)
-
+    print(f"Assignments for user {user} and role '{role_name}': {assignments.exists()}")
+    print(f"Is system role: {is_system_role}, organization_uuid: {organization_uuid}")
     if organization_uuid:
         return assignments.filter(organization__uuid=organization_uuid).exists()
-
+    
     return assignments.filter(organization__isnull=True).exists()
 
 

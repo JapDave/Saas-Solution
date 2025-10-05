@@ -2,6 +2,7 @@
 import uuid
 
 # Django/DRF imports
+from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -35,7 +36,13 @@ class Subscription(BaseModel):
         max_length=20, choices=Status.choices, default=Status.ACTIVE
     )
     configuration = models.JSONField(default=dict)
-
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_subscriptions",
+        null=True,
+        blank=False,
+    )
     start_date = models.DateTimeField()
     end_date = models.DateTimeField(null=True, blank=True)
     trial_end_date = models.DateTimeField(null=True, blank=True)

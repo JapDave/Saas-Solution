@@ -19,6 +19,7 @@ class ModuleSerializer(serializers.ModelSerializer):
             "configurable_attributes",
             "exposed_permissions",
             "is_active",
+            "products",
             "created_at",
             "updated_at",
         ]

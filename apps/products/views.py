@@ -2,8 +2,12 @@
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+# 3rd party imports
+from django_filters.rest_framework import DjangoFilterBackend
 
 # Project imports
 from apps.products.models import (
@@ -35,6 +39,9 @@ class ModuleViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Module.objects.filter(is_active=True)
     serializer_class = ModuleSerializer
     permission_classes = [IsAuthenticated, ]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ["products",]
+    ordering_fields = ["created_at", "key", "code", "name", "-name"]
     lookup_field = "uuid"
 
     @action(detail=True, methods=["get"], url_path="config-schema", url_name="config-schema")

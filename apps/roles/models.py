@@ -76,6 +76,8 @@ class RoleAssignment(BaseModel):
         "organizations.Organization",
         on_delete=models.CASCADE,
         related_name="role_assignments",
+        null=True,  # RoleAssignments for system roles have no organization
+        blank=True,
     )
     role = models.ForeignKey(
         Role, on_delete=models.CASCADE, related_name="assignments"

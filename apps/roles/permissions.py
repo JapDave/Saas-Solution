@@ -55,6 +55,23 @@ class BaseRolePermission(BasePermission):
         return not self.required_roles.isdisjoint(user_roles)
 
 
+class AnyOf(BasePermission):
+    """
+    Generic permission class that passes if ANY of the provided permission classes pass.
+    Permissions should be passed as uninitialized classes (e.g., AnyOf(P1, P2)).
+    """
+    def __init__(self, *permissions):
+        # We store the instantiated permission objects
+        self.permissions = [p() for p in permissions] 
+
+    def has_permission(self, request, view):
+        """Returns True if any permission in the list grants access."""
+        for permission in self.permissions:
+            if permission.has_permission(request, view):
+                return True
+        return False
+
+
 class IsSaaSAdmin(BasePermission):
     """
     Checks if the user has the global 'SaaS Administrator' role.
@@ -67,7 +84,7 @@ class IsSaaSAdmin(BasePermission):
         return has_role(request.user, ROLE_SAAS_ADMINISTRATOR)
 
 
-class ISSaaSAccountManager(BasePermission):
+class IsSaaSAccountManager(BasePermission):
     """
     Checks if the user has the global 'SaaS Account Manager' role.
     This role is not tied to a specific organization.
