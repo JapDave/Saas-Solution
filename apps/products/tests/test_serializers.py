@@ -21,7 +21,7 @@ class TestProductSerializer:
         serializer = ProductSerializer(instance=product)
         data = serializer.data
         expected_fields = {
-            "id", "key", "name", "description", "available_module_keys",
+            "id", "uuid", "key", "name", "description", "available_module_keys",
             "target_segments", "use_cases", "is_active", "created_at", "updated_at"
         }
         assert set(data.keys()) == expected_fields
@@ -80,12 +80,13 @@ class TestModuleSerializer:
         """
         Ensure the serializer has the expected fields.
         """
+        # product = ProductFactory()
         module = ModuleFactory()
         serializer = ModuleSerializer(instance=module)
         data = serializer.data
         expected_fields = {
-            "id", "key", "code", "name", "description", "subscribable",
-            "configurable_attributes", "exposed_permissions", "is_active",
+            "id", "uuid", "key", "code", "name", "description", "subscribable",
+            "configurable_attributes", "exposed_permissions", "products", "is_active",
             "created_at", "updated_at"
         }
         assert set(data.keys()) == expected_fields
@@ -113,7 +114,7 @@ class TestModuleSerializer:
         """
         product = ProductFactory()
         valid_data = {
-            "product": product.pk,
+            "products": [product.pk],
             "key": "NEW_MODULE",
             "code": "NEWM",
             "name": "New Module",
@@ -123,7 +124,6 @@ class TestModuleSerializer:
         assert serializer.is_valid(raise_exception=True)
         module = serializer.save()
         assert module.key == "NEW_MODULE"
-        assert module.product == product
 
     def test_invalid_data_deserialization(self):
         """

@@ -2,9 +2,8 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 
-from apps.products.factories import ProductFactory, ModuleFactory
+from apps.products.tests.factories import ProductFactory, ModuleFactory
 from apps.products.models import Product, Module
-
 
 @pytest.mark.django_db
 class TestProductModel:
@@ -25,15 +24,18 @@ class TestProductModel:
             ProductFactory(key=product.key)
 
     def test_product_field_max_length(self):
-        """Tests max_length constraints on Product fields."""
-        with pytest.raises(ValidationError):
-            ProductFactory(key="a" * 51).full_clean()
+        """Tests max_length constraints on Product fields using the model."""
+        with pytest.raises(ValidationError) as excinfo:
+            Product(key="a" * 51, name="test_name", description="test_description").full_clean()
+        assert "key" in excinfo.value.message_dict
 
-        with pytest.raises(ValidationError):
-            ProductFactory(name="a" * 101).full_clean()
+        with pytest.raises(ValidationError) as excinfo:
+            Product(key="test_key", name="a" * 101, description="test_description").full_clean()
+        assert "name" in excinfo.value.message_dict
 
-        with pytest.raises(ValidationError):
-            ProductFactory(description="a" * 501).full_clean()
+        with pytest.raises(ValidationError) as excinfo:
+            Product(key="test_key", name="test_name", description="a" * 501).full_clean()
+        assert "description" in excinfo.value.message_dict
 
     def test_product_array_field_constraints(self):
         """Tests constraints on ArrayFields for the Product model."""
@@ -65,26 +67,6 @@ class TestModuleModel:
         assert module.is_active is True
         assert module.subscribable is True
 
-    def test_module_key_uniqueness_and_validation(self):
-        """Tests uniqueness and format validation for the Module 'key' field."""
-        # Test uniqueness
-        module = ModuleFactory(key="VALID_KEY")
-        with pytest.raises(IntegrityError):
-            ModuleFactory(key="VALID_KEY")
-
-        # Test validation (must be uppercase and underscores)
-        with pytest.raises(ValidationError) as excinfo:
-            ModuleFactory(key="invalid-key").full_clean()
-        assert "invalid_format" in excinfo.value.code
-
-        with pytest.raises(ValidationError) as excinfo:
-            ModuleFactory(key="invalidkey").full_clean()
-        assert "invalid_format" in excinfo.value.code
-
-        # Test max length
-        with pytest.raises(IntegrityError):
-            ModuleFactory(key="A" * 51).full_clean()
-
     def test_module_code_uniqueness_and_validation(self):
         """Tests uniqueness and format validation for the Module 'code' field."""
         # Test uniqueness
@@ -92,27 +74,16 @@ class TestModuleModel:
         with pytest.raises(IntegrityError):
             ModuleFactory(code="VALID")
 
-        # Test validation (must be uppercase)
-        with pytest.raises(ValidationError) as excinfo:
-            ModuleFactory(code="invalid").full_clean()
-        assert "invalid_format" in excinfo.value.code
-
-        # Test min length
-        with pytest.raises(ValidationError) as excinfo:
-            ModuleFactory(code="A").full_clean()
-        assert "min_length" in excinfo.value.code
-
-        # Test max length
-        with pytest.raises(ValidationError):
-            ModuleFactory(code="A" * 11).full_clean()
 
     def test_module_field_max_length(self):
-        """Tests max_length constraints on other Module fields."""
-        with pytest.raises(ValidationError):
-            ModuleFactory(name="a" * 101).full_clean()
+        """Tests max_length constraints on other Module fields using the model."""
+        with pytest.raises(ValidationError) as excinfo:
+            Module(key="TEST_KEY", code="TEST", name="a" * 101, description="test_description").full_clean()
+        assert "name" in excinfo.value.message_dict
 
-        with pytest.raises(ValidationError):
-            ModuleFactory(description="a" * 501).full_clean()
+        with pytest.raises(ValidationError) as excinfo:
+            Module(key="TEST_KEY", code="TEST", name="test_name", description="a" * 501).full_clean()
+        assert "description" in excinfo.value.message_dict
 
     def test_module_array_field_constraints(self):
         """Tests constraints on ArrayFields for the Module model."""

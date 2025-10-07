@@ -1,7 +1,7 @@
 import factory
 from factory.django import DjangoModelFactory
 
-from .models import Product, Module
+from apps.products.models import Product, Module
 
 
 class ProductFactory(DjangoModelFactory):
@@ -13,7 +13,6 @@ class ProductFactory(DjangoModelFactory):
     key = factory.Sequence(lambda n: f"PRODUCT_KEY_{n}")
     name = factory.Faker("company")
     description = factory.Faker("paragraph", nb_sentences=3)
-    available_module_keys = factory.LazyFunction(list)
     target_segments = factory.LazyFunction(list)
     use_cases = factory.LazyFunction(list)
     is_active = True

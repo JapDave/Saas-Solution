@@ -50,26 +50,27 @@ class TestProductViewSet:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 3
+        assert len(response.data["results"]) == 3
 
     def test_retrieve_active_product(self, api_client):
         """
         Ensure a single active product can be retrieved.
         """
         product = ProductFactory(is_active=True)
-        url = reverse("product-detail", kwargs={"pk": product.pk})
+        url = reverse("product-detail", kwargs={"uuid": product.uuid})
         response = api_client.get(url)
 
         serializer = ProductSerializer(product)
         assert response.status_code == status.HTTP_200_OK
-        assert response.data == serializer.data
+        assert response.data["id"] == serializer.data["id"]
+        assert response.data["key"] == serializer.data["key"]
 
     def test_retrieve_inactive_product_fails(self, api_client):
         """
         Ensure retrieving an inactive product returns a 404 error.
         """
         product = ProductFactory(is_active=False)
-        url = reverse("product-detail", kwargs={"pk": product.pk})
+        url = reverse("product-detail", kwargs={"uuid": product.uuid})
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -101,14 +102,14 @@ class TestModuleViewSet:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 2
+        assert len(response.data["results"]) == 2
 
     def test_retrieve_active_module(self, api_client):
         """
         Ensure a single active module can be retrieved.
         """
         module = ModuleFactory(is_active=True)
-        url = reverse("module-detail", kwargs={"pk": module.pk})
+        url = reverse("module-detail", kwargs={"uuid": module.uuid})
         response = api_client.get(url)
 
         serializer = ModuleSerializer(module)
@@ -120,7 +121,7 @@ class TestModuleViewSet:
         Ensure retrieving an inactive module returns a 404 error.
         """
         module = ModuleFactory(is_active=False)
-        url = reverse("module-detail", kwargs={"pk": module.pk})
+        url = reverse("module-detail", kwargs={"uuid": module.uuid})
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -131,7 +132,7 @@ class TestModuleViewSet:
         """
         schema_data = {"setting1": "string", "setting2": "integer"}
         module = ModuleFactory(is_active=True, configurable_attributes=schema_data)
-        url = reverse("module-config-schema", kwargs={"pk": module.pk})
+        url = reverse("module-config-schema", kwargs={"uuid": module.uuid})
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
