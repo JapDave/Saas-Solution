@@ -140,3 +140,98 @@ class InvalidLogoUrl(CodedAPIException):
     status_code = 400
     default_code = INVALID_LOGO_URL
     default_detail = "Logo URL is invalid or inaccessible"
+# ---- Team codes ----------------------------------------------------------
+TEAM_NOT_FOUND = "TEAM_NOT_FOUND"
+TEAM_NAME_EXISTS = "TEAM_NAME_EXISTS"
+INVALID_TEAM_DATA = "INVALID_TEAM_DATA"
+TEAM_SIZE_LIMIT_EXCEEDED = "TEAM_SIZE_LIMIT_EXCEEDED"
+SUBSCRIPTION_LIMIT_EXCEEDED = "SUBSCRIPTION_LIMIT_EXCEEDED"
+
+
+class TeamNotFound(CodedAPIException, NotFound):
+    status_code = 404
+    default_code = TEAM_NOT_FOUND
+    default_detail = "Team does not exist or has been deleted"
+
+
+class InvalidTeamData(CodedAPIException, ValidationError):
+    status_code = 400
+    default_code = INVALID_TEAM_DATA
+    default_detail = "Team data validation failed"
+
+
+class TeamNameExists(CodedAPIException):
+    status_code = 409
+    default_code = TEAM_NAME_EXISTS
+    default_detail = "Team name already exists within the organization"
+
+
+class TeamSizeLimitExceeded(CodedAPIException):
+    status_code = 400
+    default_code = TEAM_SIZE_LIMIT_EXCEEDED
+    default_detail = "Team size exceeds subscription limits"
+
+
+class SubscriptionLimitExceeded(CodedAPIException):
+    status_code = 409
+    default_code = SUBSCRIPTION_LIMIT_EXCEEDED
+    default_detail = "Organization subscription limits prevent this operation"
+
+
+# ---- Users --------------------------------------------------------------
+USER_NOT_FOUND = "USER_NOT_FOUND"
+EMAIL_ALREADY_EXISTS = "EMAIL_ALREADY_EXISTS"
+INVALID_USER_DATA = "INVALID_USER_DATA"
+USER_ALREADY_MEMBER = "USER_ALREADY_MEMBER"
+USER_NOT_MEMBER = "USER_NOT_MEMBER"
+CANNOT_DELETE_OWNER = "CANNOT_DELETE_OWNER"
+CANNOT_DEACTIVATE_OWNER = "CANNOT_DEACTIVATE_OWNER"
+INVALID_PAGINATION = "INVALID_PAGINATION"
+
+
+class UserNotFound(CodedAPIException, NotFound):
+    status_code = 404
+    default_code = USER_NOT_FOUND
+    default_detail = "User does not exist or has been deleted"
+
+
+class InvalidUserData(CodedAPIException, ValidationError):
+    status_code = 400
+    default_code = INVALID_USER_DATA
+    default_detail = "User data validation failed"
+
+
+class EmailAlreadyExists(CodedAPIException):
+    status_code = 409
+    default_code = EMAIL_ALREADY_EXISTS
+    default_detail = "Email address is already in use"
+
+
+class UserAlreadyMember(CodedAPIException):
+    status_code = 409
+    default_code = USER_ALREADY_MEMBER
+    default_detail = "User is already a member of the organization"
+
+
+class UserNotMember(CodedAPIException):
+    status_code = 400
+    default_code = USER_NOT_MEMBER
+    default_detail = "User is not a member of the organization"
+
+
+class CannotDeleteOwner(CodedAPIException):
+    status_code = 400
+    default_code = CANNOT_DELETE_OWNER
+    default_detail = "Cannot delete account or organization owner"
+
+
+class CannotDeactivateOwner(CodedAPIException):
+    status_code = 400
+    default_code = CANNOT_DEACTIVATE_OWNER
+    default_detail = "Cannot deactivate account or organization owner"
+
+
+class InvalidPagination(CodedAPIException, ValidationError):
+    status_code = 400
+    default_code = INVALID_PAGINATION
+    default_detail = "Invalid pagination parameters provided"

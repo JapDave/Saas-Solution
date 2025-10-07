@@ -29,6 +29,21 @@ def _infer_key(path: str, method: str) -> Optional[str]:
             return "org.delete.owner"
         return None
 
+    if "/teams" in p:
+        if "/members" in p:
+            if m in ("POST", "DELETE"):
+                return "team.manage_members.org"
+            return None
+        if m == "GET":
+            return "team.read.user"
+        if m in ("PUT", "PATCH"):
+            return "team.update.org"
+        if m == "POST":
+            return "team.create.org"
+        if m == "DELETE":
+            return "team.delete.org"
+        return None
+
     if "/accounts" in p:
         if m == "GET":
             return "acc.read.user"

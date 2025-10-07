@@ -1,34 +1,53 @@
 from __future__ import annotations
-from dataclasses import dataclass
-from django.db import transaction
-from .models import Account
 
-@dataclass
-class ServiceResult:
-    ok: bool
-    account: Account | None = None
-    error: str | None = None
-    details: dict | None = None
+from typing import Any, Iterable, Set
 
-@transaction.atomic
-def create_account(*, name: str, contact_email: str, description: str = "", created_by=None) -> ServiceResult:
-    acc = Account(name=name, contact_email=contact_email, description=description, created_by=created_by, updated_by=created_by)
-    acc.full_clean()
-    acc.save()
-    return ServiceResult(ok=True, account=acc)
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
-@transaction.atomic
-def update_account(*, account: Account, **fields) -> ServiceResult:
-    for k, v in fields.items():
-        if v is not None:
-            setattr(account, k, v)
-    account.full_clean()
-    account.save()
-    return ServiceResult(ok=True, account=account)
+from apps.accounts.models import Account
 
-@transaction.atomic
-def delete_account(*, account: Account) -> ServiceResult:
-    if account.deleted_at:
-        return ServiceResult(ok=True, account=account)
-    account.delete()  # BaseModel should soft-delete
-    return ServiceResult(ok=True, account=account)
+
+# ------------------------------------------------------------
+# Helpers to resolve a user's assigned Account IDs (flexible)
+# ------------------------------------------------------------
+
+
+def _iter_ids(value: Any) -> Iterable[int]:
+    """Normalise assorted iterable or queryset inputs into an ``Iterable[int]`` of IDs."""
+
+    try:
+        return value.values_list("id", flat=True)  # type: ignore[attr-defined]
+    except Exception:
+        try:
+            return (getattr(item, "id", item) for item in value)  # type: ignore[reportUnknownParameterType]
+        except Exception:
+            return ()
+
+
+def get_assigned_account_ids(user) -> Set[int]:
+    """
+    Resolve assigned account IDs for a user without hard-coding your data model.
+    Supports (in order of precedence):
+
+    - user.get_assigned_account_ids() -> Iterable[int]
+    - user.assigned_accounts (M2M or queryset)
+    - user.managed_accounts (M2M or queryset)
+    - user.accounts (M2M or queryset)
+
+    Fallback: empty set (no assignments).
+    """
+    # Method form
+    if hasattr(user, "get_assigned_account_ids") and callable(user.get_assigned_account_ids):
+        try:
+            return set(int(x) for x in user.get_assigned_account_ids())
+        except Exception:
+            pass
+
+    # Common relation names
+    for attr in ("assigned_accounts", "managed_accounts", "accounts"):
+        if hasattr(user, attr):
+            try:
+                return set(int(x) for x in _iter_ids(getattr(user, attr)))
+            except Exception:
+                continue
+    return set()

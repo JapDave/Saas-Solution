@@ -1,15 +1,17 @@
 from __future__ import annotations
-from rest_framework import serializers
-from .models import Account
-from apps.common.exceptions import AccountNameExists, ContactEmailExists, InvalidAccountData
 
-class CharFieldStrict(serializers.CharField):
-    def to_internal_value(self, data):
-        if not isinstance(data, str):
-            raise serializers.ValidationError("Must be a string.")
-        return super().to_internal_value(data)
+from rest_framework import serializers
+
+from apps.common.serializers import CharFieldStrict
+from apps.common.exceptions import AccountNameExists, ContactEmailExists, InvalidAccountData
+from apps.subscriptions.services import ensure_account_has_no_active_subscriptions
+
+from .models import Account
+
 
 class AccountCreateSerializer(serializers.ModelSerializer):
+    """Serializer used for account creation requests."""
+
     name = CharFieldStrict()
     description = serializers.CharField(required=False, allow_blank=True)
     contact_email = serializers.EmailField()
@@ -21,7 +23,6 @@ class AccountCreateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         name = attrs.get("name", "").strip()
         email = attrs.get("contact_email", "").strip()
-        # Case-insensitive unique checks (exclude soft-deleted if your model supports it)
         if Account.objects.filter(name__iexact=name).exists():
             raise AccountNameExists()
         if Account.objects.filter(contact_email__iexact=email).exists():
@@ -30,16 +31,17 @@ class AccountCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         try:
-            obj = Account(**validated_data)
-            obj.full_clean()
-            obj.save()
-            return obj
-        except serializers.ValidationError as e:
-            # Wrap unlikely model validation into a coded error
+            instance = Account(**validated_data)
+            instance.full_clean()
+            instance.save()
+            return instance
+        except serializers.ValidationError:
             raise InvalidAccountData(detail="Account model validation failed", code=None)
 
 
 class AccountUpdateSerializer(serializers.ModelSerializer):
+    """Serializer handling full or partial account updates."""
+
     name = CharFieldStrict(required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     contact_email = serializers.EmailField(required=False)
@@ -53,23 +55,25 @@ class AccountUpdateSerializer(serializers.ModelSerializer):
         instance: Account = self.instance
         name = attrs.get("name")
         email = attrs.get("contact_email")
-        if name is not None:
-            if Account.objects.filter(name__iexact=name).exclude(pk=instance.pk).exists():
-                raise AccountNameExists()
-        if email is not None:
-            if Account.objects.filter(contact_email__iexact=email).exclude(pk=instance.pk).exists():
-                raise ContactEmailExists()
+        if name is not None and Account.objects.filter(name__iexact=name).exclude(pk=instance.pk).exists():
+            raise AccountNameExists()
+        if email is not None and Account.objects.filter(contact_email__iexact=email).exclude(pk=instance.pk).exists():
+            raise ContactEmailExists()
+        if attrs.get("is_active") is False and instance and instance.is_active:
+            ensure_account_has_no_active_subscriptions(instance)
         return attrs
 
     def update(self, instance, validated_data):
-        for k, v in validated_data.items():
-            setattr(instance, k, v)
+        for key, value in validated_data.items():
+            setattr(instance, key, value)
         instance.full_clean()
         instance.save()
         return instance
 
 
 class AccountReadSerializer(serializers.ModelSerializer):
+    """Read-only representation of an account instance."""
+
     class Meta:
         model = Account
         fields = (

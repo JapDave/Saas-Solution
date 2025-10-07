@@ -1,21 +1,22 @@
 # Django imports
 from django.db import IntegrityError
+from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 
 # Third-party imports
 from drf_spectacular.utils import extend_schema
-from rest_framework import viewsets
+from rest_framework import mixins, viewsets
 from rest_framework.exceptions import ValidationError, PermissionDenied
 
 # Local imports
 from apps.roles.models import Role
 from apps.roles.models import RoleAssignment
+from apps.roles.constants import ROLE_ORGANIZATION_OWNER
 from apps.organizations.models import Organization
 
 from apps.roles.serializers import RoleSerializer
 from apps.roles.serializers import RoleAssignmentSerializer
 
-from apps.roles.permissions import IsOrganizationOwner
 from apps.roles.permissions import IsOrganizationAdmin
 
 
@@ -33,7 +34,7 @@ class RoleViewSet(viewsets.ModelViewSet):
     serializer_class = RoleSerializer
     queryset = Role.objects.all()
     lookup_field = "uuid"
-    permission_classes = [IsOrganizationOwner, IsOrganizationAdmin]
+    permission_classes = [IsOrganizationAdmin]
 
     def get_queryset(self):
         """
@@ -45,11 +46,11 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        REQ-ROLE-001: Create a new custom role for an organization.
+        Create a new custom role for an organization.
         """
         organization = Organization.objects.get(uuid=self.kwargs["organization_uuid"])
 
-        # REQ-ROLE-001: Check organization role limits
+        # Check organization role limits
         if organization.roles.count() >= 100:
             err_msg = _(
                 "The organization has reached the maximum number of roles (100)."
@@ -68,7 +69,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         """
-        REQ-ROLE-003: Update a custom role.
+        Update a custom role.
         """
         role = self.get_object()
         if role.role_type != Role.RoleType.USER_CUSTOM:
@@ -77,7 +78,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """
-        REQ-ROLE-004: Soft-delete a custom role.
+        Soft-delete a custom role.
         """
         if instance.role_type != Role.RoleType.USER_CUSTOM:
             raise PermissionDenied(_("Cannot delete a system or predefined role."))
@@ -91,58 +92,74 @@ class RoleViewSet(viewsets.ModelViewSet):
 
 
 @extend_schema(tags=["Role Assignments"])
+
 class RoleAssignmentViewSet(
-    viewsets.mixins.CreateModelMixin,
-    viewsets.mixins.DestroyModelMixin,
-    viewsets.mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
-    """
-    API endpoint for assigning and removing roles from users.
-    - Assign Role to User
-    - Remove Role from User
-    """
+    """Manage role assignments within an organization."""
 
     serializer_class = RoleAssignmentSerializer
     queryset = RoleAssignment.objects.all()
     lookup_field = "uuid"
-    permission_classes = [IsOrganizationOwner, IsOrganizationAdmin]
+    permission_classes = [IsOrganizationAdmin]
+
+    def _get_organization(self):
+        if not hasattr(self, "_organization_cache"):
+            organization_uuid = self.kwargs.get("organization_uuid")
+            if not organization_uuid:
+                raise ValidationError(_("Organization identifier is required."))
+            self._organization_cache = get_object_or_404(
+                Organization,
+                uuid=organization_uuid,
+            )
+        return self._organization_cache
 
     def get_queryset(self):
-        """
-        Filter assignments to the organization specified in the URL.
-        """
-        organization_uuid = self.kwargs.get("organization_uuid")
-        # TODO: Add permission check to ensure user is part of this organization.
-        return self.queryset.filter(organization__uuid=organization_uuid)
+        organization = self._get_organization()
+        return (
+            self.queryset.filter(organization=organization)
+            .select_related("user", "role")
+            .order_by("-created_at")
+        )
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["organization"] = self._get_organization()
+        return context
 
     def perform_create(self, serializer):
-        """
-        REQ-ROLE-005: Assign a role to a user within the organization.
-        """
-        organization = Organization.objects.get(uuid=self.kwargs["organization_uuid"])
-
-        # TODO: REQ-ROLE-005: Validate target user is member of organization.
-        # This would typically involve checking a membership model, e.g.,
-        # if not OrganizationMember.objects.filter(user=user, organization=organization).exists():
-        #     raise ValidationError(...)
-
+        organization = self._get_organization()
         try:
             serializer.save(
                 organization=organization,
                 assigned_by=self.request.user,
             )
-        except IntegrityError:
-            # Handles the model's UniqueConstraint for user+role+organization
-            raise ValidationError(_("This user is already assigned this role in the organization."))
+        except IntegrityError as exc:
+            raise ValidationError(
+                {"role": _("User already has this role.")}
+            ) from exc
 
     def perform_destroy(self, instance):
-        """
-        REQ-ROLE-006: Remove a role assignment from a user (soft delete).
-        """
-        # TODO: REQ-ROLE-006: Add authority validation. A user should not be able
-        # to remove the last 'Organization Owner' role, for example.
         if instance.role.role_type in [Role.RoleType.SYSTEM, Role.RoleType.USER]:
-            raise PermissionDenied(_("Cannot remove an assignment for a system-managed role."))
+            raise PermissionDenied(
+                _("Cannot modify assignments for system-managed roles."),
+            )
+
+        if (
+            instance.organization_id
+            and instance.role.name == ROLE_ORGANIZATION_OWNER
+        ):
+            remaining_owner_exists = RoleAssignment.objects.filter(
+                organization_id=instance.organization_id,
+                role__name=ROLE_ORGANIZATION_OWNER,
+                is_active=True,
+            ).exclude(pk=instance.pk).exists()
+            if not remaining_owner_exists:
+                raise ValidationError(
+                    _("Organization must retain at least one owner."),
+                )
 
         instance.delete()

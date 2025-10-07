@@ -1,6 +1,6 @@
 import pytest
 from django.core.exceptions import ValidationError
-from django.db.utils import IntegrityError
+from django.db import IntegrityError, transaction
 
 from apps.products.factories import ProductFactory, ModuleFactory
 from apps.products.models import Product, Module
@@ -11,7 +11,7 @@ class TestProductModel:
     """Tests for the Product model."""
 
     def test_create_product_with_factory(self):
-        """Tests that a Product can be created successfully using its factory."""
+        """A Product can be created successfully via the factory."""
         product = ProductFactory()
         assert product.pk is not None
         assert str(product) == product.name
@@ -19,37 +19,36 @@ class TestProductModel:
         assert product.is_active is True
 
     def test_product_key_uniqueness(self):
-        """Tests that product keys are unique."""
+        """Product keys are unique at the database level."""
         product = ProductFactory()
         with pytest.raises(IntegrityError):
-            ProductFactory(key=product.key)
+            with transaction.atomic():
+                ProductFactory(key=product.key)
 
     def test_product_field_max_length(self):
-        """Tests max_length constraints on Product fields."""
+        """CharField max_length constraints are enforced."""
         with pytest.raises(ValidationError):
-            ProductFactory(key="a" * 51).full_clean()
+            ProductFactory.build(key="a" * 51).full_clean()
 
         with pytest.raises(ValidationError):
-            ProductFactory(name="a" * 101).full_clean()
+            ProductFactory.build(name="a" * 101).full_clean()
 
         with pytest.raises(ValidationError):
-            ProductFactory(description="a" * 501).full_clean()
+            ProductFactory.build(description="a" * 501).full_clean()
 
     def test_product_array_field_constraints(self):
-        """Tests constraints on ArrayFields for the Product model."""
-        # Test max number of items in array
+        """ArrayField size and element length constraints are enforced."""
         with pytest.raises(ValidationError):
-            ProductFactory(target_segments=["item"] * 11).full_clean()
+            ProductFactory.build(target_segments=["item"] * 11).full_clean()
 
         with pytest.raises(ValidationError):
-            ProductFactory(use_cases=["item"] * 21).full_clean()
-
-        # Test max length of an item in the array
-        with pytest.raises(ValidationError):
-            ProductFactory(target_segments=["a" * 51]).full_clean()
+            ProductFactory.build(use_cases=["item"] * 21).full_clean()
 
         with pytest.raises(ValidationError):
-            ProductFactory(use_cases=["a" * 101]).full_clean()
+            ProductFactory.build(target_segments=["a" * 51]).full_clean()
+
+        with pytest.raises(ValidationError):
+            ProductFactory.build(use_cases=["a" * 101]).full_clean()
 
 
 @pytest.mark.django_db
@@ -57,7 +56,7 @@ class TestModuleModel:
     """Tests for the Module model."""
 
     def test_create_module_with_factory(self):
-        """Tests that a Module can be created successfully using its factory."""
+        """A Module can be created successfully via the factory."""
         module = ModuleFactory()
         assert module.pk is not None
         assert str(module) == module.name
@@ -66,60 +65,57 @@ class TestModuleModel:
         assert module.subscribable is True
 
     def test_module_key_uniqueness_and_validation(self):
-        """Tests uniqueness and format validation for the Module 'key' field."""
-        # Test uniqueness
-        module = ModuleFactory(key="VALID_KEY")
+        """Module key must be unique and match the custom validator."""
+        ModuleFactory(key="VALID_KEY")
         with pytest.raises(IntegrityError):
-            ModuleFactory(key="VALID_KEY")
-
-        # Test validation (must be uppercase and underscores)
-        with pytest.raises(ValidationError) as excinfo:
-            ModuleFactory(key="invalid-key").full_clean()
-        assert "invalid_format" in excinfo.value.code
+            with transaction.atomic():
+                ModuleFactory(key="VALID_KEY")
 
         with pytest.raises(ValidationError) as excinfo:
-            ModuleFactory(key="invalidkey").full_clean()
-        assert "invalid_format" in excinfo.value.code
+            ModuleFactory.build(key="invalid-key").full_clean()
+        errors = excinfo.value.error_dict.get("key", [])
+        assert any(err.code == "invalid_format" for err in errors)
 
-        # Test max length
-        with pytest.raises(IntegrityError):
-            ModuleFactory(key="A" * 51).full_clean()
+        with pytest.raises(ValidationError) as excinfo:
+            ModuleFactory.build(key="invalidkey").full_clean()
+        errors = excinfo.value.error_dict.get("key", [])
+        assert any(err.code == "invalid_format" for err in errors)
+
+        with pytest.raises(ValidationError):
+            ModuleFactory.build(key="A" * 51).full_clean()
 
     def test_module_code_uniqueness_and_validation(self):
-        """Tests uniqueness and format validation for the Module 'code' field."""
-        # Test uniqueness
-        module = ModuleFactory(code="VALID")
+        """Module code must be unique, uppercase, and meet length requirements."""
+        ModuleFactory(code="VALID")
         with pytest.raises(IntegrityError):
-            ModuleFactory(code="VALID")
+            with transaction.atomic():
+                ModuleFactory(code="VALID")
 
-        # Test validation (must be uppercase)
         with pytest.raises(ValidationError) as excinfo:
-            ModuleFactory(code="invalid").full_clean()
-        assert "invalid_format" in excinfo.value.code
+            ModuleFactory.build(code="invalid").full_clean()
+        errors = excinfo.value.error_dict.get("code", [])
+        assert any(err.code == "invalid_format" for err in errors)
 
-        # Test min length
         with pytest.raises(ValidationError) as excinfo:
-            ModuleFactory(code="A").full_clean()
-        assert "min_length" in excinfo.value.code
+            ModuleFactory.build(code="A").full_clean()
+        errors = excinfo.value.error_dict.get("code", [])
+        assert any(err.code == "min_length" for err in errors)
 
-        # Test max length
         with pytest.raises(ValidationError):
-            ModuleFactory(code="A" * 11).full_clean()
+            ModuleFactory.build(code="A" * 11).full_clean()
 
     def test_module_field_max_length(self):
-        """Tests max_length constraints on other Module fields."""
+        """Other Module CharField max_length values are enforced."""
         with pytest.raises(ValidationError):
-            ModuleFactory(name="a" * 101).full_clean()
+            ModuleFactory.build(name="a" * 101).full_clean()
 
         with pytest.raises(ValidationError):
-            ModuleFactory(description="a" * 501).full_clean()
+            ModuleFactory.build(description="a" * 501).full_clean()
 
     def test_module_array_field_constraints(self):
-        """Tests constraints on ArrayFields for the Module model."""
-        # Test max number of items in array
+        """ArrayField constraints for modules are validated."""
         with pytest.raises(ValidationError):
-            ModuleFactory(exposed_permissions=["item"] * 51).full_clean()
+            ModuleFactory.build(exposed_permissions=["item"] * 51).full_clean()
 
-        # Test max length of an item in the array
         with pytest.raises(ValidationError):
-            ModuleFactory(exposed_permissions=["a" * 101]).full_clean()
+            ModuleFactory.build(exposed_permissions=["a" * 101]).full_clean()

@@ -25,6 +25,7 @@ htmlcov/
 *.log
 docker/*/tmp/
 
+Business-Requirements/
 .DS_Store
 
 loc.py

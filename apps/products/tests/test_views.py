@@ -4,8 +4,8 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 
-from .factories import ProductFactory, ModuleFactory
-from ..serializers import ProductSerializer, ModuleSerializer
+from apps.products.factories import ProductFactory, ModuleFactory
+from apps.products.serializers import ProductSerializer, ModuleSerializer
 
 User = get_user_model()
 
@@ -13,7 +13,7 @@ User = get_user_model()
 @pytest.fixture
 def user(db):
     """Fixture for creating a user."""
-    return User.objects.create_user(email="test@example.com", password="password123")
+    return User.objects.create_user(email="test@example.com", password="password123", full_name="Test User")
 
 
 @pytest.fixture
@@ -50,7 +50,9 @@ class TestProductViewSet:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 3
+        results = response.data["results"]
+        assert response.data["count"] == 3
+        assert len(results) == 3
 
     def test_retrieve_active_product(self, api_client):
         """
@@ -101,7 +103,9 @@ class TestModuleViewSet:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 2
+        results = response.data["results"]
+        assert response.data["count"] == 2
+        assert len(results) == 2
 
     def test_retrieve_active_module(self, api_client):
         """

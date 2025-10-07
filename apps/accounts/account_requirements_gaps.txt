@@ -1,6 +1,0 @@
-Outstanding Account Requirements (tracked until subscriptions module lands)
-
-- REQ-ACCOUNT-004: Deactivate Account – missing subscription-state check before toggling `is_active`. Owners can deactivate even when subscriptions stay active; SaaS Admin bypass rule not yet implemented.
-- REQ-ACCOUNT-005: Delete Account (Soft Delete) – deletion proceeds without verifying active subscriptions, so 400/409 flow pending.
-
-Reminder: wire these to the subscriptions module once available, then update views/serializers accordingly.

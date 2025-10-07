@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Product, Module
+from apps.products.models import Product, Module
 
 
 class ModuleSerializer(serializers.ModelSerializer):
@@ -10,7 +10,6 @@ class ModuleSerializer(serializers.ModelSerializer):
         model = Module
         fields = [
             "id",
-            "uuid",
             "key",
             "code",
             "name",
@@ -32,7 +31,6 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             "id",
-            "uuid",
             "key",
             "name",
             "description",
@@ -46,4 +44,4 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_available_module_keys(self, obj):
         "Return object's related module keys "
-        return obj.modules.values_list("key", flat=True).distinct()
+        return list(obj.modules.values_list("key", flat=True).distinct())

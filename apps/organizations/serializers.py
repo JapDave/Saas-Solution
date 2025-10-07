@@ -12,6 +12,7 @@ from apps.common.exceptions import (
     InvalidOrganizationData,
     InvalidLogoUrl,
 )
+from apps.subscriptions.services import ensure_organization_has_no_active_subscriptions
 from .models import Organization
 
 
@@ -78,6 +79,9 @@ class _BaseOrgSerializer(serializers.ModelSerializer):
                 # Emit coded uniqueness error
                 raise OrganizationNameExists()
 
+        if attrs.get("is_active") is False and self.instance and self.instance.is_active:
+            ensure_organization_has_no_active_subscriptions(self.instance)
+
         return attrs
 
     # ---- persistence with model.full_clean() --------------------------------
@@ -132,3 +136,78 @@ class OrganizationReadSerializer(serializers.ModelSerializer):
             "deleted_at",
         )
         read_only_fields = fields
+
+
+
+from django.contrib.auth import get_user_model
+
+from apps.roles.constants import ROLE_ORGANIZATION_OWNER
+from apps.roles.models import RoleAssignment
+from apps.users.models import UserOrganization
+
+User = get_user_model()
+
+
+class OrganizationOwnerAssignSerializer(serializers.Serializer):
+    user = serializers.UUIDField()
+
+    def validate_user(self, value):
+        try:
+            user = User.objects.get(uuid=value)
+        except User.DoesNotExist as exc:
+            raise serializers.ValidationError('User does not exist.') from exc
+        if not user.is_active:
+            raise serializers.ValidationError('User must be active.')
+        return user
+
+    def validate(self, attrs):
+        organization = self.context['organization']
+        user = attrs['user']
+        membership_exists = UserOrganization.objects.filter(
+            user=user,
+            organization=organization,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).exists()
+        if not membership_exists:
+            raise serializers.ValidationError({'user': 'User must be an active member of the organization.'})
+        return attrs
+
+
+class OrganizationOwnerTransferSerializer(serializers.Serializer):
+    new_owner = serializers.UUIDField()
+    current_owner = serializers.UUIDField(required=False)
+
+    def _resolve_user(self, value, field_name):
+        try:
+            user = User.objects.get(uuid=value)
+        except User.DoesNotExist as exc:
+            raise serializers.ValidationError({field_name: 'User does not exist.'}) from exc
+        if not user.is_active:
+            raise serializers.ValidationError({field_name: 'User must be active.'})
+        return user
+
+    def validate(self, attrs):
+        organization = self.context['organization']
+        attrs['new_owner'] = self._resolve_user(attrs['new_owner'], 'new_owner')
+        current_value = attrs.get('current_owner')
+        if current_value is not None:
+            attrs['current_owner'] = self._resolve_user(current_value, 'current_owner')
+            is_owner = RoleAssignment.objects.filter(
+                organization=organization,
+                user=attrs['current_owner'],
+                role__name=ROLE_ORGANIZATION_OWNER,
+                is_active=True,
+                deleted_at__isnull=True,
+            ).exists()
+            if not is_owner:
+                raise serializers.ValidationError({'current_owner': 'Current owner must hold the Organization Owner role.'})
+        membership_exists = UserOrganization.objects.filter(
+            user=attrs['new_owner'],
+            organization=organization,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).exists()
+        if not membership_exists:
+            raise serializers.ValidationError({'new_owner': 'User must be an active member of the organization.'})
+        return attrs

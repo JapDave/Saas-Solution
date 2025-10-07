@@ -1,4 +1,4 @@
-# Roles & Permissions Module Documentation
+﻿# Roles & Permissions Module Documentation
 
 This document provides a comprehensive guide to the roles and permissions system used in the Hudhud Backend. It covers the core concepts, setup, and usage patterns for controlling access to API endpoints.
 
@@ -7,7 +7,7 @@ This document provides a comprehensive guide to the roles and permissions system
 The authorization system is built on three main models:
 
 - **`Role`**: A named collection of permission keys. Roles can be global (System Roles like "SaaS Administrator") or specific to an `Organization` (e.g., a custom "Auditor" role).
-- **`Permission`**: A string key representing a specific action (e.g., `"users:invite"`, `"billing:view"`).
+- **`Permission`**: A string key representing a specific action (e.g., `"user:invite"`, `"billing:view"`).
 - **`RoleAssignment`**: The link between a `User`, a `Role`, and an optional `Organization`. This is how a user is granted a role's permissions.
 
 ## 2. System Initialization
@@ -16,22 +16,32 @@ The platform comes with a set of predefined system and template roles. These are
 
 ### `initialize_roles` Command
 
-This command populates the `Role` table with essential roles defined in `apps/roles/management/commands/initialize_roles.py`.
+This command seeds the immutable system and template roles defined in `apps/roles/management/commands/initialize_roles.py`.
 
-**To run it:**
+**When it runs**
+
+- `docker/entrypoint.sh` executes `python manage.py initialize_roles` automatically after migrations so containers always have the canonical roles.
+- You can rerun it manually whenever role definitions change:
+
 ```bash
 docker compose -f docker/compose.yaml run --rm web python manage.py initialize_roles
 ```
 
-**What it does:**
-- Creates **System Roles** (not tied to any organization):
-  - `SaaS Administrator`: Has a comprehensive list of all defined permissions.
-  - `SaaS Account Manager`: Has permissions to manage assigned accounts.
-- Creates **User Roles** (template roles):
-  - `Account Owner`: Template for a role with full access to an account and its organizations.
-  - `Account Administrator`: Template for an administrative role within an account.
+**What it creates**
 
-These roles serve as the foundation for all permissions on the platform.
+- System roles (`Role.RoleType.SYSTEM`)
+  - `SaaS Administrator`: receives every permission in `apps.roles.constants.ROLE_PERMISSION_TEMPLATES["SaaS Administrator"]`.
+  - `SaaS Account Manager`: account- and organization-level visibility scoped to assigned accounts.
+- Account templates (`Role.RoleType.USER`)
+  - `Account Owner`: full account control including billing, members, and organizations.
+  - `Account Administrator`: delegated account administration (CRUD on organizations, team/member management).
+- Organization templates (`Role.RoleType.USER`)
+  - `Organization Owner`: ownership, advanced member management, and team operations.
+  - `Organization Administrator`: daily administration (member + team management) without destructive actions.
+
+All permissions loaded by the command are normalised (lowercase `scope:action`) through the serializer helper so database state stays consistent.
+
+To add or modify defaults, update `apps/roles/constants.ROLE_PERMISSION_TEMPLATES` and rerun the command.
 
 ## 3. Low-Level Utility Functions
 

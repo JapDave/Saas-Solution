@@ -5,6 +5,7 @@ import django.db.models.deletion
 import uuid
 from django.conf import settings
 from django.db import migrations, models
+from django.db.models import Q
 
 
 class Migration(migrations.Migration):
@@ -50,7 +51,7 @@ class Migration(migrations.Migration):
                 ('deleted_at', models.DateTimeField(blank=True, db_index=True, null=True)),
                 ('assigned_at', models.DateTimeField(auto_now_add=True)),
                 ('assigned_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='made_role_assignments', to=settings.AUTH_USER_MODEL)),
-                ('organization', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='role_assignments', to='organizations.organization')),
+                ('organization', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='role_assignments', to='organizations.organization')),
                 ('role', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='assignments', to='roles.role')),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='role_assignments', to=settings.AUTH_USER_MODEL)),
             ],
@@ -66,6 +67,18 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='roleassignment',
-            constraint=models.UniqueConstraint(fields=('user', 'organization', 'role'), name='unique_user_org_role'),
+            constraint=models.UniqueConstraint(
+                fields=('user', 'role'),
+                condition=Q(organization__isnull=True),
+                name='unique_user_role_global',
+            ),
+        ),
+        migrations.AddConstraint(
+            model_name='roleassignment',
+            constraint=models.UniqueConstraint(
+                fields=('user', 'organization', 'role'),
+                condition=Q(organization__isnull=False),
+                name='unique_user_org_role',
+            ),
         ),
     ]

@@ -6,16 +6,28 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError, PermissionDenied
 
 from apps.common.exceptions import OrganizationNotFound
 from apps.common.paginations import StandardPagination
-from apps.common.permissions import IsOrgAdminOrOwnerWithAssignments, get_assigned_account_ids
+from apps.accounts.services import get_assigned_account_ids
+from apps.roles.permissions import OrganizationPermission
+from apps.roles.serializers import RoleAssignmentSerializer
+from apps.roles.services import assign_organization_owner, transfer_organization_owner
+from apps.roles.utils import has_role
+from apps.roles.constants import (
+    ROLE_ORGANIZATION_OWNER,
+)
+from apps.subscriptions.services import ensure_organization_has_no_active_subscriptions
 
 from .models import Organization
 from .serializers import (
     OrganizationCreateSerializer,
     OrganizationUpdateSerializer,
     OrganizationReadSerializer,
+    OrganizationOwnerAssignSerializer,
+    OrganizationOwnerTransferSerializer,
 )
 
 
@@ -23,12 +35,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     """
     Views = pure logic; validation in serializers.
 
-    Permissions (IsOrgAdminOrOwnerWithAssignments):
+    Permissions (OrganizationPermission):
       - Superadmin: full access
       - Staff: CRUD only for organizations under accounts assigned to them
       - Account owners/admins: list + CRUD for organizations inside their own accounts
     """
-    permission_classes = [IsOrgAdminOrOwnerWithAssignments]
+    permission_classes = [OrganizationPermission]
     pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering_fields = ["created_at", "updated_at", "name"]
@@ -36,7 +48,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     # Use UUID for detail routes: /api/organizations/<uuid>/
     lookup_field = "uuid"
-    lookup_url_kwarg = "uuid"
 
     def get_queryset(self):
         qs = Organization.objects.select_related("account").order_by("-created_at")
@@ -69,6 +80,14 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         ser = self.get_serializer(data=request.data)
         ser.is_valid(raise_exception=True)
         obj = ser.save(created_by=request.user, updated_by=request.user)
+        try:
+            assign_organization_owner(
+                organization=obj,
+                user=request.user,
+                assigned_by=request.user,
+            )
+        except Exception as exc:
+            raise ValidationError({'detail': f'Failed to assign organization owner: {exc}'}) from exc
         return Response(OrganizationReadSerializer(obj).data, status=status.HTTP_201_CREATED)
 
     # UPDATE/PATCH -> respond with read shape
@@ -96,5 +115,66 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         except Http404:
             raise OrganizationNotFound()
 
+        ensure_organization_has_no_active_subscriptions(obj)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+    @action(detail=True, methods=["post"], url_path="assign-owner")
+    def assign_owner(self, request, uuid=None):
+        organization = self.get_object()
+        serializer = OrganizationOwnerAssignSerializer(
+            data=request.data,
+            context={"organization": organization},
+        )
+        try:
+            serializer.is_valid(raise_exception=True)
+        except ValidationError as exc:
+            detail = getattr(exc, "detail", exc.args)
+            if isinstance(detail, dict) and "user" in detail:
+                return Response({"user": detail["user"]}, status=status.HTTP_400_BAD_REQUEST)
+            raise
+        user = serializer.validated_data["user"]
+        try:
+            assignment = assign_organization_owner(
+                organization=organization,
+                user=user,
+                assigned_by=request.user,
+            )
+        except Exception as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        read = RoleAssignmentSerializer(
+            assignment,
+            context={"request": request},
+        )
+        return Response(read.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="transfer-owner")
+    def transfer_owner(self, request, uuid=None):
+        organization = self.get_object()
+        serializer = OrganizationOwnerTransferSerializer(
+            data=request.data,
+            context={"organization": organization},
+        )
+        serializer.is_valid(raise_exception=True)
+        new_owner = serializer.validated_data["new_owner"]
+        current_owner = serializer.validated_data.get("current_owner") or request.user
+
+        # Only an existing organization owner may transfer ownership.
+        if not has_role(request.user, ROLE_ORGANIZATION_OWNER, str(organization.uuid)):
+            raise PermissionDenied("Only organization owners may transfer ownership.")
+
+        try:
+            assignment = transfer_organization_owner(
+                organization=organization,
+                new_owner=new_owner,
+                assigned_by=request.user,
+                current_owner=current_owner,
+            )
+        except ValueError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        read = RoleAssignmentSerializer(
+            assignment,
+            context={"request": request},
+        )
+        return Response(read.data, status=status.HTTP_200_OK)
