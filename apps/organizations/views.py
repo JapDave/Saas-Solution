@@ -9,7 +9,14 @@ from rest_framework.response import Response
 
 from apps.common.exceptions import OrganizationNotFound
 from apps.common.paginations import StandardPagination
-from apps.common.permissions import IsOrgAdminOrOwnerWithAssignments, get_assigned_account_ids
+from apps.accounts.services import get_assigned_account_ids
+from apps.roles.permissions import OrganizationPermission
+from apps.roles.serializers import RoleAssignmentSerializer
+from apps.roles.services import assign_organization_owner, transfer_organization_owner
+from apps.roles.utils import has_role
+from apps.roles.constants import (
+    ROLE_ORGANIZATION_OWNER,
+)
 from apps.subscriptions.services import ensure_organization_has_no_active_subscriptions
 
 from .models import Organization
@@ -24,7 +31,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     """
     Views = pure logic; validation in serializers.
 
-    Permissions (IsOrgAdminOrOwnerWithAssignments):
+    Permissions (OrganizationPermission):
       - Superadmin: full access
       - Staff: CRUD only for organizations under accounts assigned to them
       - Account owners/admins: list + CRUD for organizations inside their own accounts
@@ -37,7 +44,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     # Use UUID for detail routes: /api/organizations/<uuid>/
     lookup_field = "uuid"
-    lookup_url_kwarg = "uuid"
 
     def get_queryset(self):
         qs = Organization.objects.select_related("account").order_by("-created_at")

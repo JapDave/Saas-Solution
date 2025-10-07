@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.db import models
 from django.db.models.functions import Lower
+from django.utils.translation import gettext_lazy as _
 
 from apps.accounts.models import Account
 from apps.common.models import BaseModel
@@ -40,10 +41,10 @@ class OrganizationManager(models.Manager.from_queryset(OrganizationQuerySet)):
 class Organization(BaseModel):
     """Tenant-level organization record that belongs to an account."""
 
-    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="organizations")
-    name = models.CharField(max_length=100)
-    description = models.CharField(max_length=500, blank=True, default="")
-    logo_url = models.URLField(blank=True, default="")
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="organizations", verbose_name=_("Account"))
+    name = models.CharField(_("Name"), max_length=100)
+    description = models.CharField(_("Description"), max_length=500, blank=True, default="")
+    logo_url = models.URLField(_("Logo URL"), blank=True, default="")
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -51,6 +52,7 @@ class Organization(BaseModel):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="organizations_created",
+        verbose_name=_("Created by"),
     )
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -58,6 +60,7 @@ class Organization(BaseModel):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="organizations_updated",
+        verbose_name=_("Updated by"),
     )
 
     objects = OrganizationManager()

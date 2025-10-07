@@ -7,10 +7,8 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from apps.common.paginations import StandardPagination
-from apps.common.permissions import (
-    IsAccountAdminOrOwnerViewOnlyForManager,
-    get_assigned_account_ids,
-)
+from apps.accounts.services import get_assigned_account_ids
+from apps.roles.permissions import AccountPermission
 from apps.common.exceptions import AccountNotFound
 from apps.subscriptions.services import ensure_account_has_no_active_subscriptions
 
@@ -37,7 +35,6 @@ class AccountViewSet(viewsets.ModelViewSet):
 
     # Use UUID in URLs instead of integer pk
     lookup_field = "uuid"              # /api/accounts/<uuid>/
-    lookup_url_kwarg = "uuid"          # router will pass as kwargs["uuid"]
 
     def get_queryset(self):
         qs = Account.objects.order_by("-created_at")

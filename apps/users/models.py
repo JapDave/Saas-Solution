@@ -33,10 +33,10 @@ class UserManager(BaseUserManager):
 
     def _create_user(self, email, password, **extra_fields):
         if not email:
-            raise ValueError("Email must be set")
+            raise ValueError(_("Email must be set"))
         email = self.normalize_email(email)
         if (extra_fields.get("is_staff") or extra_fields.get("is_superuser")) and not _email_has_allowed_system_domain(email):
-            raise ValueError("Staff/Superuser must use an allowed system email domain")
+            raise ValueError(_("Staff/Superuser must use an allowed system email domain"))
         user = self.model(email=email, **extra_fields)
         if password:
             user.set_password(password)
@@ -55,28 +55,29 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
         if not _email_has_allowed_system_domain(email):
-            raise ValueError("Superuser must use an allowed system email domain")
+            raise ValueError(_("Superuser must use an allowed system email domain"))
         if extra_fields.get("is_staff") is not True:
-            raise ValueError("Superuser must have is_staff=True.")
+            raise ValueError(_("Superuser must have is_staff=True."))
         if extra_fields.get("is_superuser") is not True:
-            raise ValueError("Superuser must have is_superuser=True.")
+            raise ValueError(_("Superuser must have is_superuser=True."))
         return self._create_user(email, password, **extra_fields)
 
 
 class User(BaseModel, AbstractBaseUser, PermissionsMixin):
     """Custom user supporting multi-organization membership and soft delete."""
 
-    email = models.EmailField(unique=True)
-    full_name = models.CharField(max_length=100, blank=True)
-    profile_image = models.URLField(blank=True, null=True)
-    user_preferences = models.JSONField(default=dict, blank=True)
-    is_staff = models.BooleanField(default=False, db_index=True)
+    email = models.EmailField(_("Email address"), unique=True)
+    full_name = models.CharField(_("Full name"), max_length=100, blank=True)
+    profile_image = models.URLField(_("Profile image"), blank=True, null=True)
+    user_preferences = models.JSONField(_("User preferences"), default=dict, blank=True)
+    is_staff = models.BooleanField(_("Staff status"), default=False, db_index=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
         related_name="users_created",
+        verbose_name=_("Created by"),
     )
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -84,6 +85,7 @@ class User(BaseModel, AbstractBaseUser, PermissionsMixin):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="users_updated",
+        verbose_name=_("Updated by"),
     )
 
     objects = UserManager()
@@ -168,11 +170,13 @@ class UserOrganization(BaseModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="memberships",
+        verbose_name=_("User"),
     )
     organization = models.ForeignKey(
         "organizations.Organization",
         on_delete=models.CASCADE,
         related_name="memberships",
+        verbose_name=_("Organization"),
     )
     assigned_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -180,9 +184,10 @@ class UserOrganization(BaseModel):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="memberships_assigned",
+        verbose_name=_("Assigned by"),
     )
-    assigned_at = models.DateTimeField(auto_now_add=True, db_index=True)
-    permission_keys = models.JSONField(default=list, blank=True)
+    assigned_at = models.DateTimeField(_("Assigned at"), auto_now_add=True, db_index=True)
+    permission_keys = models.JSONField(_("Permission keys"), default=list, blank=True)
 
     objects = UserOrganizationManager()
     all_objects = models.Manager()

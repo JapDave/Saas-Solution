@@ -4,6 +4,8 @@ from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 
 from apps.users.models import UserOrganization
+from apps.organizations.models import Organization
+from apps.roles.models import Role, RoleAssignment
 
 
 @pytest.mark.django_db
