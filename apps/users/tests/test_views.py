@@ -5,7 +5,7 @@ from apps.accounts.tests.factories import AccountFactory
 from apps.organizations.tests.factories import OrganizationFactory
 from apps.users.models import UserOrganization
 from apps.users.tests.factories import UserFactory
-
+from apps.roles.models import Role, RoleAssignment
 
 @pytest.mark.django_db
 class TestUserCreation:
