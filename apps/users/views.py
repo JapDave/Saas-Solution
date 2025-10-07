@@ -69,7 +69,6 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = StandardPagination
     lookup_field = "uuid"
-    lookup_url_kwarg = "uuid"
 
     def get_throttle_scope(self, request):
         action = getattr(self, "action", None)

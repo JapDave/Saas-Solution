@@ -24,26 +24,30 @@ class Role(BaseModel):
         related_name="roles",
         null=True,  # System roles are not tied to an organization
         blank=True,
+        verbose_name=_("Organization"),
     )
-    name = models.CharField(max_length=100)
-    description = models.TextField(max_length=500, blank=True)
+    name = models.CharField(_("Name"), max_length=100)
+    description = models.TextField(_("Description"), max_length=500, blank=True)
     permissions = ArrayField(
         models.CharField(max_length=100),
         default=list,
         blank=True,
+        verbose_name=_("Permissions"),
         help_text=_("List of permission keys associated with this role."),
     )
     role_type = models.CharField(
+        _("Role type"),
         max_length=20,
         choices=RoleType.choices,
     )
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(_("Is active"), default=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         related_name="created_roles",
         null=True,
         blank=False,
+        verbose_name=_("Created by"),
     )
 
     class Meta:
@@ -71,7 +75,8 @@ class RoleAssignment(BaseModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="role_assignments"
+        related_name="role_assignments",
+        verbose_name=_("User")
     )
     organization = models.ForeignKey(
         "organizations.Organization",
@@ -79,17 +84,20 @@ class RoleAssignment(BaseModel):
         related_name="role_assignments",
         null=True,
         blank=True,
+        verbose_name=_("Organization"),
     )
     role = models.ForeignKey(
-        Role, on_delete=models.CASCADE, related_name="assignments"
+        Role, on_delete=models.CASCADE, related_name="assignments",
+        verbose_name=_("Role")
     )
     assigned_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         related_name="made_role_assignments",
         null=True,
+        verbose_name=_("Assigned by"),
     )
-    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_at = models.DateTimeField(_("Assigned at"), auto_now_add=True)
 
     class Meta:
         verbose_name = _("Role Assignment")

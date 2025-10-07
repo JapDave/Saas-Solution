@@ -9,7 +9,7 @@ from django.core.cache import cache
 
 from apps.accounts.models import Account
 from apps.common.exceptions import CannotDeactivateOwner, CannotDeleteOwner, InsufficientPermissions
-from apps.common.permissions import get_assigned_account_ids
+from apps.accounts.services import get_assigned_account_ids
 from apps.organizations.models import Organization
 
 from .models import UserOrganization

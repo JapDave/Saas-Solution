@@ -31,7 +31,6 @@ class TeamViewSet(viewsets.ModelViewSet):
     """Team lifecycle management with membership operations."""
 
     lookup_field = "uuid"
-    lookup_url_kwarg = "uuid"
     permission_classes = [IsAuthenticated]
     pagination_class = TeamPagination
     ERROR_DOMAIN = "teams"

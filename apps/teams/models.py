@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Lower
+from django.utils.translation import gettext_lazy as _
 
 from apps.common.models import BaseModel
 
@@ -46,10 +47,11 @@ class Team(BaseModel):
         "organizations.Organization",
         on_delete=models.CASCADE,
         related_name="teams",
+        verbose_name=_("Organization"),
     )
-    name = models.CharField(max_length=100)
-    description = models.CharField(max_length=500, blank=True, default="")
-    configurations = models.JSONField(default=dict, blank=True)
+    name = models.CharField(_("Name"), max_length=100)
+    description = models.CharField(_("Description"), max_length=500, blank=True, default="")
+    configurations = models.JSONField(_("Configurations"), default=dict, blank=True)
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -57,6 +59,7 @@ class Team(BaseModel):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="teams_created",
+        verbose_name=_("Created by"),
     )
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -64,6 +67,7 @@ class Team(BaseModel):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="teams_updated",
+        verbose_name=_("Updated by"),
     )
 
     objects = TeamManager()
@@ -88,15 +92,15 @@ class Team(BaseModel):
         if self.configurations is None:
             self.configurations = {}
         if not isinstance(self.configurations, dict):
-            raise ValidationError({"configurations": "Configurations must be a JSON object."})
+            raise ValidationError({"configurations": _("Configurations must be a JSON object.")})
         if self.deleted_at and self.is_active:
-            raise ValidationError({"is_active": "Deleted teams cannot be active."})
+            raise ValidationError({"is_active": _("Deleted teams cannot be active.")})
         if not self.name or not self.name.strip():
-            raise ValidationError({"name": "Name is required."})
+            raise ValidationError({"name": _("Name is required.")})
         if len(self.name.strip()) > 100:
-            raise ValidationError({"name": "Name must be 100 characters or fewer."})
+            raise ValidationError({"name": _("Name must be 100 characters or fewer.")})
         if self.description and len(self.description) > 500:
-            raise ValidationError({"description": "Description must be 500 characters or fewer."})
+            raise ValidationError({"description": _("Description must be 500 characters or fewer.")})
 
     def __str__(self) -> str:
         return f"{self.name} (org={self.organization_id})"
@@ -124,19 +128,22 @@ class TeamMember(BaseModel):
         "teams.Team",
         on_delete=models.CASCADE,
         related_name="memberships",
+        verbose_name=_("Team"),
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="team_memberships",
+        verbose_name=_("User"),
     )
     assigned_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="team_memberships_assigned",
+        verbose_name=_("Assigned by"),
     )
-    assigned_at = models.DateTimeField(auto_now_add=True, db_index=True)
-    role_keys = models.JSONField(default=list, blank=True)
+    assigned_at = models.DateTimeField(_("Assigned at"), auto_now_add=True, db_index=True)
+    role_keys = models.JSONField(_("Role keys"), default=list, blank=True)
 
     objects = TeamMemberManager()
     all_objects = models.Manager()
@@ -158,12 +165,12 @@ class TeamMember(BaseModel):
         if self.role_keys is None:
             self.role_keys = []
         if not isinstance(self.role_keys, list):
-            raise ValidationError({"role_keys": "role_keys must be a list of permission keys."})
+            raise ValidationError({"role_keys": _("role_keys must be a list of permission keys.")})
         invalid = [key for key in self.role_keys if not isinstance(key, str) or not key.strip()]
         if invalid:
-            raise ValidationError({"role_keys": "Each role key must be a non-empty string."})
+            raise ValidationError({"role_keys": _("Each role key must be a non-empty string.")})
         if getattr(self.team, "organization_id", None) is None:
-            raise ValidationError({"team": "Team must be associated with an organization."})
+            raise ValidationError({"team": _("Team must be associated with an organization.")})
         organization_id = self.team.organization_id
         from apps.users.models import UserOrganization  # local import to avoid circular
 
@@ -174,9 +181,9 @@ class TeamMember(BaseModel):
             is_active=True,
         ).exists()
         if not membership_exists:
-            raise ValidationError({"user": "User must be an active member of the organization."})
+            raise ValidationError({"user": _("User must be an active member of the organization.")})
         if self.deleted_at and self.is_active:
-            raise ValidationError({"is_active": "Deleted memberships cannot be active."})
+            raise ValidationError({"is_active": _("Deleted memberships cannot be active.")})
 
     def deactivate(self):
         if self.deleted_at:

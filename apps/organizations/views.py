@@ -11,7 +11,7 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 
 from apps.common.exceptions import OrganizationNotFound
 from apps.common.paginations import StandardPagination
-from apps.common.permissions import get_assigned_account_ids
+from apps.accounts.services import get_assigned_account_ids
 from apps.roles.permissions import OrganizationPermission
 from apps.roles.serializers import RoleAssignmentSerializer
 from apps.roles.services import assign_organization_owner, transfer_organization_owner
@@ -35,7 +35,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     """
     Views = pure logic; validation in serializers.
 
-    Permissions (IsOrgAdminOrOwnerWithAssignments):
+    Permissions (OrganizationPermission):
       - Superadmin: full access
       - Staff: CRUD only for organizations under accounts assigned to them
       - Account owners/admins: list + CRUD for organizations inside their own accounts
@@ -48,7 +48,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     # Use UUID for detail routes: /api/organizations/<uuid>/
     lookup_field = "uuid"
-    lookup_url_kwarg = "uuid"
 
     def get_queryset(self):
         qs = Organization.objects.select_related("account").order_by("-created_at")

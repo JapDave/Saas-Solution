@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.db import models
 from django.conf import settings
 from django.db.models.functions import Lower
+from django.utils.translation import gettext_lazy as _
 
 from apps.common.models import BaseModel
 
@@ -32,17 +33,25 @@ class Account(BaseModel):
     Inherits BaseModel fields:
       id (pk), is_active, created_at, updated_at, deleted_at
     """
-    name = models.CharField(max_length=100)
-    description = models.CharField(max_length=500, blank=True, default="")
-    contact_email = models.EmailField(unique=True)
+    name = models.CharField(_("Name"), max_length=100)
+    description = models.CharField(_("Description"), max_length=500, blank=True, default="")
+    contact_email = models.EmailField(_("Contact email"), unique=True)
 
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True,
-        on_delete=models.SET_NULL, related_name="accounts_created",
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="accounts_created",
+        verbose_name=_("Created by"),
     )
     updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True,
-        on_delete=models.SET_NULL, related_name="accounts_updated",
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="accounts_updated",
+        verbose_name=_("Updated by"),
     )
 
     objects = AccountManager()               # hides soft-deleted

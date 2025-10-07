@@ -6,7 +6,7 @@ from uuid import UUID
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 from apps.accounts.models import Account
-from apps.common.permissions import get_assigned_account_ids
+from apps.accounts.services import get_assigned_account_ids
 from apps.roles.constants import (
     ROLE_ACCOUNT_ADMINISTRATOR,
     ROLE_ACCOUNT_OWNER,

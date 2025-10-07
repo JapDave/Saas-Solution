@@ -72,7 +72,8 @@ class Module(BaseModel):
         verbose_name=_("Exposed Permissions"))
     products = models.ManyToManyField(
         Product,
-        related_name="modules"
+        related_name="modules",
+        verbose_name=_("Products")
     )
 
     def __str__(self):

@@ -12,7 +12,7 @@ from apps.common.exceptions import (
     TeamNotFound,
     TeamSizeLimitExceeded,
 )
-from apps.common.permissions import get_assigned_account_ids
+from apps.accounts.services import get_assigned_account_ids
 from apps.subscriptions.services import get_subscription_configuration
 from apps.users.services import (
     get_user_accessible_account_ids,
