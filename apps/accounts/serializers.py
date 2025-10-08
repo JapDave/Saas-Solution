@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from rest_framework import serializers
 
 from apps.common.serializers import CharFieldStrict
@@ -10,6 +11,8 @@ from .models import Account
 
 
 class AccountCreateSerializer(serializers.ModelSerializer):
+    """Serializer used for account creation requests."""
+
     """Serializer used for account creation requests."""
 
     name = CharFieldStrict()
@@ -36,10 +39,17 @@ class AccountCreateSerializer(serializers.ModelSerializer):
             instance.save()
             return instance
         except serializers.ValidationError:
+            instance = Account(**validated_data)
+            instance.full_clean()
+            instance.save()
+            return instance
+        except serializers.ValidationError:
             raise InvalidAccountData(detail="Account model validation failed", code=None)
 
 
 class AccountUpdateSerializer(serializers.ModelSerializer):
+    """Serializer handling full or partial account updates."""
+
     """Serializer handling full or partial account updates."""
 
     name = CharFieldStrict(required=False)
@@ -66,12 +76,16 @@ class AccountUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         for key, value in validated_data.items():
             setattr(instance, key, value)
+        for key, value in validated_data.items():
+            setattr(instance, key, value)
         instance.full_clean()
         instance.save()
         return instance
 
 
 class AccountReadSerializer(serializers.ModelSerializer):
+    """Read-only representation of an account instance."""
+
     """Read-only representation of an account instance."""
 
     class Meta:

@@ -133,4 +133,3 @@ def has_permission(
     assignments = user.role_assignments.filter(is_active=True).filter(filters)
     return assignments.filter(role__permissions__contains=[normalised_key]).exists()
 
-

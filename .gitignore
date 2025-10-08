@@ -29,3 +29,4 @@ Business-Requirements/
 .DS_Store
 
 loc.py
+docker/*/tmp/

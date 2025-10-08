@@ -13,6 +13,7 @@ from apps.common.exceptions import (
     InvalidLogoUrl,
 )
 from apps.subscriptions.services import ensure_organization_has_no_active_subscriptions
+from apps.subscriptions.services import ensure_organization_has_no_active_subscriptions
 from .models import Organization
 
 
@@ -78,6 +79,9 @@ class _BaseOrgSerializer(serializers.ModelSerializer):
             if qs.exists():
                 # Emit coded uniqueness error
                 raise OrganizationNameExists()
+
+        if attrs.get("is_active") is False and self.instance and self.instance.is_active:
+            ensure_organization_has_no_active_subscriptions(self.instance)
 
         if attrs.get("is_active") is False and self.instance and self.instance.is_active:
             ensure_organization_has_no_active_subscriptions(self.instance)

@@ -19,6 +19,7 @@ from apps.roles.serializers import RoleAssignmentSerializer
 
 from apps.roles.permissions import IsOrganizationAdmin
 
+from apps.common.exceptions import OrganizationNotFound
 
 @extend_schema(tags=["Roles"])
 class RoleViewSet(viewsets.ModelViewSet):
@@ -48,24 +49,31 @@ class RoleViewSet(viewsets.ModelViewSet):
         """
         Create a new custom role for an organization.
         """
-        organization = Organization.objects.get(uuid=self.kwargs["organization_uuid"])
-
-        # Check organization role limits
-        if organization.roles.count() >= 100:
-            err_msg = _(
-                "The organization has reached the maximum number of roles (100)."
-            )
-            raise ValidationError(err_msg)
-
         try:
+            organization = Organization.objects.get(uuid=self.kwargs["organization_uuid"])
+
+            # Check organization role limits
+            if organization.roles.count() >= 100:
+                err_msg = _(
+                    "The organization has reached the maximum number of roles (100)."
+                )
+                raise ValidationError(err_msg)
+
             serializer.save(
                 organization=organization,
                 created_by=self.request.user,
                 role_type=Role.RoleType.USER_CUSTOM,
             )
+        except Organization.DoesNotExist:
+            raise OrganizationNotFound()
+
         except IntegrityError:
             # Handles the model's UniqueConstraint for name+organization
-            raise ValidationError({"name": _("A role with this name already exists in the organization.")})
+            raise ValidationError(
+                {
+                    "name": _("A role with this name already exists in the organization.")
+                }
+            )
 
     def perform_update(self, serializer):
         """

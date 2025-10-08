@@ -18,6 +18,22 @@ from apps.roles.constants import (
 from apps.roles.utils import has_permission, has_role
 
 
+class AnyOf(BasePermission):
+    """
+    Generic permission class that passes if ANY of the provided permission classes pass.
+    Permissions should be passed as uninitialized classes (e.g., AnyOf(P1, P2)).
+    """
+    def __init__(self, *permissions):
+        # We store the instantiated permission objects
+        self.permissions = [p() for p in permissions] 
+
+    def has_permission(self, request, view):
+        """Returns True if any permission in the list grants access."""
+        for permission in self.permissions:
+            if permission.has_permission(request, view):
+                return True
+        return False
+
 class BaseRolePermission(BasePermission):
     """Base helper for simple role checks inside an organization."""
 

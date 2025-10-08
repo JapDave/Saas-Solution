@@ -1,7 +1,7 @@
 import factory
 from factory.django import DjangoModelFactory
 
-from .models import Product, Module
+from apps.products.models import Product, Module
 
 
 class ProductFactory(DjangoModelFactory):
@@ -16,14 +16,6 @@ class ProductFactory(DjangoModelFactory):
     target_segments = factory.LazyFunction(list)
     use_cases = factory.LazyFunction(list)
     is_active = True
-
-    @factory.post_generation
-    def modules(self, create, extracted, **kwargs):
-        if not create:
-            return
-        if extracted:
-            for module in extracted:
-                self.modules.add(module)
 
 
 class ModuleFactory(DjangoModelFactory):
@@ -45,6 +37,3 @@ class ModuleFactory(DjangoModelFactory):
     configurable_attributes = factory.LazyFunction(dict)
     exposed_permissions = factory.LazyFunction(list)
     is_active = True
-
-
-

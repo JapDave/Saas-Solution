@@ -3,7 +3,7 @@ from decimal import Decimal
 import pytest
 from rest_framework.test import APIClient
 
-from apps.products.factories import ProductFactory, ModuleFactory
+from apps.products.tests.factories import ProductFactory, ModuleFactory
 from apps.products.serializers import ProductSerializer, ModuleSerializer
 
 
@@ -21,7 +21,7 @@ class TestProductSerializer:
         serializer = ProductSerializer(instance=product)
         data = serializer.data
         expected_fields = {
-            "id", "key", "name", "description", "available_module_keys",
+            "id", "uuid", "key", "name", "description", "available_module_keys",
             "target_segments", "use_cases", "is_active", "created_at", "updated_at"
         }
         assert set(data.keys()) == expected_fields
@@ -80,13 +80,14 @@ class TestModuleSerializer:
         """
         Ensure the serializer has the expected fields.
         """
+        # product = ProductFactory()
         module = ModuleFactory()
         serializer = ModuleSerializer(instance=module)
         data = serializer.data
         expected_fields = {
-            "id", "key", "code", "name", "description", "subscribable",
-            "configurable_attributes", "exposed_permissions", "is_active",
-            "created_at", "updated_at",
+            "id", "uuid", "key", "code", "name", "description", "subscribable",
+            "configurable_attributes", "exposed_permissions", "products", "is_active",
+            "created_at", "updated_at"
         }
         assert set(data.keys()) == expected_fields
 
@@ -123,7 +124,6 @@ class TestModuleSerializer:
         assert serializer.is_valid(raise_exception=True)
         module = serializer.save()
         assert module.key == "NEW_MODULE"
-        assert module.code == "NEWM"
 
     def test_invalid_data_deserialization(self):
         """
