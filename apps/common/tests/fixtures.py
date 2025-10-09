@@ -24,9 +24,14 @@ def _allow_staff_domains(settings):
 # API clients
 # ---------------------------------------------------------------------------
 
+class CallableAPIClient(APIClient):
+    def __call__(self):
+        return APIClient()
+
+
 @pytest.fixture
 def api_client():
-    return APIClient()
+    return CallableAPIClient()
 
 
 def _authed_client(user):

@@ -121,7 +121,8 @@ def test_assign_role_rejects_non_member(api_client):
     )
 
     assert response.status_code == 400
-    assert "user" in response.data
+    errors = response.data.get("errors", {}) if isinstance(response.data, dict) else {}
+    assert "user" in errors
 
 
 @pytest.mark.django_db

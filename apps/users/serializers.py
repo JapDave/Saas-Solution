@@ -144,7 +144,10 @@ class MembershipInputSerializer(serializers.Serializer):
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         organization = attrs["organization"]
-        role_ids = self.initial_data.get("roles")
+        raw_role_values = attrs.get("roles")
+        if raw_role_values is None:
+            raw_role_values = getattr(self, "initial_data", {}).get("roles")
+        role_ids = [str(value) for value in (raw_role_values or [])]
         roles = _resolve_roles_for_membership(organization=organization, role_ids=role_ids)
         attrs["roles"] = roles
         attrs["permissions"] = _merge_permission_keys(attrs.get("permissions", []), _collect_permissions_from_roles(roles))
@@ -296,10 +299,18 @@ class MembershipMutationSerializer(serializers.Serializer):
         request_user = getattr(request, "user", None)
         organization = attrs["organization"]
         ensure_user_can_manage_organization(request_user, organization, permission_key="user:manage_membership")
-        role_ids = self.initial_data.get("roles")
+        raw_role_values = attrs.get("roles")
+        if raw_role_values is None:
+            raw_role_values = getattr(self, "initial_data", {}).get("roles")
+        role_ids = [str(value) for value in (raw_role_values or [])]
         roles = _resolve_roles_for_membership(organization=organization, role_ids=role_ids)
         attrs["roles"] = roles
         attrs["permissions"] = _merge_permission_keys(attrs.get("permissions", []), _collect_permissions_from_roles(roles))
+        user = self.context.get("user")
+        if user is None:
+            raise InvalidUserData(detail="user context required.")
+        if UserOrganization.objects.filter(user=user, organization=organization).exists():
+            raise UserAlreadyMember()
         return attrs
 
     def create(self, validated_data: Dict[str, Any]) -> UserOrganization:
