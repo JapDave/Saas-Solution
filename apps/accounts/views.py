@@ -6,7 +6,6 @@ from rest_framework import status, viewsets
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
-from apps.common.paginations import StandardPagination
 from apps.accounts.services import get_assigned_account_ids
 from apps.roles.permissions import AccountPermission
 from apps.common.exceptions import AccountNotFound
@@ -20,7 +19,6 @@ class AccountViewSet(viewsets.ModelViewSet):
     """Account API wiring: pagination/filtering plus role-aware permissions."""
     queryset = Account.objects.order_by("-created_at")
     permission_classes = [AccountPermission]
-    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering_fields = ["created_at", "updated_at", "name"]
     filterset_fields = ["is_active"]

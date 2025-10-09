@@ -10,7 +10,6 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError, PermissionDenied
 
 from apps.common.exceptions import OrganizationNotFound
-from apps.common.paginations import StandardPagination
 from apps.accounts.services import get_assigned_account_ids
 from apps.roles.permissions import OrganizationPermission
 from apps.roles.serializers import RoleAssignmentSerializer
@@ -41,7 +40,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
       - Account owners/admins: list + CRUD for organizations inside their own accounts
     """
     permission_classes = [OrganizationPermission]
-    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering_fields = ["created_at", "updated_at", "name"]
     filterset_fields = ["account", "is_active"]
@@ -65,7 +63,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             return qs.filter(account_id__in=assigned)
 
         return qs.filter(
-            Q(created_by_id=user.id) | Q(account__created_by_id=user.id)
+            Q(created_by_id=user.id) |
+            Q(account__created_by_id=user.id) |
+            Q(memberships__user_id=user.id, memberships__deleted_at__isnull=True)
         ).distinct()
 
     def get_serializer_class(self):

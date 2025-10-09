@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Optional
 
@@ -6,7 +6,6 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
-from django.db.models.functions import Lower
 from django.utils.translation import gettext_lazy as _
 
 from apps.common.models import BaseModel
@@ -75,15 +74,14 @@ class Team(BaseModel):
 
     class Meta:
         indexes = [
-            models.Index(Lower("name"), name="ix_team_name_ci"),
-            models.Index(models.F("organization"), name="ix_team_organization"),
+            models.Index(fields=["name"], name="ix_team_name"),
+            models.Index(fields=["organization"], name="ix_team_organization"),
         ]
         constraints = [
             models.UniqueConstraint(
-                Lower("name"),
-                "organization",
+                fields=["name", "organization"],
                 condition=Q(deleted_at__isnull=True),
-                name="uq_team_name_per_org_ci",
+                name="uq_team_name_per_org",
             )
         ]
 

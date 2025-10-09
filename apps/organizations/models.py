@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
-from django.db.models.functions import Lower
 from django.utils.translation import gettext_lazy as _
 
 from apps.accounts.models import Account
@@ -68,12 +67,13 @@ class Organization(BaseModel):
 
     class Meta:
         indexes = [
-            models.Index(Lower("name"), name="ix_org_name_ci"),
-            models.Index(models.F("account"), name="ix_org_account"),
+            models.Index(fields=["name"], name="ix_org_name"),
+            models.Index(fields=["account"], name="ix_org_account"),
         ]
         constraints = [
-            models.UniqueConstraint(Lower("name"), "account", name="uq_org_name_per_account_ci"),
+            models.UniqueConstraint(fields=["name", "account"], name="uq_org_name_per_account"),
         ]
 
     def __str__(self) -> str:
         return f"{self.name} (acct={self.account_id})"
+

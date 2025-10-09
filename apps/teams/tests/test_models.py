@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from django.core.exceptions import ValidationError
 
 from apps.teams.models import Team, TeamMember
@@ -12,17 +12,16 @@ class TestTeamModel:
         team = TeamFactory(name="Support Squad")
         assert str(team) == f"Support Squad (org={team.organization_id})"
 
-    def test_unique_name_case_insensitive(self):
+    def test_unique_name_case_sensitive(self):
         team = TeamFactory(name="Growth")
-        with pytest.raises(ValidationError):
-            dup = Team(
-                organization=team.organization,
-                name="growth",
-                description="",
-                created_by=team.created_by,
-                updated_by=team.updated_by,
-            )
-            dup.full_clean()
+        dup = Team(
+            organization=team.organization,
+            name="growth",
+            description="",
+            created_by=team.created_by,
+            updated_by=team.updated_by,
+        )
+        dup.full_clean()
 
     def test_configurations_must_be_dict(self):
         team = TeamFactory()

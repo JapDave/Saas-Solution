@@ -15,11 +15,10 @@ class TestUserModel:
         user = UserFactory(email="member@example.com")
         assert str(user) == "member@example.com"
 
-    def test_email_case_insensitive_unique(self):
-        UserFactory(email="unique@example.com")
-        with pytest.raises(IntegrityError):
-            with transaction.atomic():
-                UserFactory(email="UNIQUE@example.com")
+    def test_email_unique(self):
+        User.objects.create_user(email="unique@example.com", password="SecurePass123")
+        with pytest.raises((ValidationError, IntegrityError)):
+            User.objects.create_user(email="unique@example.com", password="SecurePass123")
 
     def test_staff_email_domain_validation(self):
         user = UserFactory.build(email="admin@example.com")

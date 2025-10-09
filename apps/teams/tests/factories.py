@@ -1,4 +1,4 @@
-﻿import factory
+import factory
 from factory.django import DjangoModelFactory
 
 from apps.organizations.tests.factories import OrganizationFactory

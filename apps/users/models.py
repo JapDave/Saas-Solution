@@ -6,7 +6,6 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models.functions import Lower
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -95,11 +94,11 @@ class User(BaseModel, AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         indexes = [
-            models.Index(Lower("email"), name="ix_user_email_ci"),
-            models.Index(Lower("full_name"), name="ix_user_full_name_ci"),
+            models.Index(fields=["email"], name="ix_user_email"),
+            models.Index(fields=["full_name"], name="ix_user_full_name"),
         ]
         constraints = [
-            models.UniqueConstraint(Lower("email"), name="uq_user_email_ci"),
+            models.UniqueConstraint(fields=["email"], name="uq_user_email"),
         ]
 
     def clean(self):
@@ -249,4 +248,5 @@ class UserOrganization(BaseModel):
 
     def __str__(self):
         return f"{self.user_id} -> {self.organization_id}"
+
 

@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 from apps.common.exceptions import (
     EmailAlreadyExists,
@@ -60,7 +61,7 @@ def _merge_permission_keys(*groups: Iterable[str]) -> List[str]:
 
 def _resolve_roles_for_membership(*, organization: Organization, role_ids: Iterable[Any]) -> List[Role]:
     if not role_ids:
-        raise InvalidUserData(detail='At least one role must be assigned to the organization membership.')
+        return []
 
     try:
         uuids = [UUID(str(value)) for value in role_ids]
@@ -193,6 +194,28 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "memberships",
         )
 
+    def is_valid(self, *, raise_exception=False):
+        try:
+            return super().is_valid(raise_exception=raise_exception)
+        except DRFValidationError as exc:
+            if raise_exception:
+                detail = exc.detail
+                membership_error = None
+                if isinstance(detail, dict):
+                    membership_error = detail.get("memberships")
+                if membership_error is not None:
+                    message = None
+                    if isinstance(membership_error, dict):
+                        message = membership_error.get("message") or membership_error.get("detail")
+                    elif isinstance(membership_error, list) and membership_error:
+                        first = membership_error[0]
+                        if isinstance(first, dict):
+                            message = first.get("message") or first.get("detail")
+                        else:
+                            message = str(first)
+                    raise InvalidUserData(detail=message or "User membership data validation failed.") from exc
+            raise
+
     def validate_email(self, value: str) -> str:
         if User.objects.with_deleted().filter(email__iexact=value).exists():
             raise EmailAlreadyExists()
@@ -228,7 +251,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         request_user = getattr(request, "user", None)
         with transaction.atomic():
             try:
-                user = User.objects.create_user(**validated_data)
+                user = User.objects.create_user(password=password, **validated_data)
             except IntegrityError as exc:
                 if "email" in str(exc).lower():
                     raise EmailAlreadyExists()

@@ -14,7 +14,6 @@ from apps.common.exceptions import (
     UserNotFound,
 )
 from apps.common.models import AuditLog
-from apps.common.paginations import StandardPagination
 from apps.roles.models import RoleAssignment
 
 from .models import UserOrganization
@@ -67,7 +66,6 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
     permission_classes = [IsAuthenticated]
-    pagination_class = StandardPagination
     lookup_field = "uuid"
 
     def get_throttle_scope(self, request):

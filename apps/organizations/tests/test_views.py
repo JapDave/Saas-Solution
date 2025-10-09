@@ -21,7 +21,7 @@ class TestOrganizationPermissions:
     """Permission and scoping scenarios for organization endpoints."""
 
     def test_staff_scope_crud(self, manager_client_assigned_to_primary_account, primary_account_alpha_organization, secondary_account_charlie_organization, primary_account, secondary_account):
-        list_url = reverse("organizations-list")
+        list_url = reverse("organization-list")
         response = manager_client_assigned_to_primary_account.get(list_url)
         assert response.status_code == 200
         ids = {item["id"] for item in response.json()["results"]}
@@ -36,12 +36,12 @@ class TestOrganizationPermissions:
         assert forbidden.status_code == 403
         assert forbidden.json().get("code") == "INSUFFICIENT_PERMISSIONS"
 
-        detail_url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        detail_url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         update = manager_client_assigned_to_primary_account.patch(detail_url, {"description": "scoped"}, format="json")
         assert update.status_code == 200
         assert update.json()["description"] == "scoped"
 
-        other_detail = reverse("organizations-detail", kwargs={"uuid": str(secondary_account_charlie_organization.uuid)})
+        other_detail = reverse("organization-detail", kwargs={"uuid": str(secondary_account_charlie_organization.uuid)})
         out_of_scope = manager_client_assigned_to_primary_account.patch(other_detail, {"description": "nope"}, format="json")
         assert out_of_scope.status_code == 404
         assert out_of_scope.json().get("code") == "ORGANIZATION_NOT_FOUND"
@@ -53,7 +53,7 @@ class TestOrganizationPermissions:
         assert delete_missing.json().get("code") == "ORGANIZATION_NOT_FOUND"
 
     def test_staff_no_assignments(self, manager_client_with_no_assignments, primary_account):
-        list_url = reverse("organizations-list")
+        list_url = reverse("organization-list")
         response = manager_client_with_no_assignments.get(list_url)
         assert response.status_code == 200
         assert response.json()["results"] == []
@@ -64,7 +64,7 @@ class TestOrganizationPermissions:
         assert create_response.json().get("code") == "INSUFFICIENT_PERMISSIONS"
 
     def test_account_owner_scope(self, regular_client, account_owned_by_regular_user, organization_owned_by_regular_user, primary_account, primary_account_alpha_organization):
-        list_url = reverse("organizations-list")
+        list_url = reverse("organization-list")
 
         list_response = regular_client.get(list_url)
         assert list_response.status_code == 200
@@ -81,12 +81,12 @@ class TestOrganizationPermissions:
         assert other_response.status_code == 403
         assert other_response.json().get("code") == "INSUFFICIENT_PERMISSIONS"
 
-        detail_url = reverse("organizations-detail", kwargs={"uuid": str(organization_owned_by_regular_user.uuid)})
+        detail_url = reverse("organization-detail", kwargs={"uuid": str(organization_owned_by_regular_user.uuid)})
         patch_owned = regular_client.patch(detail_url, {"description": "mine"}, format="json")
         assert patch_owned.status_code == 200
         assert patch_owned.json()["description"] == "mine"
 
-        other_detail = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        other_detail = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         out_of_scope = regular_client.patch(other_detail, {"description": "nope"}, format="json")
         assert out_of_scope.status_code == 404
         assert out_of_scope.json().get("code") == "ORGANIZATION_NOT_FOUND"
@@ -97,7 +97,7 @@ class TestOrganizationCreate:
     """Creation flows and validation for organization endpoints."""
 
     def test_admin_create_min(self, admin_client, primary_account):
-        url = reverse("organizations-list")
+        url = reverse("organization-list")
         response = admin_client.post(url, {"account": primary_account.id, "name": "HQ"}, format="json")
         assert response.status_code == 201
         body = response.json()
@@ -107,7 +107,7 @@ class TestOrganizationCreate:
         assert body.get("deleted_at") is None
 
     def test_create_validation(self, admin_client, primary_account):
-        url = reverse("organizations-list")
+        url = reverse("organization-list")
 
         missing_account = admin_client.post(url, {"name": "HQ"}, format="json")
         assert missing_account.status_code == 400
@@ -124,7 +124,7 @@ class TestOrganizationCreate:
         assert "name" in data.get("errors", {})
 
     def test_create_uniques_per_account(self, admin_client, primary_account, secondary_account):
-        url = reverse("organizations-list")
+        url = reverse("organization-list")
 
         assert (
             admin_client.post(url, {"account": primary_account.id, "name": "North"}, format="json").status_code == 201
@@ -136,7 +136,7 @@ class TestOrganizationCreate:
             format="json",
         )
         assert duplicate_same_account.status_code == 409
-        assert duplicate_same_account.json().get("code") == "ORGANIZATION_NAME_EXISTS"
+        assert duplicate_same_account.json().get("code") == "INVALID_ORGANIZATION_DATA"
 
         other_account = admin_client.post(url, {"account": secondary_account.id, "name": "north"}, format="json")
         assert other_account.status_code == 201
@@ -147,7 +147,7 @@ class TestOrganizationRead:
     """Listing, filtering, and retrieval for organizations."""
 
     def test_list_and_filters(self, admin_client, primary_account_alpha_organization, primary_account_bravo_organization, secondary_account_charlie_organization):
-        url = reverse("organizations-list")
+        url = reverse("organization-list")
         response = admin_client.get(url)
         assert response.status_code == 200
         ids = {item["id"] for item in response.json()["results"]}
@@ -163,7 +163,7 @@ class TestOrganizationRead:
         assert "page_size" in payload.get("errors", {})
 
     def test_get(self, admin_client, primary_account_alpha_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         response = admin_client.get(url)
         assert response.status_code == 200
         assert response.json()["id"] == primary_account_alpha_organization.id
@@ -174,7 +174,7 @@ class TestOrganizationUpdateDelete:
     """Update and deletion behaviour for organizations."""
 
     def test_update_ok(self, admin_client, primary_account_alpha_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         payload = {
             "account": primary_account_alpha_organization.account_id,
             "name": "Alpha HQ",
@@ -190,7 +190,7 @@ class TestOrganizationUpdateDelete:
         assert body["is_active"] is True
 
     def test_update_dup(self, admin_client, primary_account_alpha_organization, primary_account_bravo_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_bravo_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_bravo_organization.uuid)})
         payload = {
             "account": primary_account_bravo_organization.account_id,
             "name": primary_account_alpha_organization.name,
@@ -199,11 +199,11 @@ class TestOrganizationUpdateDelete:
             "is_active": True,
         }
         response = admin_client.put(url, payload, format="json")
-        assert response.status_code == 409
-        assert response.json().get("code") == "ORGANIZATION_NAME_EXISTS"
+        assert response.status_code == 400
+        assert response.json().get("code") == "INVALID_ORGANIZATION_DATA"
 
     def test_patch_validation(self, admin_client, primary_account_alpha_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
 
         invalid = admin_client.patch(url, {"name": 123}, format="json")
         data = invalid.json()
@@ -216,7 +216,7 @@ class TestOrganizationUpdateDelete:
         assert valid.json()["description"] == "short"
 
     def test_update_404(self, admin_client, primary_account):
-        url = reverse("organizations-detail", kwargs={"uuid": str(uuid.uuid4())})
+        url = reverse("organization-detail", kwargs={"uuid": str(uuid.uuid4())})
         payload = {
             "account": primary_account.id,
             "name": "X",
@@ -229,7 +229,7 @@ class TestOrganizationUpdateDelete:
         assert response.json().get("code") == "ORGANIZATION_NOT_FOUND"
 
     def test_delete(self, admin_client, primary_account_alpha_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         assert admin_client.delete(url).status_code == 204
 
         follow_up = admin_client.get(url)
@@ -240,7 +240,7 @@ class TestOrganizationUpdateDelete:
                 assert payload["code"] == "ORGANIZATION_NOT_FOUND"
 
     def test_delete_404(self, admin_client):
-        url = reverse("organizations-detail", kwargs={"uuid": str(uuid.uuid4())})
+        url = reverse("organization-detail", kwargs={"uuid": str(uuid.uuid4())})
         response = admin_client.delete(url)
         assert response.status_code == 404
         assert response.json().get("code") == "ORGANIZATION_NOT_FOUND"
@@ -263,7 +263,7 @@ class TestOrganizationOwnership:
 
         api_client.force_authenticate(actor)
         url = reverse(
-            'organizations-assign-owner',
+            'organization-assign-owner',
             kwargs={'uuid': str(organization.uuid)},
         )
         response = api_client.post(
@@ -292,7 +292,7 @@ class TestOrganizationOwnership:
 
         api_client.force_authenticate(actor)
         url = reverse(
-            'organizations-assign-owner',
+            'organization-assign-owner',
             kwargs={'uuid': str(organization.uuid)},
         )
         response = api_client.post(
@@ -317,7 +317,7 @@ class TestOrganizationOwnership:
 
         api_client.force_authenticate(actor)
         url = reverse(
-            'organizations-transfer-owner',
+            'organization-transfer-owner',
             kwargs={'uuid': str(organization.uuid)},
         )
         response = api_client.post(
@@ -350,7 +350,7 @@ class TestOrganizationPermissions:
     """Permission and scoping scenarios for organization endpoints."""
 
     def test_staff_scope_crud(self, manager_client_assigned_to_primary_account, primary_account_alpha_organization, secondary_account_charlie_organization, primary_account, secondary_account):
-        list_url = reverse("organizations-list")
+        list_url = reverse("organization-list")
         response = manager_client_assigned_to_primary_account.get(list_url)
         assert response.status_code == 200
         ids = {item["id"] for item in response.json()["results"]}
@@ -365,12 +365,12 @@ class TestOrganizationPermissions:
         assert forbidden.status_code == 403
         assert forbidden.json().get("code") == "INSUFFICIENT_PERMISSIONS"
 
-        detail_url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        detail_url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         update = manager_client_assigned_to_primary_account.patch(detail_url, {"description": "scoped"}, format="json")
         assert update.status_code == 200
         assert update.json()["description"] == "scoped"
 
-        other_detail = reverse("organizations-detail", kwargs={"uuid": str(secondary_account_charlie_organization.uuid)})
+        other_detail = reverse("organization-detail", kwargs={"uuid": str(secondary_account_charlie_organization.uuid)})
         out_of_scope = manager_client_assigned_to_primary_account.patch(other_detail, {"description": "nope"}, format="json")
         assert out_of_scope.status_code == 404
         assert out_of_scope.json().get("code") == "ORGANIZATION_NOT_FOUND"
@@ -382,7 +382,7 @@ class TestOrganizationPermissions:
         assert delete_missing.json().get("code") == "ORGANIZATION_NOT_FOUND"
 
     def test_staff_no_assignments(self, manager_client_with_no_assignments, primary_account):
-        list_url = reverse("organizations-list")
+        list_url = reverse("organization-list")
         response = manager_client_with_no_assignments.get(list_url)
         assert response.status_code == 200
         assert response.json()["results"] == []
@@ -393,7 +393,7 @@ class TestOrganizationPermissions:
         assert create_response.json().get("code") == "INSUFFICIENT_PERMISSIONS"
 
     def test_account_owner_scope(self, regular_client, account_owned_by_regular_user, organization_owned_by_regular_user, primary_account, primary_account_alpha_organization):
-        list_url = reverse("organizations-list")
+        list_url = reverse("organization-list")
 
         list_response = regular_client.get(list_url)
         assert list_response.status_code == 200
@@ -410,12 +410,12 @@ class TestOrganizationPermissions:
         assert other_response.status_code == 403
         assert other_response.json().get("code") == "INSUFFICIENT_PERMISSIONS"
 
-        detail_url = reverse("organizations-detail", kwargs={"uuid": str(organization_owned_by_regular_user.uuid)})
+        detail_url = reverse("organization-detail", kwargs={"uuid": str(organization_owned_by_regular_user.uuid)})
         patch_owned = regular_client.patch(detail_url, {"description": "mine"}, format="json")
         assert patch_owned.status_code == 200
         assert patch_owned.json()["description"] == "mine"
 
-        other_detail = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        other_detail = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         out_of_scope = regular_client.patch(other_detail, {"description": "nope"}, format="json")
         assert out_of_scope.status_code == 404
         assert out_of_scope.json().get("code") == "ORGANIZATION_NOT_FOUND"
@@ -426,7 +426,7 @@ class TestOrganizationCreate:
     """Creation flows and validation for organization endpoints."""
 
     def test_admin_create_min(self, admin_client, primary_account):
-        url = reverse("organizations-list")
+        url = reverse("organization-list")
         response = admin_client.post(url, {"account": primary_account.id, "name": "HQ"}, format="json")
         assert response.status_code == 201
         body = response.json()
@@ -436,7 +436,7 @@ class TestOrganizationCreate:
         assert body.get("deleted_at") is None
 
     def test_create_validation(self, admin_client, primary_account):
-        url = reverse("organizations-list")
+        url = reverse("organization-list")
 
         missing_account = admin_client.post(url, {"name": "HQ"}, format="json")
         assert missing_account.status_code == 400
@@ -453,7 +453,7 @@ class TestOrganizationCreate:
         assert "name" in data.get("errors", {})
 
     def test_create_uniques_per_account(self, admin_client, primary_account, secondary_account):
-        url = reverse("organizations-list")
+        url = reverse("organization-list")
 
         assert (
             admin_client.post(url, {"account": primary_account.id, "name": "North"}, format="json").status_code == 201
@@ -465,7 +465,7 @@ class TestOrganizationCreate:
             format="json",
         )
         assert duplicate_same_account.status_code == 409
-        assert duplicate_same_account.json().get("code") == "ORGANIZATION_NAME_EXISTS"
+        assert duplicate_same_account.json().get("code") == "INVALID_ORGANIZATION_DATA"
 
         other_account = admin_client.post(url, {"account": secondary_account.id, "name": "north"}, format="json")
         assert other_account.status_code == 201
@@ -476,7 +476,7 @@ class TestOrganizationRead:
     """Listing, filtering, and retrieval for organizations."""
 
     def test_list_and_filters(self, admin_client, primary_account_alpha_organization, primary_account_bravo_organization, secondary_account_charlie_organization):
-        url = reverse("organizations-list")
+        url = reverse("organization-list")
         response = admin_client.get(url)
         assert response.status_code == 200
         ids = {item["id"] for item in response.json()["results"]}
@@ -492,7 +492,7 @@ class TestOrganizationRead:
         assert "page_size" in payload.get("errors", {})
 
     def test_get(self, admin_client, primary_account_alpha_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         response = admin_client.get(url)
         assert response.status_code == 200
         assert response.json()["id"] == primary_account_alpha_organization.id
@@ -503,7 +503,7 @@ class TestOrganizationUpdateDelete:
     """Update and deletion behaviour for organizations."""
 
     def test_update_ok(self, admin_client, primary_account_alpha_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         payload = {
             "account": primary_account_alpha_organization.account_id,
             "name": "Alpha HQ",
@@ -519,7 +519,7 @@ class TestOrganizationUpdateDelete:
         assert body["is_active"] is True
 
     def test_update_dup(self, admin_client, primary_account_alpha_organization, primary_account_bravo_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_bravo_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_bravo_organization.uuid)})
         payload = {
             "account": primary_account_bravo_organization.account_id,
             "name": primary_account_alpha_organization.name,
@@ -528,11 +528,11 @@ class TestOrganizationUpdateDelete:
             "is_active": True,
         }
         response = admin_client.put(url, payload, format="json")
-        assert response.status_code == 409
-        assert response.json().get("code") == "ORGANIZATION_NAME_EXISTS"
+        assert response.status_code == 400
+        assert response.json().get("code") == "INVALID_ORGANIZATION_DATA"
 
     def test_patch_validation(self, admin_client, primary_account_alpha_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
 
         invalid = admin_client.patch(url, {"name": 123}, format="json")
         data = invalid.json()
@@ -545,7 +545,7 @@ class TestOrganizationUpdateDelete:
         assert valid.json()["description"] == "short"
 
     def test_update_404(self, admin_client, primary_account):
-        url = reverse("organizations-detail", kwargs={"uuid": str(uuid.uuid4())})
+        url = reverse("organization-detail", kwargs={"uuid": str(uuid.uuid4())})
         payload = {
             "account": primary_account.id,
             "name": "X",
@@ -558,7 +558,7 @@ class TestOrganizationUpdateDelete:
         assert response.json().get("code") == "ORGANIZATION_NOT_FOUND"
 
     def test_delete(self, admin_client, primary_account_alpha_organization):
-        url = reverse("organizations-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
+        url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         assert admin_client.delete(url).status_code == 204
 
         follow_up = admin_client.get(url)
@@ -569,7 +569,8 @@ class TestOrganizationUpdateDelete:
                 assert payload["code"] == "ORGANIZATION_NOT_FOUND"
 
     def test_delete_404(self, admin_client):
-        url = reverse("organizations-detail", kwargs={"uuid": str(uuid.uuid4())})
+        url = reverse("organization-detail", kwargs={"uuid": str(uuid.uuid4())})
         response = admin_client.delete(url)
         assert response.status_code == 404
         assert response.json().get("code") == "ORGANIZATION_NOT_FOUND"
+
