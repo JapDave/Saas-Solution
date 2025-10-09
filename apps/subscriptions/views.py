@@ -54,8 +54,6 @@ class SubscriptionViewSet(
         - Read actions are allowed for SaaS Admins and Account Managers.
         - Write actions are restricted to SaaS Admins.
         """
-        print( self.action )
-
         if self.action in ["create", "update_status"]:
             return [AnyOf(IsSaaSAdmin, ISSaaSAccountManager)]
 
@@ -64,7 +62,7 @@ class SubscriptionViewSet(
                 IsSaaSAdmin, ISSaaSAccountManager, IsOrganizationOwner,
                 IsOrganizationAdmin, IsAccountOwner, IsAccountAdmin
             )
-            ]
+        ]
 
     def get_organization(self, organization_uuid):
         try:

@@ -56,9 +56,6 @@ def has_role(
     if not user or not getattr(user, "is_authenticated", False):
         return False
 
-    if getattr(user, "is_superuser", False):
-        return True
-
     normalised_name = (role_name or "").strip()
     if not normalised_name:
         return False
@@ -89,7 +86,7 @@ def has_role(
 def has_permission(
     user: User,
     permission_key: str,
-    organization_uuid: UUID | str | None
+    organization_uuid: UUID | str
 ) -> bool:
     """
     Checks if a user has a specific permission via their assigned roles,
@@ -100,36 +97,19 @@ def has_permission(
 
     Args:
         user: The user instance to check.
-        permission_key: The permission string (e.g., "user:invite").
-        organization_uuid: Optional organization UUID/ID for scoping; omit to check only global roles.
+        permission_key: The permission string (e.g., "users:invite").
+        organization_uuid: The UUID of the organization to check against.
 
     Returns:
         True if the user has the permission, False otherwise.
     """
-    if not user or not getattr(user, "is_authenticated", False):
+    if not user or not hasattr(user, "is_authenticated") or not user.is_authenticated:
         return False
 
-    normalised_key = (permission_key or "").strip().lower()
-    if not normalised_key:
-        return False
-
-    if getattr(user, "is_superuser", False):
-        return True
-
-    if has_role(user, ROLE_SAAS_ADMINISTRATOR):
-        return True
-
-    filters = Q(organization__isnull=True)
-    if organization_uuid is not None:
-        org_uuid, org_id = _split_org_identifier(organization_uuid)
-        org_filters = Q()
-        if org_uuid:
-            org_filters |= Q(organization__uuid=org_uuid)
-        if org_id is not None:
-            org_filters |= Q(organization_id=org_id)
-        if org_filters:
-            filters |= org_filters
-
-    assignments = user.role_assignments.filter(is_active=True).filter(filters)
-    return assignments.filter(role__permissions__contains=[normalised_key]).exists()
-
+    # Find active assignments for this user that are either for the specified
+    # organization OR are global (system) roles.
+    assignments = user.role_assignments.filter(
+        organization__uuid=organization_uuid,
+        is_active=True,
+    )
+    return assignments.filter(role__permissions__contains=[permission_key]).exists()

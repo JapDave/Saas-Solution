@@ -1,12 +1,14 @@
-# Django/DRF imports
 import hashlib
-from django.db.models import Q
 
+# Django/DRF imports
+from django.db.models import Q
 from rest_framework import viewsets
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema
+
+# Third-party imports
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 # Project imports
 from apps.common.exceptions import OrganizationNotFound
@@ -18,7 +20,19 @@ from apps.organizations.models import Organization
 
 from apps.roles.permissions import HasPermission
 
-@extend_schema(tags=["Files"])
+# @extend_schema(tags=["Files"])
+@extend_schema(
+    tags=["Files"],
+    parameters=[
+        OpenApiParameter(
+            name='organization_uuid',
+            description='UUID of the organization',
+            required=True,
+            type=OpenApiTypes.UUID,  # Or STRING if it's not a UUID
+            location=OpenApiParameter.PATH,
+        ),
+    ]
+)
 class FileViewSet(
     viewsets.mixins.CreateModelMixin,
     viewsets.mixins.DestroyModelMixin,

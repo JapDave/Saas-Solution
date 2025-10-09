@@ -4,7 +4,8 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 
 # Third-party imports
-from drf_spectacular.utils import extend_schema
+# from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from rest_framework import mixins, viewsets
 from rest_framework.exceptions import ValidationError, PermissionDenied
 
@@ -21,7 +22,19 @@ from apps.roles.permissions import IsOrganizationAdmin
 
 from apps.common.exceptions import OrganizationNotFound
 
-@extend_schema(tags=["Roles"])
+# @extend_schema(tags=["Roles"])
+@extend_schema(
+    tags=["Roles"],
+    parameters=[
+        OpenApiParameter(
+            name='organization_uuid',
+            description='UUID of the organization',
+            required=True,
+            type=OpenApiTypes.UUID,  # Or STRING if it's not a UUID
+            location=OpenApiParameter.PATH,
+        ),
+    ]
+)
 class RoleViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing Roles within an organization.
