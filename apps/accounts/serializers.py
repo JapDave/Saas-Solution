@@ -35,13 +35,13 @@ class AccountCreateSerializer(serializers.ModelSerializer):
         if Account.objects.filter(name__iexact=name).exists():
             raise CustomError(
                 code=ACCOUNT_NAME_EXISTS,
-                status_code=409,
+                status_code=400,
                 detail="Account name already exists in the platform",
             )
         if Account.objects.filter(contact_email__iexact=email).exists():
             raise CustomError(
                 code=CONTACT_EMAIL_EXISTS,
-                status_code=409,
+                status_code=400,
                 detail="Contact email already exists in the platform",
             )
         return attrs
@@ -87,7 +87,7 @@ class AccountUpdateSerializer(serializers.ModelSerializer):
         ):
             raise CustomError(
                 code=ACCOUNT_NAME_EXISTS,
-                status_code=409,
+                status_code=400,
                 detail="Account name already exists in the platform",
             )
         if (
@@ -98,7 +98,7 @@ class AccountUpdateSerializer(serializers.ModelSerializer):
         ):
             raise CustomError(
                 code=CONTACT_EMAIL_EXISTS,
-                status_code=409,
+                status_code=400,
                 detail="Contact email already exists in the platform",
             )
         if attrs.get("is_active") is False and instance and instance.is_active:
