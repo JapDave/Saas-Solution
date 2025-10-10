@@ -12,10 +12,12 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
 from apps.common.exceptions import (
-    EmailAlreadyExists,
-    InvalidUserData,
-    UserAlreadyMember,
-    UserNotMember,
+    CustomError,
+    CustomValidationError,
+    EMAIL_ALREADY_EXISTS,
+    INVALID_USER_DATA,
+    USER_ALREADY_MEMBER,
+    USER_NOT_MEMBER,
 )
 from apps.organizations.models import Organization
 from apps.roles.constants import ROLE_ORGANIZATION_OWNER
@@ -61,26 +63,26 @@ def _merge_permission_keys(*groups: Iterable[str]) -> List[str]:
 
 def _resolve_roles_for_membership(*, organization: Organization, role_ids: Iterable[Any]) -> List[Role]:
     if not role_ids:
-        return []
+        raise CustomValidationError(detail='At least one role must be assigned to the organization membership.', code=INVALID_USER_DATA)
 
     try:
         uuids = [UUID(str(value)) for value in role_ids]
     except (TypeError, ValueError) as exc:
-        raise InvalidUserData(detail='Role identifiers must be valid UUID strings.') from exc
+        raise CustomValidationError(detail='Role identifiers must be valid UUID strings.', code=INVALID_USER_DATA) from exc
 
     roles = list(Role.objects.filter(uuid__in=uuids))
     if len({role.uuid for role in roles}) != len({UUID(str(value)) for value in role_ids}):
         existing = {role.uuid for role in roles}
         missing = [str(uuid) for uuid in uuids if uuid not in existing]
-        raise InvalidUserData(detail=f"Roles not found: {', '.join(missing)}")
+        raise CustomValidationError(detail=f"Roles not found: {', '.join(missing)}", code=INVALID_USER_DATA)
 
     invalid = [role for role in roles if role.organization_id != organization.id]
     if invalid:
-        raise InvalidUserData(detail='All roles must belong to the target organization.')
+        raise CustomValidationError(detail='All roles must belong to the target organization.', code=INVALID_USER_DATA)
 
     inactive = [role for role in roles if not role.is_active]
     if inactive:
-        raise InvalidUserData(detail='Inactive roles cannot be assigned.')
+        raise CustomValidationError(detail='Inactive roles cannot be assigned.', code=INVALID_USER_DATA)
 
     ordered: List[Role] = []
     seen_ids: set[int] = set()
@@ -213,33 +215,36 @@ class UserCreateSerializer(serializers.ModelSerializer):
                             message = first.get("message") or first.get("detail")
                         else:
                             message = str(first)
-                    raise InvalidUserData(detail=message or "User membership data validation failed.") from exc
+                    raise CustomValidationError(
+                        detail=message or "User membership data validation failed.",
+                        code=INVALID_USER_DATA,
+                    ) from exc
             raise
 
     def validate_email(self, value: str) -> str:
         if User.objects.with_deleted().filter(email__iexact=value).exists():
-            raise EmailAlreadyExists()
+            raise CustomError(code=EMAIL_ALREADY_EXISTS, status_code=409, detail='Email address is already in use')
         return value
 
     def validate_password(self, value: str) -> str:
         if not isinstance(value, str) or not 8 <= len(value) <= 128:
-            raise InvalidUserData(detail="Password must be between 8 and 128 characters.")
+            raise CustomValidationError(detail="Password must be between 8 and 128 characters.", code=INVALID_USER_DATA)
         return value
 
     def validate_memberships(self, value: List[Dict[str, Any]]):
         if not value:
-            raise InvalidUserData(detail="User must be assigned to at least one organization.")
+            raise CustomValidationError(detail="User must be assigned to at least one organization.", code=INVALID_USER_DATA)
         request = self.context.get("request")
         request_user = getattr(request, "user", None)
         if request_user is None:
-            raise InvalidUserData(detail="request_user context required.")
+            raise CustomValidationError(detail="request_user context required.", code=INVALID_USER_DATA)
         seen_orgs = set()
         for item in value:
             organization = item.get("organization")
             if organization is None:
-                raise InvalidUserData(detail="Organization membership entry is missing organization reference.")
+                raise CustomValidationError(detail="Organization membership entry is missing organization reference.", code=INVALID_USER_DATA)
             if organization.id in seen_orgs:
-                raise InvalidUserData(detail="Duplicate organization entries are not allowed.")
+                raise CustomValidationError(detail="Duplicate organization entries are not allowed.", code=INVALID_USER_DATA)
             seen_orgs.add(organization.id)
             ensure_user_can_manage_organization(request_user, organization, permission_key="user:create")
         return value
@@ -254,8 +259,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 user = User.objects.create_user(password=password, **validated_data)
             except IntegrityError as exc:
                 if "email" in str(exc).lower():
-                    raise EmailAlreadyExists()
-                raise InvalidUserData(detail="Unable to create user.") from exc
+                    raise CustomError(code=EMAIL_ALREADY_EXISTS, status_code=409, detail='Email address is already in use')
+                raise CustomValidationError(detail="Unable to create user.", code=INVALID_USER_DATA) from exc
             user.created_by = request_user
             user.updated_by = request_user
             user.set_password(password)
@@ -274,7 +279,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 try:
                     membership_instance.full_clean()
                 except ValidationError as exc:
-                    raise InvalidUserData(detail=str(exc)) from exc
+                    raise CustomValidationError(detail=str(exc), code=INVALID_USER_DATA) from exc
                 membership_instance.save()
                 sync_user_role_assignments(
                     user=user,
@@ -303,7 +308,8 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         try:
             instance.full_clean()
         except ValidationError as exc:  # type: ignore[name-defined]
-            raise InvalidUserData(detail=str(exc)) from exc
+            from apps.common.exceptions import CustomValidationError, INVALID_USER_DATA
+            raise CustomValidationError(detail=str(exc), code=INVALID_USER_DATA) from exc
         instance.save(update_fields=list(validated_data.keys()) + ["updated_by", "updated_at"])
         return instance
 
@@ -326,25 +332,27 @@ class MembershipMutationSerializer(serializers.Serializer):
         if raw_role_values is None:
             raw_role_values = getattr(self, "initial_data", {}).get("roles")
         role_ids = [str(value) for value in (raw_role_values or [])]
-        roles = _resolve_roles_for_membership(organization=organization, role_ids=role_ids)
+        roles: List[Role] = []
+        if role_ids:
+            roles = _resolve_roles_for_membership(organization=organization, role_ids=role_ids)
         attrs["roles"] = roles
         attrs["permissions"] = _merge_permission_keys(attrs.get("permissions", []), _collect_permissions_from_roles(roles))
         user = self.context.get("user")
         if user is None:
-            raise InvalidUserData(detail="user context required.")
+            raise CustomValidationError(detail="user context required.", code=INVALID_USER_DATA)
         if UserOrganization.objects.filter(user=user, organization=organization).exists():
-            raise UserAlreadyMember()
+            raise CustomError(code=USER_ALREADY_MEMBER, status_code=409, detail='User is already a member of the organization')
         return attrs
 
     def create(self, validated_data: Dict[str, Any]) -> UserOrganization:
         request = self.context.get("request")
         request_user = getattr(request, "user", None)
         if request_user is None:
-            raise InvalidUserData(detail="request_user context required.")
+            raise CustomValidationError(detail="request_user context required.", code=INVALID_USER_DATA)
         user: User = self.context["user"]
         organization = validated_data["organization"]
         if UserOrganization.objects.filter(user=user, organization=organization).exists():
-            raise UserAlreadyMember()
+            raise CustomError(code=USER_ALREADY_MEMBER, status_code=409, detail='User is already a member of the organization')
         roles = validated_data.get("roles", [])
         permissions = list(validated_data.get("permissions", []))
         membership = UserOrganization(
@@ -356,7 +364,7 @@ class MembershipMutationSerializer(serializers.Serializer):
         try:
             membership.full_clean()
         except ValidationError as exc:
-            raise InvalidUserData(detail=str(exc)) from exc
+            raise CustomValidationError(detail=str(exc), code=INVALID_USER_DATA) from exc
         membership.save()
         sync_user_role_assignments(
             user=user,
@@ -383,7 +391,7 @@ class MembershipRemovalSerializer(serializers.Serializer):
         try:
             membership = UserOrganization.objects.get(user=user, organization=organization)
         except UserOrganization.DoesNotExist as exc:
-            raise UserNotMember() from exc
+            raise CustomError(code=USER_NOT_MEMBER, status_code=400, detail='User is not a member of the organization') from exc
 
         org_uuid = str(getattr(organization, "uuid", ""))
         try:

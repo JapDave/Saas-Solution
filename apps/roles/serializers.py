@@ -1,5 +1,6 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
+from apps.common.exceptions import CustomError, ROLE_NAME_CONFLICT
 
 from apps.roles.models import Role, RoleAssignment
 from apps.users.models import User, UserOrganization
@@ -58,9 +59,13 @@ class RoleSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"permissions": _("Permission keys cannot be blank.")}
                 )
-            if ':' not in value:
+            if ":" not in value:
                 raise serializers.ValidationError(
-                    {"permissions": _("Permission keys must use the 'scope:action' format.")}
+                    {
+                        "permissions": _(
+                            "Permission keys must use the 'scope:action' format."
+                        )
+                    }
                 )
             if value not in seen:
                 seen.add(value)
@@ -81,8 +86,12 @@ class RoleSerializer(serializers.ModelSerializer):
                 .exclude(pk=self.instance.pk)
                 .exists()
             ):
-                raise serializers.ValidationError(
-                    {"name": _("A role with this name already exists in the organization.")}
+                raise CustomError(
+                    code=ROLE_NAME_CONFLICT,
+                    status_code=409,
+                    detail=str(
+                        _("A role with this name already exists in the organization.")
+                    ),
                 )
         return data
 
@@ -91,6 +100,7 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
     """
     Serializer for the RoleAssignment model.
     """
+
     user = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=User.objects.all(),
@@ -124,7 +134,6 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
         ]
         # The unique_together constraint on the model handles duplicate assignments.
 
-
     def validate(self, attrs):
         organization = self.context.get("organization")
         if organization is None:
@@ -137,7 +146,9 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
             return attrs
 
         if role.organization_id != organization.id:
-            raise serializers.ValidationError({"role": _("Role must belong to the organization.")})
+            raise serializers.ValidationError(
+                {"role": _("Role must belong to the organization.")}
+            )
 
         if not role.is_active:
             raise serializers.ValidationError({"role": _("Role is inactive.")})
@@ -149,7 +160,9 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
             deleted_at__isnull=True,
         ).exists()
         if not membership_exists:
-            raise serializers.ValidationError({"user": _("User must be an active member of the organization.")})
+            raise serializers.ValidationError(
+                {"user": _("User must be an active member of the organization.")}
+            )
 
         attrs["organization"] = organization
         return attrs
@@ -166,18 +179,26 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
             organization=organization,
         ).first()
         if existing:
-            raise serializers.ValidationError({"role": _("User already has this role.")})
+            raise serializers.ValidationError(
+                {"role": _("User already has this role.")}
+            )
 
-        archived = RoleAssignment.all_objects.filter(
-            user=user,
-            role=role,
-            organization=organization,
-        ).exclude(deleted_at__isnull=True).first()
+        archived = (
+            RoleAssignment.all_objects.filter(
+                user=user,
+                role=role,
+                organization=organization,
+            )
+            .exclude(deleted_at__isnull=True)
+            .first()
+        )
         if archived:
             archived.deleted_at = None
             archived.is_active = True
             archived.assigned_by = assigned_by
-            archived.save(update_fields=["deleted_at", "is_active", "assigned_by", "updated_at"])
+            archived.save(
+                update_fields=["deleted_at", "is_active", "assigned_by", "updated_at"]
+            )
             return archived
 
         return RoleAssignment.objects.create(

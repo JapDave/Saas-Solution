@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.common.exceptions import TeamNotFound
+from apps.common.exceptions import CustomError, TEAM_CREATION_FAILED, TEAM_UPDATE_FAILED
 
 from .models import Team, TeamMember
 from .paginations import TeamPagination
@@ -67,10 +67,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         return TeamReadSerializer
 
     def get_object(self):
-        try:
-            obj = super().get_object()
-        except Http404 as exc:
-            raise TeamNotFound() from exc
+        obj = super().get_object()  # Http404 mapped by handler to TEAM_NOT_FOUND
         ensure_user_can_read_team(self.request.user, obj)
         return obj
 
@@ -86,7 +83,10 @@ class TeamViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        team = serializer.save()
+        try:
+            team = serializer.save()
+        except Exception as exc:
+            raise CustomError(code=TEAM_CREATION_FAILED, status_code=400, detail="Team creation process failed") from exc
         read = TeamReadSerializer(team, context={"request": request})
         return Response(read.data, status=status.HTTP_201_CREATED)
 
@@ -100,7 +100,10 @@ class TeamViewSet(viewsets.ModelViewSet):
         team = self.get_object()
         serializer = self.get_serializer(team, data=request.data, partial=partial, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        team = serializer.save()
+        try:
+            team = serializer.save()
+        except Exception as exc:
+            raise CustomError(code=TEAM_UPDATE_FAILED, status_code=400, detail="Team update process failed") from exc
         read = TeamReadSerializer(team, context={"request": request})
         return Response(read.data, status=status.HTTP_200_OK)
 

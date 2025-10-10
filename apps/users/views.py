@@ -10,8 +10,11 @@ from rest_framework.response import Response
 
 from apps.common.exceptions import (
     InsufficientPermissions,
-    InvalidUserData,
-    UserNotFound,
+    CustomError,
+    CustomValidationError,
+    INVALID_USER_DATA,
+    USER_CREATION_FAILED,
+    USER_UPDATE_FAILED,
 )
 from apps.common.models import AuditLog
 from apps.roles.models import RoleAssignment
@@ -84,7 +87,6 @@ class UserViewSet(viewsets.ModelViewSet):
             return "user.list"
         return None
 
-
     def get_queryset(self):
         user = getattr(self.request, "user", None)
         qs = (
@@ -119,9 +121,18 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserReadSerializer
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data, context={"request": request})
+        serializer = self.get_serializer(
+            data=request.data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        try:
+            user = serializer.save()
+        except Exception as exc:
+            raise CustomError(
+                code=USER_CREATION_FAILED,
+                status_code=400,
+                detail="User creation process failed",
+            ) from exc
         after_memberships = [
             self._capture_membership_state(user, membership.organization)
             for membership in user.memberships.all()
@@ -142,8 +153,15 @@ class UserViewSet(viewsets.ModelViewSet):
         target = self.get_object()
         request_user = request.user
         allow_self = request_user.id == target.id
-        ensure_user_can_manage_user(request_user, target, require_permission="user:update", allow_self=allow_self)
-        serializer = self.get_serializer(target, data=request.data, partial=True, context={"request": request})
+        ensure_user_can_manage_user(
+            request_user,
+            target,
+            require_permission="user:update",
+            allow_self=allow_self,
+        )
+        serializer = self.get_serializer(
+            target, data=request.data, partial=True, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         read = UserReadSerializer(user, context={"request": request})
@@ -155,7 +173,9 @@ class UserViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         target = self.get_object()
         ensure_user_not_owner_for_delete(target)
-        ensure_user_can_manage_user(request.user, target, require_permission="user:delete")
+        ensure_user_can_manage_user(
+            request.user, target, require_permission="user:delete"
+        )
         target.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -166,7 +186,9 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         is_active = serializer.validated_data["is_active"]
         request_user = request.user
-        ensure_user_can_manage_user(request_user, target, require_permission="user:deactivate", allow_self=False)
+        ensure_user_can_manage_user(
+            request_user, target, require_permission="user:deactivate", allow_self=False
+        )
         if not is_active:
             ensure_user_not_owner_for_deactivate(target)
         with transaction.atomic():
@@ -189,7 +211,9 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="memberships")
     def add_membership(self, request, uuid=None):
         target = self.get_object()
-        ensure_user_can_manage_user(request.user, target, require_permission="user:manage_membership")
+        ensure_user_can_manage_user(
+            request.user, target, require_permission="user:manage_membership"
+        )
         serializer = MembershipMutationSerializer(
             data=request.data,
             context={"request": request, "user": target},
@@ -217,10 +241,16 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         return response
 
-    @action(detail=True, methods=["delete"], url_path="memberships/(?P<organization_id>[^/]+)")
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path="memberships/(?P<organization_id>[^/]+)",
+    )
     def remove_membership(self, request, uuid=None, organization_id=None):
         target = self.get_object()
-        ensure_user_can_manage_user(request.user, target, require_permission="user:manage_membership")
+        ensure_user_can_manage_user(
+            request.user, target, require_permission="user:manage_membership"
+        )
         serializer = MembershipRemovalSerializer(
             data={"organization": organization_id},
             context={"request": request, "user": target},
@@ -239,7 +269,9 @@ class UserViewSet(viewsets.ModelViewSet):
             status_code=status.HTTP_204_NO_CONTENT,
             extra={
                 "target_user": str(target.uuid),
-                "organization_uuid": str(getattr(organization, "uuid", organization_id)),
+                "organization_uuid": str(
+                    getattr(organization, "uuid", organization_id)
+                ),
                 "before": before_state,
                 "after": after_state,
             },
@@ -250,9 +282,13 @@ class UserViewSet(viewsets.ModelViewSet):
     def switch_organization(self, request):
         organization_id = request.data.get("organization")
         if organization_id is None:
-            raise InvalidUserData(detail="Organization identifier is required.")
+            raise CustomValidationError(
+                detail="Organization identifier is required.", code=INVALID_USER_DATA
+            )
         try:
-            membership = UserOrganization.objects.get(user=request.user, organization_id=organization_id)
+            membership = UserOrganization.objects.get(
+                user=request.user, organization_id=organization_id
+            )
         except UserOrganization.DoesNotExist as exc:
             raise InsufficientPermissions() from exc
         if not membership.is_active or membership.deleted_at is not None:
@@ -266,17 +302,17 @@ class UserViewSet(viewsets.ModelViewSet):
         if not has_active_role:
             raise InsufficientPermissions()
         request.session["active_organization_id"] = membership.organization_id
-        return Response({"organization": membership.organization_id}, status=status.HTTP_200_OK)
+        return Response(
+            {"organization": membership.organization_id}, status=status.HTTP_200_OK
+        )
 
     def _capture_membership_state(self, user, organization) -> dict:
-        membership = (
-            UserOrganization.objects.filter(
-                user=user,
-                organization=organization,
-                deleted_at__isnull=True,
-                is_active=True,
-            ).first()
-        )
+        membership = UserOrganization.objects.filter(
+            user=user,
+            organization=organization,
+            deleted_at__isnull=True,
+            is_active=True,
+        ).first()
         assignments = (
             RoleAssignment.objects.filter(
                 user=user,
@@ -306,17 +342,34 @@ class UserViewSet(viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         if page is not None:
-            serializer = UserReadSerializer(page, many=True, context={"request": request})
+            serializer = UserReadSerializer(
+                page, many=True, context={"request": request}
+            )
             return self.get_paginated_response(serializer.data)
-        serializer = UserReadSerializer(queryset, many=True, context={"request": request})
+        serializer = UserReadSerializer(
+            queryset, many=True, context={"request": request}
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def get_object(self):
+    def update(self, request, *args, **kwargs):
+        return self._update_impl(request, partial=False)
+
+    def partial_update(self, request, *args, **kwargs):
+        return self._update_impl(request, partial=True)
+
+    def _update_impl(self, request, *, partial: bool):
+        obj = self.get_object()
+        serializer = self.get_serializer(obj, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
         try:
-            return super().get_object()
+            user = serializer.save()
         except Exception as exc:
-            raise UserNotFound() from exc
+            raise CustomError(
+                code=USER_UPDATE_FAILED,
+                status_code=400,
+                detail="User update process failed",
+            ) from exc
+        read = UserReadSerializer(user, context={"request": request})
+        return Response(read.data, status=status.HTTP_200_OK)
 
-
-
-
+    # Use default get_object; Http404 is mapped by handler to USER_NOT_FOUND via domain

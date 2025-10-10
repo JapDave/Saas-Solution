@@ -6,7 +6,7 @@ from apps.accounts.serializers import (
     AccountUpdateSerializer,
     AccountReadSerializer,
 )
-from apps.common.exceptions import AccountNameExists, ContactEmailExists
+from apps.common.exceptions import CustomError, ACCOUNT_NAME_EXISTS, CONTACT_EMAIL_EXISTS
 
 
 @pytest.mark.django_db
@@ -31,8 +31,9 @@ class TestAccountCreateSerializer:
             "contact_email": "new@example.com",
         }
         serializer = AccountCreateSerializer(data=payload)
-        with pytest.raises(AccountNameExists):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == ACCOUNT_NAME_EXISTS
 
     def test_duplicate_contact_email_raises(self):
         AccountFactory(contact_email="support@acme.com")
@@ -42,8 +43,9 @@ class TestAccountCreateSerializer:
             "contact_email": "SUPPORT@ACME.COM",
         }
         serializer = AccountCreateSerializer(data=payload)
-        with pytest.raises(ContactEmailExists):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == CONTACT_EMAIL_EXISTS
 
     def test_rejects_non_string_name(self):
         serializer = AccountCreateSerializer(data={"name": 123, "contact_email": "acme@example.com"})
@@ -64,15 +66,17 @@ class TestAccountUpdateSerializer:
         AccountFactory(name="Existing")
         target = AccountFactory(name="Target")
         serializer = AccountUpdateSerializer(instance=target, data={"name": "existing"}, partial=True)
-        with pytest.raises(AccountNameExists):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == ACCOUNT_NAME_EXISTS
 
     def test_duplicate_email_on_update_raises(self):
         AccountFactory(contact_email="owner@acme.com")
         target = AccountFactory(contact_email="other@acme.com")
         serializer = AccountUpdateSerializer(instance=target, data={"contact_email": "OWNER@ACME.COM"}, partial=True)
-        with pytest.raises(ContactEmailExists):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == CONTACT_EMAIL_EXISTS
 
 
 @pytest.mark.django_db
