@@ -8,6 +8,7 @@ pytest-django==4.8.0
 pytest-cov==5.0.0
 factory-boy==3.3.1  # https://github.com/FactoryBoy/factory_boy
 Faker==30.8.2  # https://github.com/joke2k/faker
+drf-standardized-errors==0.15.0 # https://drf-standardized-errors.readthedocs.io/en/latest/
 
 psycopg[binary]==3.2.1
 whitenoise==6.7.0

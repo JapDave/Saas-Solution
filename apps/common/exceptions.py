@@ -1,6 +1,12 @@
 from __future__ import annotations
 from rest_framework.exceptions import APIException, ValidationError, PermissionDenied, NotFound
 
+from django.utils import timezone
+from drf_standardized_errors.formatter import ExceptionFormatter
+from drf_standardized_errors.types import ErrorResponse
+from rest_framework.exceptions import APIException
+from rest_framework.exceptions import ValidationError
+
 # ---- Account codes ----------------------------------------------------------
 ACCOUNT_NOT_FOUND = "ACCOUNT_NOT_FOUND"
 INSUFFICIENT_PERMISSIONS = "INSUFFICIENT_PERMISSIONS"
@@ -140,6 +146,8 @@ class InvalidLogoUrl(CodedAPIException):
     status_code = 400
     default_code = INVALID_LOGO_URL
     default_detail = "Logo URL is invalid or inaccessible"
+
+
 # ---- Team codes ----------------------------------------------------------
 TEAM_NOT_FOUND = "TEAM_NOT_FOUND"
 TEAM_NAME_EXISTS = "TEAM_NAME_EXISTS"
@@ -235,3 +243,113 @@ class InvalidPagination(CodedAPIException, ValidationError):
     status_code = 400
     default_code = INVALID_PAGINATION
     default_detail = "Invalid pagination parameters provided"
+
+
+class CustomValidationError(ValidationError):
+    status_code = 400
+    default_code = "error"
+
+    def __init__(self, detail=None, code=None, status_code=None, *args, **kwargs):
+        super().__init__(detail=detail, code=code)
+
+        if status_code is not None:
+            self.status_code = status_code
+
+        if kwargs.get("message"):
+            self.message = kwargs.get("message")
+
+        if kwargs.get("user_message"):
+            self.user_message = kwargs.get("user_message")
+
+        if kwargs.get("developer_message"):
+            self.developer_message = kwargs.get("developer_message")
+
+        if kwargs.get("internal_error_code"):
+            self.internal_error_code = kwargs.get("internal_error_code")
+
+
+class CustomError(APIException):
+    status_code = 400
+    default_code = "error"
+
+    def __init__(self, detail=None, code=None, status_code=None, *args, **kwargs):
+        super().__init__(detail=detail, code=code)
+
+        if status_code is not None:
+            self.status_code = status_code
+
+        if kwargs.get("message"):
+            self.message = kwargs.get("message")
+
+        if kwargs.get("user_message"):
+            self.user_message = kwargs.get("user_message")
+
+        if kwargs.get("developer_message"):
+            self.developer_message = kwargs.get("developer_message")
+
+        if kwargs.get("internal_error_code"):
+            self.internal_error_code = kwargs.get("internal_error_code")
+
+
+class CustomExceptionFormatter(ExceptionFormatter):
+    def format_error_response(self, error_response: ErrorResponse):
+        """
+        Format response
+        """
+        exc = self.exc
+        more_info = None
+        user_message = None
+        developer_message = None
+        status_code = None
+
+        if hasattr(self.original_exc, "status_code"):
+            status_code = self.original_exc.status_code
+
+        if hasattr(exc, "user_message"):
+            user_message = exc.user_message
+
+        if hasattr(exc, "developer_message"):
+            developer_message = exc.developer_message
+
+        if hasattr(exc, "internal_error_code"):
+            status_code = exc.internal_error_code
+
+        error = error_response.errors[0]
+
+        if hasattr(exc, "message"):
+            message = exc.message
+        else:
+            message = error.detail
+            user_message = message
+
+        if error_response.type == "validation_error":
+            # for validation error add error to more_info
+            more_info = [
+                {
+                    "code": err.code,
+                    "field": err.attr,
+                    "issue": err.detail,
+                }
+                for err in error_response.errors
+            ]
+
+        return {
+            "status": "Error",
+            "status_code": status_code,
+            "message": message,
+            "details": {
+                "user_message": user_message,
+                "developer_message": developer_message,
+                "more_info": more_info,
+            },
+            "timestamp": timezone.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        }
+
+
+def get_single_error(data: dict):
+    """
+    return first single message of rest_framework serializer.errors.
+    """
+    for value in data.values():
+        return value[0]
+    return ""

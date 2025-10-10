@@ -149,6 +149,14 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+
+# -------------------------------------------------------------------
+# DRF standardized error
+# -------------------------------------------------------------------
+DRF_STANDARDIZED_ERRORS = {
+    "EXCEPTION_FORMATTER_CLASS": "apps.common.exceptions.CustomExceptionFormatter",
+}
+
 # -------------------------------------------------------------------
 # Static / Media / Storages
 # -------------------------------------------------------------------
