@@ -4,7 +4,13 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.common.serializers import CharFieldStrict
-from apps.common.exceptions import AccountNameExists, ContactEmailExists, InvalidAccountData
+from apps.common.exceptions import (
+    CustomError,
+    CustomValidationError,
+    ACCOUNT_NAME_EXISTS,
+    CONTACT_EMAIL_EXISTS,
+    INVALID_ACCOUNT_DATA,
+)
 from apps.subscriptions.services import ensure_account_has_no_active_subscriptions
 
 from .models import Account
@@ -27,9 +33,17 @@ class AccountCreateSerializer(serializers.ModelSerializer):
         name = attrs.get("name", "").strip()
         email = attrs.get("contact_email", "").strip()
         if Account.objects.filter(name__iexact=name).exists():
-            raise AccountNameExists()
+            raise CustomError(
+                code=ACCOUNT_NAME_EXISTS,
+                status_code=409,
+                detail="Account name already exists in the platform",
+            )
         if Account.objects.filter(contact_email__iexact=email).exists():
-            raise ContactEmailExists()
+            raise CustomError(
+                code=CONTACT_EMAIL_EXISTS,
+                status_code=409,
+                detail="Contact email already exists in the platform",
+            )
         return attrs
 
     def create(self, validated_data):
@@ -38,13 +52,13 @@ class AccountCreateSerializer(serializers.ModelSerializer):
             instance.full_clean()
             instance.save()
             return instance
-        except serializers.ValidationError:
-            instance = Account(**validated_data)
-            instance.full_clean()
-            instance.save()
-            return instance
-        except serializers.ValidationError:
-            raise InvalidAccountData(detail="Account model validation failed", code=None)
+        except serializers.ValidationError as exc:
+            # Shape as INVALID_ACCOUNT_DATA for the handler or direct use
+            raise CustomValidationError(
+                detail=exc.detail,
+                code=INVALID_ACCOUNT_DATA,
+                status_code=400,
+            )
 
 
 class AccountUpdateSerializer(serializers.ModelSerializer):
@@ -65,10 +79,28 @@ class AccountUpdateSerializer(serializers.ModelSerializer):
         instance: Account = self.instance
         name = attrs.get("name")
         email = attrs.get("contact_email")
-        if name is not None and Account.objects.filter(name__iexact=name).exclude(pk=instance.pk).exists():
-            raise AccountNameExists()
-        if email is not None and Account.objects.filter(contact_email__iexact=email).exclude(pk=instance.pk).exists():
-            raise ContactEmailExists()
+        if (
+            name is not None
+            and Account.objects.filter(name__iexact=name)
+            .exclude(pk=instance.pk)
+            .exists()
+        ):
+            raise CustomError(
+                code=ACCOUNT_NAME_EXISTS,
+                status_code=409,
+                detail="Account name already exists in the platform",
+            )
+        if (
+            email is not None
+            and Account.objects.filter(contact_email__iexact=email)
+            .exclude(pk=instance.pk)
+            .exists()
+        ):
+            raise CustomError(
+                code=CONTACT_EMAIL_EXISTS,
+                status_code=409,
+                detail="Contact email already exists in the platform",
+            )
         if attrs.get("is_active") is False and instance and instance.is_active:
             ensure_account_has_no_active_subscriptions(instance)
         return attrs

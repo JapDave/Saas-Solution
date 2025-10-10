@@ -29,6 +29,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, ]
     lookup_field = "uuid"
+    ERROR_DOMAIN = "products"
 
 
 class ModuleViewSet(viewsets.ReadOnlyModelViewSet):
@@ -43,6 +44,7 @@ class ModuleViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ["products",]
     ordering_fields = ["created_at", "key", "code", "name", "-name"]
     lookup_field = "uuid"
+    ERROR_DOMAIN = "modules"
 
     @action(detail=True, methods=["get"], url_path="config-schema", url_name="config-schema")
     def config_schema(self, request, pk=None, *args, **kwargs):

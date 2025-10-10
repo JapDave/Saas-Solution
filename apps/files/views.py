@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 # Project imports
-from apps.common.exceptions import OrganizationNotFound
+from apps.common.exceptions import CustomError, ORGANIZATION_NOT_FOUND
 
 from apps.files.models import File
 from apps.files.serializers import FileSerializer
@@ -20,18 +20,19 @@ from apps.organizations.models import Organization
 
 from apps.roles.permissions import HasPermission
 
+
 # @extend_schema(tags=["Files"])
 @extend_schema(
     tags=["Files"],
     parameters=[
         OpenApiParameter(
-            name='organization_uuid',
-            description='UUID of the organization',
+            name="organization_uuid",
+            description="UUID of the organization",
             required=True,
             type=OpenApiTypes.UUID,  # Or STRING if it's not a UUID
             location=OpenApiParameter.PATH,
         ),
-    ]
+    ],
 )
 class FileViewSet(
     viewsets.mixins.CreateModelMixin,
@@ -48,9 +49,11 @@ class FileViewSet(
     - Versioning (create_version, versions)
     - Deleting (destroy)
     """
+
     queryset = File.objects.all()
     serializer_class = FileSerializer
     lookup_field = "uuid"
+    ERROR_DOMAIN = "files"
 
     def get_permissions(self):
         """
@@ -66,8 +69,7 @@ class FileViewSet(
 
         return [
             HasPermission(
-                permission_key=permission,
-                organization_uuid=organization_uuid
+                permission_key=permission, organization_uuid=organization_uuid
             )
         ]
 
@@ -78,9 +80,7 @@ class FileViewSet(
         """
         user = self.request.user
         organization_uuid = self.kwargs.get("organization_uuid")
-        queryset = File.objects.filter(
-            Q(organization__uuid=organization_uuid)
-        )
+        queryset = File.objects.filter(Q(organization__uuid=organization_uuid))
 
         # for non authenticated users return only public files
         if not user.is_authenticated:
@@ -95,10 +95,12 @@ class FileViewSet(
         """
 
         try:
-            organization = Organization.objects.get(uuid=self.kwargs["organization_uuid"])
-            
-            uploaded_file = self.request.FILES.get('file')
-           # Calculate hash
+            organization = Organization.objects.get(
+                uuid=self.kwargs["organization_uuid"]
+            )
+
+            uploaded_file = self.request.FILES.get("file")
+            # Calculate hash
             sha256_hash = hashlib.sha256()
             for chunk in uploaded_file.chunks():
                 sha256_hash.update(chunk)
@@ -114,9 +116,13 @@ class FileViewSet(
                 hash=file_hash,
             )
         except Organization.DoesNotExist:
-            raise OrganizationNotFound()
+            raise CustomError(
+                code=ORGANIZATION_NOT_FOUND,
+                status_code=404,
+                detail="Organization does not exist or has been deleted",
+            )
 
-    @action(detail=True, methods=['post'], url_path='create-version')
+    @action(detail=True, methods=["post"], url_path="create-version")
     def create_version(self, request, organization_uuid, uuid=None):
         """
         REQ-FILES-003: File Versioning
@@ -140,33 +146,27 @@ class FileViewSet(
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=["get"])
     def versions(self, request, organization_uuid, uuid):
         """REQ-FILES-003: List all versions of a file."""
         file = self.get_object()
         # This is a simplified history; a full implementation might trace back the whole chain
         version_queryset = File.objects.filter(
             Q(id=file.id) | Q(parent_file_id=file.id)
-        ).order_by('-version')
+        ).order_by("-version")
         serializer = FileSerializer(version_queryset, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def recover(self, request, organization_uuid, uuid=None):
         """REQ-FILES-004: Recover a soft-deleted file."""
         # Read all files including deleted ones
         try:
-            
-            file = File.all_objects.get(
-                uuid=uuid,
-                organization__uuid=organization_uuid
-            )
+            file = File.all_objects.get(uuid=uuid, organization__uuid=organization_uuid)
             if not file.deleted_at:
                 return Response(
-                    data={
-                        "detail": "File is not deleted."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
+                    data={"detail": "File is not deleted."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             file.deleted_at = None
@@ -174,10 +174,6 @@ class FileViewSet(
             return Response({"status": "file recovered"}, status=status.HTTP_200_OK)
 
         except File.DoesNotExist:
-            data= {
-                    "detail": "File not found."
-                }
-            return Response(
-                data=data,
-                status=status.HTTP_404_NOT_FOUND
-            )
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound("File not found.")

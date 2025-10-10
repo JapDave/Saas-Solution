@@ -8,9 +8,11 @@ from rest_framework import serializers
 
 from apps.accounts.models import Account
 from apps.common.exceptions import (
-    OrganizationNameExists,
-    InvalidOrganizationData,
-    InvalidLogoUrl,
+    CustomError,
+    CustomValidationError,
+    ORGANIZATION_NAME_EXISTS,
+    INVALID_ORGANIZATION_DATA,
+    INVALID_LOGO_URL,
 )
 from apps.subscriptions.services import ensure_organization_has_no_active_subscriptions
 from apps.subscriptions.services import ensure_organization_has_no_active_subscriptions
@@ -19,6 +21,7 @@ from .models import Organization
 
 class CharFieldStrict(serializers.CharField):
     """Reject non-strings before DRF coerces them."""
+
     def to_internal_value(self, data):
         if not isinstance(data, str):
             raise serializers.ValidationError("Must be a string.")
@@ -33,7 +36,10 @@ class _BaseOrgSerializer(serializers.ModelSerializer):
       - model.full_clean() before save
       - DB IntegrityError mapped to ORGANIZATION_NAME_EXISTS
     """
-    account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.all(), required=False)
+
+    account = serializers.PrimaryKeyRelatedField(
+        queryset=Account.objects.all(), required=False
+    )
     name = CharFieldStrict(required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     logo_url = serializers.URLField(required=False, allow_blank=True)
@@ -55,7 +61,11 @@ class _BaseOrgSerializer(serializers.ModelSerializer):
         parsed = urlparse(value)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             # Emit coded error
-            raise InvalidLogoUrl()
+            raise CustomError(
+                code=INVALID_LOGO_URL,
+                status_code=400,
+                detail="Logo URL is invalid or inaccessible",
+            )
 
     # ---- cross-field validation ---------------------------------------------
 
@@ -64,13 +74,14 @@ class _BaseOrgSerializer(serializers.ModelSerializer):
         self._validate_logo_url(attrs.get("logo_url"))
 
         # Account: from payload or instance on update
-        account = attrs.get("account") or (self.instance.account if self.instance else None)
+        account = attrs.get("account") or (
+            self.instance.account if self.instance else None
+        )
         name = attrs.get("name")
 
         if name is not None and account is not None:
             qs = (
-                Organization.objects
-                .filter(account=account)
+                Organization.objects.filter(account=account)
                 .annotate(_lname=Lower("name"))
                 .filter(_lname=name.lower())
             )
@@ -78,12 +89,24 @@ class _BaseOrgSerializer(serializers.ModelSerializer):
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
                 # Emit coded uniqueness error
-                raise OrganizationNameExists()
+                raise CustomError(
+                    code=ORGANIZATION_NAME_EXISTS,
+                    status_code=409,
+                    detail="Organization name already exists in the account",
+                )
 
-        if attrs.get("is_active") is False and self.instance and self.instance.is_active:
+        if (
+            attrs.get("is_active") is False
+            and self.instance
+            and self.instance.is_active
+        ):
             ensure_organization_has_no_active_subscriptions(self.instance)
 
-        if attrs.get("is_active") is False and self.instance and self.instance.is_active:
+        if (
+            attrs.get("is_active") is False
+            and self.instance
+            and self.instance.is_active
+        ):
             ensure_organization_has_no_active_subscriptions(self.instance)
 
         return attrs
@@ -98,10 +121,18 @@ class _BaseOrgSerializer(serializers.ModelSerializer):
             instance.save()
         except IntegrityError:
             # Safety net if DB unique catches something our check missed
-            raise OrganizationNameExists()
-        except Exception:
+            raise CustomError(
+                code=ORGANIZATION_NAME_EXISTS,
+                status_code=409,
+                detail="Organization name already exists in the account",
+            )
+        except Exception as exc:
             # Any other model validation failure -> coded invalid data
-            raise InvalidOrganizationData(detail="Organization model validation failed")
+            raise CustomValidationError(
+                detail={"detail": "Organization model validation failed"},
+                code=INVALID_ORGANIZATION_DATA,
+                status_code=400,
+            ) from exc
         return instance
 
     def create(self, validated_data):
@@ -142,7 +173,6 @@ class OrganizationReadSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-
 from django.contrib.auth import get_user_model
 
 from apps.roles.constants import ROLE_ORGANIZATION_OWNER
@@ -159,14 +189,14 @@ class OrganizationOwnerAssignSerializer(serializers.Serializer):
         try:
             user = User.objects.get(uuid=value)
         except User.DoesNotExist as exc:
-            raise serializers.ValidationError('User does not exist.') from exc
+            raise serializers.ValidationError("User does not exist.") from exc
         if not user.is_active:
-            raise serializers.ValidationError('User must be active.')
+            raise serializers.ValidationError("User must be active.")
         return user
 
     def validate(self, attrs):
-        organization = self.context['organization']
-        user = attrs['user']
+        organization = self.context["organization"]
+        user = attrs["user"]
         membership_exists = UserOrganization.objects.filter(
             user=user,
             organization=organization,
@@ -174,7 +204,9 @@ class OrganizationOwnerAssignSerializer(serializers.Serializer):
             deleted_at__isnull=True,
         ).exists()
         if not membership_exists:
-            raise serializers.ValidationError({'user': 'User must be an active member of the organization.'})
+            raise serializers.ValidationError(
+                {"user": "User must be an active member of the organization."}
+            )
         return attrs
 
 
@@ -186,32 +218,40 @@ class OrganizationOwnerTransferSerializer(serializers.Serializer):
         try:
             user = User.objects.get(uuid=value)
         except User.DoesNotExist as exc:
-            raise serializers.ValidationError({field_name: 'User does not exist.'}) from exc
+            raise serializers.ValidationError(
+                {field_name: "User does not exist."}
+            ) from exc
         if not user.is_active:
-            raise serializers.ValidationError({field_name: 'User must be active.'})
+            raise serializers.ValidationError({field_name: "User must be active."})
         return user
 
     def validate(self, attrs):
-        organization = self.context['organization']
-        attrs['new_owner'] = self._resolve_user(attrs['new_owner'], 'new_owner')
-        current_value = attrs.get('current_owner')
+        organization = self.context["organization"]
+        attrs["new_owner"] = self._resolve_user(attrs["new_owner"], "new_owner")
+        current_value = attrs.get("current_owner")
         if current_value is not None:
-            attrs['current_owner'] = self._resolve_user(current_value, 'current_owner')
+            attrs["current_owner"] = self._resolve_user(current_value, "current_owner")
             is_owner = RoleAssignment.objects.filter(
                 organization=organization,
-                user=attrs['current_owner'],
+                user=attrs["current_owner"],
                 role__name=ROLE_ORGANIZATION_OWNER,
                 is_active=True,
                 deleted_at__isnull=True,
             ).exists()
             if not is_owner:
-                raise serializers.ValidationError({'current_owner': 'Current owner must hold the Organization Owner role.'})
+                raise serializers.ValidationError(
+                    {
+                        "current_owner": "Current owner must hold the Organization Owner role."
+                    }
+                )
         membership_exists = UserOrganization.objects.filter(
-            user=attrs['new_owner'],
+            user=attrs["new_owner"],
             organization=organization,
             is_active=True,
             deleted_at__isnull=True,
         ).exists()
         if not membership_exists:
-            raise serializers.ValidationError({'new_owner': 'User must be an active member of the organization.'})
+            raise serializers.ValidationError(
+                {"new_owner": "User must be an active member of the organization."}
+            )
         return attrs

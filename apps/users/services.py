@@ -8,7 +8,12 @@ from django.db.models import Q
 from django.core.cache import cache
 
 from apps.accounts.models import Account
-from apps.common.exceptions import CannotDeactivateOwner, CannotDeleteOwner, InsufficientPermissions
+from apps.common.exceptions import (
+    InsufficientPermissions,
+    CustomError,
+    CANNOT_DEACTIVATE_OWNER,
+    CANNOT_DELETE_OWNER,
+)
 from apps.accounts.services import get_assigned_account_ids
 from apps.organizations.models import Organization
 
@@ -197,12 +202,12 @@ def is_account_or_organization_owner(user) -> bool:
 
 def ensure_user_not_owner_for_deactivate(target) -> None:
     if is_account_or_organization_owner(target):
-        raise CannotDeactivateOwner()
+        raise CustomError(code=CANNOT_DEACTIVATE_OWNER, status_code=400, detail="Cannot deactivate account or organization owner")
 
 
 def ensure_user_not_owner_for_delete(target) -> None:
     if is_account_or_organization_owner(target):
-        raise CannotDeleteOwner()
+        raise CustomError(code=CANNOT_DELETE_OWNER, status_code=400, detail="Cannot delete account or organization owner")
 
 
 

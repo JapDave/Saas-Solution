@@ -7,17 +7,31 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from apps.common.paginations import StandardPagination
+from apps.common.exceptions import (
+    CustomError,
+    ACCOUNT_CREATION_FAILED,
+    ACCOUNT_UPDATE_FAILED,
+)
 from apps.accounts.services import get_assigned_account_ids
 from apps.roles.permissions import AccountPermission
-from apps.common.exceptions import AccountNotFound
+from apps.common.exceptions import (
+    CustomError,
+    ACCOUNT_CREATION_FAILED,
+    ACCOUNT_UPDATE_FAILED,
+)
 from apps.subscriptions.services import ensure_account_has_no_active_subscriptions
 
 from .models import Account
-from .serializers import AccountCreateSerializer, AccountUpdateSerializer, AccountReadSerializer
+from .serializers import (
+    AccountCreateSerializer,
+    AccountUpdateSerializer,
+    AccountReadSerializer,
+)
 
 
 class AccountViewSet(viewsets.ModelViewSet):
     """Account API wiring: pagination/filtering plus role-aware permissions."""
+
     queryset = Account.objects.order_by("-created_at")
     permission_classes = [AccountPermission]
     pagination_class = StandardPagination
@@ -26,7 +40,7 @@ class AccountViewSet(viewsets.ModelViewSet):
     filterset_fields = ["is_active"]
 
     # Use UUID in URLs instead of integer pk
-    lookup_field = "uuid"              # /api/accounts/<uuid>/
+    lookup_field = "uuid"  # /api/accounts/<uuid>/
 
     def get_queryset(self):
         qs = Account.objects.order_by("-created_at")
@@ -53,7 +67,14 @@ class AccountViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         ser = self.get_serializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        obj = ser.save(created_by=request.user, updated_by=request.user)
+        try:
+            obj = ser.save(created_by=request.user, updated_by=request.user)
+        except Exception as exc:
+            raise CustomError(
+                code=ACCOUNT_CREATION_FAILED,
+                status_code=400,
+                detail="Account creation process failed",
+            ) from exc
         return Response(AccountReadSerializer(obj).data, status=status.HTTP_201_CREATED)
 
     # UPDATE/PATCH -> respond with read shape
@@ -64,31 +85,24 @@ class AccountViewSet(viewsets.ModelViewSet):
         return self._update_impl(request, partial=True)
 
     def _update_impl(self, request, *, partial: bool):
-        try:
-            obj = self.get_object()  # respects lookup_field=uuid
-        except Http404:
-            # coded 404
-            raise AccountNotFound()
+        obj = self.get_object()  # respects lookup_field=uuid; Http404 maps via handler
 
         ser = self.get_serializer(obj, data=request.data, partial=partial)
         ser.is_valid(raise_exception=True)
-        obj = ser.save(updated_by=request.user)
+        try:
+            obj = ser.save(updated_by=request.user)
+        except Exception as exc:
+            raise CustomError(
+                code=ACCOUNT_UPDATE_FAILED,
+                status_code=400,
+                detail="Account update process failed",
+            ) from exc
         return Response(AccountReadSerializer(obj).data, status=status.HTTP_200_OK)
 
     # DELETE (soft)
     def destroy(self, request, *args, **kwargs):
-        try:
-            obj = self.get_object()  # respects lookup_field=uuid
-        except Http404:
-            # coded 404
-            raise AccountNotFound()
+        obj = self.get_object()  # respects lookup_field=uuid; Http404 maps via handler
 
         ensure_account_has_no_active_subscriptions(obj)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-
-
-
-

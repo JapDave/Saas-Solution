@@ -2,11 +2,12 @@
 from rest_framework.test import APIRequestFactory
 
 from apps.common.exceptions import (
-    SubscriptionLimitExceeded,
-    TeamNameExists,
-    TeamSizeLimitExceeded,
-    UserAlreadyMember,
-    UserNotMember,
+    CustomError,
+    TEAM_NAME_EXISTS,
+    USER_ALREADY_MEMBER,
+    USER_NOT_MEMBER,
+    SUBSCRIPTION_LIMIT_EXCEEDED,
+    TEAM_SIZE_LIMIT_EXCEEDED,
 )
 from apps.organizations.tests.factories import OrganizationFactory
 from apps.teams.models import TeamMember
@@ -49,8 +50,9 @@ class TestTeamCreateSerializer:
             data={"organization": organization.id, "name": "growth"},
             context={"request": request},
         )
-        with pytest.raises(TeamNameExists):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == TEAM_NAME_EXISTS
 
     def test_subscription_limit(self, settings):
         owner = SuperUserFactory()
@@ -63,8 +65,9 @@ class TestTeamCreateSerializer:
             data={"organization": organization.id, "name": "Overflow"},
             context={"request": request},
         )
-        with pytest.raises(SubscriptionLimitExceeded):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == SUBSCRIPTION_LIMIT_EXCEEDED
 
 
 @pytest.mark.django_db
@@ -111,8 +114,9 @@ class TestTeamMemberMutationSerializer:
             data={"user": str(existing.user.uuid)},
             context={"request": request, "team": team},
         )
-        with pytest.raises(UserAlreadyMember):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == USER_ALREADY_MEMBER
 
         other_user = UserFactory()
         UserOrganizationFactory(user=other_user, organization=team.organization)
@@ -120,8 +124,9 @@ class TestTeamMemberMutationSerializer:
             data={"user": str(other_user.uuid)},
             context={"request": request, "team": team},
         )
-        with pytest.raises(TeamSizeLimitExceeded):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == TEAM_SIZE_LIMIT_EXCEEDED
 
 
 @pytest.mark.django_db
@@ -149,8 +154,9 @@ class TestTeamMemberRemovalSerializer:
             data={"user": str(user.uuid)},
             context={"request": request, "team": team},
         )
-        with pytest.raises(UserNotMember):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == USER_NOT_MEMBER
 
 
 __all__ = []

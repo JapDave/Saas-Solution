@@ -8,10 +8,11 @@ from django.db.models import Q
 
 from apps.common.exceptions import (
     InsufficientPermissions,
-    SubscriptionLimitExceeded,
-    TeamNotFound,
-    TeamSizeLimitExceeded,
+    CustomError,
+    SUBSCRIPTION_LIMIT_EXCEEDED,
+    TEAM_SIZE_LIMIT_EXCEEDED,
 )
+from rest_framework.exceptions import NotFound
 from apps.accounts.services import get_assigned_account_ids
 from apps.subscriptions.services import get_subscription_configuration
 from apps.users.services import (
@@ -60,7 +61,9 @@ def _subscription_overrides(organization) -> Dict[str, Any]:
     config = get_subscription_configuration(organization, TEAMS_MODULE_KEY)
     if not isinstance(config, dict):
         return {}
-    return {str(k): config[k] for k in _DEFAULT_LIMITS.keys() if config.get(k) is not None}
+    return {
+        str(k): config[k] for k in _DEFAULT_LIMITS.keys() if config.get(k) is not None
+    }
 
 
 def _organization_overrides(organization) -> Dict[str, Any]:
@@ -106,7 +109,9 @@ def resolve_team_limits(organization) -> TeamLimits:
     )
 
 
-def enforce_team_creation_limits(*, organization, current_count: int | None = None) -> None:
+def enforce_team_creation_limits(
+    *, organization, current_count: int | None = None
+) -> None:
     """Ensure the organization can create another team under subscription limits."""
 
     limits = resolve_team_limits(organization)
@@ -117,7 +122,11 @@ def enforce_team_creation_limits(*, organization, current_count: int | None = No
 
         current_count = Team.objects.filter(organization=organization).count()
     if current_count >= limits.max_teams:
-        raise SubscriptionLimitExceeded(detail="Organization has reached its team limit.")
+        raise CustomError(
+            code=SUBSCRIPTION_LIMIT_EXCEEDED,
+            status_code=409,
+            detail="Organization has reached its team limit.",
+        )
 
 
 def enforce_team_member_limits(*, team, current_count: int | None = None) -> None:
@@ -129,7 +138,11 @@ def enforce_team_member_limits(*, team, current_count: int | None = None) -> Non
     if current_count is None:
         current_count = team.memberships.count()
     if current_count >= limits.max_team_members:
-        raise TeamSizeLimitExceeded(detail="Team has reached its member limit.")
+        raise CustomError(
+            code=TEAM_SIZE_LIMIT_EXCEEDED,
+            status_code=400,
+            detail="Team has reached its member limit.",
+        )
 
 
 def _organization_owner_ids(organization) -> Set[int]:
@@ -151,7 +164,10 @@ def _has_membership_permission(user, organization_id: int, permission_key: str) 
     permission_key = _normalize_permission_key(permission_key)
     if not permission_key:
         return True
-    perms = {perm.lower() for perm in resolve_effective_permission_keys(user, organization_id)}
+    perms = {
+        perm.lower()
+        for perm in resolve_effective_permission_keys(user, organization_id)
+    }
     if permission_key in perms:
         return True
     if permission_key == "teams:list" and "teams:read" in perms:
@@ -247,11 +263,13 @@ def ensure_user_can_read_team(user, team) -> None:
         team=team,
         allow_member_fallback=True,
     ):
-        raise TeamNotFound()
+        raise NotFound()
 
 
 def ensure_user_can_manage_members(user, team) -> None:
-    if not user_has_team_permission(user, team.organization, "teams:manage_members", team=team):
+    if not user_has_team_permission(
+        user, team.organization, "teams:manage_members", team=team
+    ):
         raise InsufficientPermissions()
 
 
