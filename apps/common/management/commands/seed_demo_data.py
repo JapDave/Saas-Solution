@@ -18,6 +18,7 @@ from apps.agents.services import (
 )
 from apps.agents.validators import validate_llm_configuration, validate_tools_configuration
 from apps.organizations.models import Organization
+from apps.roles.constants import AGENT_PERMISSION_KEYS
 from apps.products.models import Module
 from apps.subscriptions.models import Subscription
 from apps.teams.models import Team, TeamMember
@@ -64,18 +65,7 @@ class Command(BaseCommand):
         ),
     }
 
-    agent_permission_bundle: List[str] = [
-        "agents:create",
-        "agents:read",
-        "agents:update",
-        "agents:delete",
-        "agents:versions:save",
-        "agents:versions:switch",
-        "agents:clone",
-        "agents:llms:enable",
-        "agents:tools:enable",
-        "agents:admin",
-    ]
+    agent_permission_bundle: List[str] = list(AGENT_PERMISSION_KEYS)
 
     def add_arguments(self, parser):
         parser.add_argument(

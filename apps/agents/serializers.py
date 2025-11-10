@@ -11,6 +11,7 @@ from apps.agents.models import (
     OrganizationEnabledLLM,
     OrganizationEnabledTool,
 )
+from apps.agents.services import save_agent_version
 from apps.agents.validators import (
     validate_llm_configuration,
     validate_system_prompts,
@@ -106,7 +107,10 @@ class AgentWriteSerializer(serializers.ModelSerializer):
         user = getattr(request, "user", None)
         validated_data["created_by"] = user
         validated_data["updated_by"] = user
-        return super().create(validated_data)
+        agent = super().create(validated_data)
+        if user:
+            save_agent_version(agent, actor=user)
+        return agent
 
     def update(self, instance, validated_data):
         validated_data["updated_by"] = getattr(self.context.get("request"), "user", None)

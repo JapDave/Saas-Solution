@@ -58,6 +58,7 @@ class AgentViewTests(APITestCase):
         response = self.client.post("/api/agents/", self._agent_payload(), format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Agent.objects.count(), 1)
+        self.assertEqual(response.data["current_version_number"], 1)
 
     def test_save_version_endpoint(self):
         response = self.client.post("/api/agents/", self._agent_payload(), format="json")
@@ -65,4 +66,16 @@ class AgentViewTests(APITestCase):
         url = f"/api/agents/{agent_uuid}/versions/"
         version_response = self.client.post(url, {}, format="json")
         self.assertEqual(version_response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(version_response.data["version_number"], 1)
+        self.assertEqual(version_response.data["version_number"], 2)
+
+    def test_available_llms_endpoint(self):
+        url = f"/api/organizations/{self.organization.uuid}/llms/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(any(item["modelKey"] == self.llm_key for item in response.data))
+
+    def test_available_tools_endpoint(self):
+        url = f"/api/organizations/{self.organization.uuid}/tools/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(any(item["toolKey"] == self.tool_key for item in response.data))

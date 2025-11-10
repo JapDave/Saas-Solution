@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from django.db import transaction
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.agents.definitions import list_llm_definitions, list_tool_definitions
 from apps.agents.models import Agent, AgentVersion, OrganizationEnabledLLM, OrganizationEnabledTool
 from apps.agents.serializers import (
     AgentReadSerializer,
@@ -157,6 +156,35 @@ class AgentViewSet(viewsets.ModelViewSet):
         agent.save(update_fields=["state", "updated_by", "updated_at"])
 
 
+class OrganizationLLMAvailableView(APIView):
+    permission_classes = [IsAuthenticated]
+    ERROR_DOMAIN = "agents"
+
+    def get(self, request, organization_uuid: str):
+        organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_agent_permission(request.user, organization, "agents:read")
+        enabled = set(
+            OrganizationEnabledLLM.objects.filter(
+                organization=organization,
+                disabled_at__isnull=True,
+            ).values_list("model_key", flat=True)
+        )
+        data = []
+        for definition in list_llm_definitions():
+            data.append(
+                {
+                    "modelKey": definition.key,
+                    "modelProvider": definition.provider,
+                    "displayName": definition.display_name,
+                    "description": definition.description,
+                    "requiresHostedSubscription": definition.requires_hosted_subscription,
+                    "enabled": definition.key in enabled,
+                    "configurationSchema": definition.raw.get("modelConfiguration", {}),
+                }
+            )
+        return Response(data, status=status.HTTP_200_OK)
+
+
 class OrganizationLLMView(APIView):
     permission_classes = [IsAuthenticated]
     ERROR_DOMAIN = "agents"
@@ -167,7 +195,7 @@ class OrganizationLLMView(APIView):
     def get(self, request, organization_uuid: str):
         organization = self.get_organization(organization_uuid)
         ensure_agent_permission(request.user, organization, "agents:llms:enable")
-        qs = OrganizationEnabledLLM.objects.filter(organization=organization)
+        qs = OrganizationEnabledLLM.objects.filter(organization=organization, disabled_at__isnull=True)
         serializer = OrganizationEnabledLLMSerializer(qs, many=True)
         return Response(serializer.data)
 
@@ -195,6 +223,33 @@ class OrganizationLLMDisableView(APIView):
         return Response(OrganizationEnabledLLMSerializer(record).data, status=status.HTTP_200_OK)
 
 
+class OrganizationToolAvailableView(APIView):
+    permission_classes = [IsAuthenticated]
+    ERROR_DOMAIN = "agents"
+
+    def get(self, request, organization_uuid: str):
+        organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_agent_permission(request.user, organization, "agents:read")
+        enabled = set(
+            OrganizationEnabledTool.objects.filter(
+                organization=organization,
+                disabled_at__isnull=True,
+            ).values_list("tool_key", flat=True)
+        )
+        data = []
+        for definition in list_tool_definitions():
+            data.append(
+                {
+                    "toolKey": definition.key,
+                    "displayName": definition.display_name,
+                    "description": definition.description,
+                    "enabled": definition.key in enabled,
+                    "configurationSchema": definition.raw.get("configurationSchema", {}),
+                }
+            )
+        return Response(data, status=status.HTTP_200_OK)
+
+
 class OrganizationToolView(APIView):
     permission_classes = [IsAuthenticated]
     ERROR_DOMAIN = "agents"
@@ -202,7 +257,7 @@ class OrganizationToolView(APIView):
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_agent_permission(request.user, organization, "agents:tools:enable")
-        qs = OrganizationEnabledTool.objects.filter(organization=organization)
+        qs = OrganizationEnabledTool.objects.filter(organization=organization, disabled_at__isnull=True)
         serializer = OrganizationEnabledToolSerializer(qs, many=True)
         return Response(serializer.data)
 

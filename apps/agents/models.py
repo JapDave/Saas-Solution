@@ -110,6 +110,10 @@ class Agent(BaseModel):
             self.name = self.name.strip()
         if not self.name:
             raise ValidationError({"name": _("Name is required.")})
+        if self.pk and not self.current_version:
+            # Allow drafts with no versions only if no configuration has been captured yet
+            if self.versions.exists():
+                raise ValidationError({"current_version": _("currentVersionId is required once versions exist.")})
 
     def mark_deleted(self):
         """Transition to deleted state while retaining versions."""
@@ -164,6 +168,14 @@ class AgentVersion(BaseModel):
     def __str__(self):
         return f"Agent {self.agent_id} v{self.version_number}"
 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError(_("Agent versions are immutable."))
+        super().save(*args, **kwargs)
+
+    def delete(self, using=None, keep_parents=False):
+        raise ValidationError(_("Agent versions cannot be deleted."))
+
 
 class OrganizationEnabledLLM(BaseModel):
     """Records which LLMs are enabled for an organization."""
@@ -185,6 +197,14 @@ class OrganizationEnabledLLM(BaseModel):
     )
     enabled_at = models.DateTimeField(_("Enabled at"), auto_now_add=True)
     disabled_at = models.DateTimeField(_("Disabled at"), null=True, blank=True)
+    disabled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="disabled_llms",
+        null=True,
+        blank=True,
+        verbose_name=_("Disabled by"),
+    )
 
     class Meta:
         constraints = [
@@ -199,7 +219,8 @@ class OrganizationEnabledLLM(BaseModel):
         if self.disabled_at:
             return
         self.disabled_at = timezone.now()
-        self.save(update_fields=["disabled_at", "updated_at"])
+        self.disabled_by = actor
+        self.save(update_fields=["disabled_at", "disabled_by", "updated_at"])
 
     def __str__(self):
         state = "enabled" if not self.disabled_at else "disabled"
@@ -225,6 +246,14 @@ class OrganizationEnabledTool(BaseModel):
     )
     enabled_at = models.DateTimeField(_("Enabled at"), auto_now_add=True)
     disabled_at = models.DateTimeField(_("Disabled at"), null=True, blank=True)
+    disabled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="disabled_tools",
+        null=True,
+        blank=True,
+        verbose_name=_("Disabled by"),
+    )
 
     class Meta:
         constraints = [
@@ -239,7 +268,8 @@ class OrganizationEnabledTool(BaseModel):
         if self.disabled_at:
             return
         self.disabled_at = timezone.now()
-        self.save(update_fields=["disabled_at", "updated_at"])
+        self.disabled_by = actor
+        self.save(update_fields=["disabled_at", "disabled_by", "updated_at"])
 
     def __str__(self):
         state = "enabled" if not self.disabled_at else "disabled"

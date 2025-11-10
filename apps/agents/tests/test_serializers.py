@@ -57,3 +57,5 @@ class AgentSerializerTests(TestCase):
         self.assertIsInstance(agent, Agent)
         self.assertEqual(agent.llm_configuration["modelKey"], self.llm_key)
         self.assertEqual(agent.tools_configuration[0]["toolKey"], self.tool_key)
+        self.assertIsNotNone(agent.current_version)
+        self.assertEqual(agent.versions.count(), 1)

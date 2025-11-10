@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any, Iterable
 
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from apps.agents.definitions import (
+    list_llm_definitions,
+    list_tool_definitions,
     ParameterRule,
     get_llm_definition,
     get_tool_definition,
@@ -40,38 +43,60 @@ def _validate_parameter(key: str, value: Any, rule: ParameterRule) -> Any:
             raise ValidationError({key: _("This parameter is required.")})
         return value
 
-    expected = rule.type.lower()
-    if expected == "float":
+    expected = (rule.type or "string").lower()
+    if expected in {"float", "number"}:
         try:
             value = float(value)
         except (TypeError, ValueError) as exc:
             raise ValidationError({key: _("Must be a number.")}) from exc
-    elif expected == "int":
+    elif expected in {"int", "integer"}:
         try:
             if isinstance(value, bool):
                 raise TypeError
             value = int(value)
         except (TypeError, ValueError) as exc:
             raise ValidationError({key: _("Must be an integer.")}) from exc
-    elif expected == "string":
+    elif expected in {"string", "uuid"}:
         if not isinstance(value, str):
             raise ValidationError({key: _("Must be a string.")})
         value = value.strip()
         if not value and rule.required:
             raise ValidationError({key: _("Must be a non-empty string.")})
+        if expected == "uuid" or (rule.format == "uuid"):
+            try:
+                uuid.UUID(value)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({key: _("Must be a valid UUID string.")}) from exc
+    elif expected == "boolean":
+        if not isinstance(value, bool):
+            raise ValidationError({key: _("Must be a boolean.")})
+    elif expected in {"array", "list"}:
+        if not isinstance(value, Iterable) or isinstance(value, (str, bytes)):
+            raise ValidationError({key: _("Must be an array.")})
+        value = list(value)
+    elif expected == "object":
+        if not isinstance(value, dict):
+            raise ValidationError({key: _("Must be an object.")})
+    else:
+        raise ValidationError({key: _("Unsupported parameter type %(type)s.") % {"type": rule.type}})
+
+    if rule.minimum is not None and isinstance(value, (int, float)) and value < rule.minimum:
+        raise ValidationError({key: _("Must be greater than or equal to %(min)s.") % {"min": rule.minimum}})
+    if rule.maximum is not None and isinstance(value, (int, float)) and value > rule.maximum:
+        raise ValidationError({key: _("Must be less than or equal to %(max)s.") % {"max": rule.maximum}})
+    if rule.choices is not None and value not in rule.choices:
+        raise ValidationError({key: _("Must be one of %(choices)s.") % {"choices": ", ".join(map(str, rule.choices))}})
+    return value
     elif expected == "bool":
         if not isinstance(value, bool):
             raise ValidationError({key: _("Must be a boolean.")})
     else:
         raise ValidationError({key: _("Unsupported parameter type %(type)s.") % {"type": rule.type}})
 
-    if rule.minimum is not None and value < rule.minimum:
-        raise ValidationError({key: _("Must be greater than or equal to %(min)s.") % {"min": rule.minimum}})
-    if rule.maximum is not None and value > rule.maximum:
-        raise ValidationError({key: _("Must be less than or equal to %(max)s.") % {"max": rule.maximum}})
-    if rule.choices is not None and value not in rule.choices:
-        raise ValidationError({key: _("Must be one of %(choices)s.") % {"choices": ", ".join(map(str, rule.choices))}})
-    return value
+def _reject_unknown_fields(configuration: dict, allowed: set[str], context: str):
+    for key in configuration.keys():
+        if key not in allowed:
+            raise ValidationError({key: _(f"Unknown field for {context}.")})
 
 
 def _ensure_enabled_llm(organization, model_key: str):
@@ -116,6 +141,9 @@ def validate_llm_configuration(value: Any, *, organization) -> dict:
 
     if not _ensure_enabled_llm(organization, model_key):
         raise ValidationError({"modelKey": _("LLM %(key)s is not enabled for this organization.") % {"key": model_key}})
+
+    allowed_fields = set(definition.parameters.keys())
+    _reject_unknown_fields(configuration, allowed_fields, "LLM configuration")
 
     cleaned_config = {}
     for param_key, rule in definition.parameters.items():
@@ -164,6 +192,8 @@ def validate_tools_configuration(value: Any, *, organization) -> list[dict]:
             raise ValidationError({"configuration": _("configuration must be an object for tool %(key)s.") % {"key": tool_key}})
         if not _ensure_enabled_tool(organization, tool_key):
             raise ValidationError({"toolKey": _("Tool %(key)s is not enabled for this organization.") % {"key": tool_key}})
+        allowed_fields = set(tool_def.parameters.keys())
+        _reject_unknown_fields(configuration, allowed_fields, f"tool {tool_key}")
 
         cleaned_config = {}
         for param_key, rule in tool_def.parameters.items():

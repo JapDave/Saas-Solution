@@ -10,6 +10,7 @@ from apps.roles.constants import (
     ROLE_ACCOUNT_OWNER,
     ROLE_ORGANIZATION_ADMINISTRATOR,
     ROLE_ORGANIZATION_OWNER,
+    ROLE_AGENT_MANAGER,
     ROLE_PERMISSION_TEMPLATES,
     ROLE_SAAS_ACCOUNT_MANAGER,
     ROLE_SAAS_ADMINISTRATOR,
@@ -63,6 +64,11 @@ class Command(BaseCommand):
             "name": ROLE_ORGANIZATION_ADMINISTRATOR,
             "role_type": Role.RoleType.USER,
             "description": "Organization template for day-to-day administration duties.",
+        },
+        {
+            "name": ROLE_AGENT_MANAGER,
+            "role_type": Role.RoleType.USER,
+            "description": "Organization template granting full agent lifecycle permissions.",
         },
     )
 
