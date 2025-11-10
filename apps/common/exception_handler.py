@@ -69,6 +69,11 @@ DEFAULT_DOMAIN_MAP: dict[str, DomainConf] = {
         "invalid": "INVALID_MODULE_DATA",
         "prefixes": ["apps.products."],
     },
+    "agents": {
+        "not_found": "AGENT_NOT_FOUND",
+        "invalid": "INVALID_AGENT_DATA",
+        "prefixes": ["apps.agents."],
+    },
 }
 
 
