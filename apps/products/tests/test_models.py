@@ -59,10 +59,11 @@ class TestModuleModel:
 
     def test_create_module_with_factory(self):
         """A Module can be created successfully via the factory."""
+        initial_count = Module.objects.count()
         module = ModuleFactory()
         assert module.pk is not None
         assert str(module) == module.name
-        assert Module.objects.count() == 1
+        assert Module.objects.count() == initial_count + 1
         assert module.is_active is True
         assert module.subscribable is True
 

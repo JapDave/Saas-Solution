@@ -61,6 +61,7 @@ class AgentWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Agent
         fields = [
+            "uuid",
             "organization",
             "name",
             "description",
@@ -69,7 +70,7 @@ class AgentWriteSerializer(serializers.ModelSerializer):
             "tools_configuration",
             "state",
         ]
-        read_only_fields = ["state"]
+        read_only_fields = ["state", "uuid"]
 
     def _organization(self, attrs):
         organization = attrs.get("organization") or getattr(self.instance, "organization", None)

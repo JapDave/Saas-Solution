@@ -87,11 +87,6 @@ def _validate_parameter(key: str, value: Any, rule: ParameterRule) -> Any:
     if rule.choices is not None and value not in rule.choices:
         raise ValidationError({key: _("Must be one of %(choices)s.") % {"choices": ", ".join(map(str, rule.choices))}})
     return value
-    elif expected == "bool":
-        if not isinstance(value, bool):
-            raise ValidationError({key: _("Must be a boolean.")})
-    else:
-        raise ValidationError({key: _("Unsupported parameter type %(type)s.") % {"type": rule.type}})
 
 def _reject_unknown_fields(configuration: dict, allowed: set[str], context: str):
     for key in configuration.keys():

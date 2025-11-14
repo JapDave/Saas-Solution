@@ -39,6 +39,9 @@ LOCAL_APPS = [
     "apps.roles",
     "apps.files",
     "apps.agents",
+    "apps.channels",
+    "apps.flows",
+    "apps.integrations",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

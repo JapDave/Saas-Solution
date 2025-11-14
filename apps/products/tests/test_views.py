@@ -95,14 +95,17 @@ class TestModuleViewSet:
         """
         Ensure the viewset lists only active modules.
         """
-        ModuleFactory.create_batch(2, is_active=True)
-        ModuleFactory(is_active=False)
+        active_modules = ModuleFactory.create_batch(2, is_active=True)
+        inactive_module = ModuleFactory(is_active=False)
 
         url = reverse("module-list")
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 2
+        result_uuids = {item["uuid"] for item in response.data["results"]}
+        for module in active_modules:
+            assert str(module.uuid) in result_uuids
+        assert str(inactive_module.uuid) not in result_uuids
 
     def test_retrieve_active_module(self, api_client):
         """
