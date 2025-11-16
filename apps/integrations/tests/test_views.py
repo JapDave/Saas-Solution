@@ -1,13 +1,14 @@
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.integrations.models import Integration
 from apps.organizations.tests.factories import OrganizationFactory
+from apps.products.models import Module
 from apps.roles.constants import INTEGRATION_PERMISSION_KEYS
 from apps.subscriptions.models import Subscription
-from apps.products.models import Module
 from apps.users.models import UserOrganization
 from apps.users.tests.factories import UserFactory
 
@@ -38,6 +39,7 @@ def integration_manager(db):
         module=module,
         defaults={
             "status": Subscription.Status.ACTIVE,
+            "start_date": timezone.now(),
             "configuration": {
                 "integrations.api": {"enabled": True, "maxInstances": 5, "maxInvocationsPerMonth": 5000},
                 "integrations.webhook": {"enabled": True, "maxInstances": 5, "maxInvocationsPerMonth": 5000},

@@ -10,24 +10,24 @@ from apps.integrations.views import (
 
 router = DefaultRouter()
 router.register(
-    r"organizations/(?P<organization_uuid>[^/]+)/integrations",
+    r"integrations/organizations/(?P<organization_uuid>[^/]+)",
     IntegrationViewSet,
     basename="organization-integrations",
 )
 
 urlpatterns = [
     path(
-        "organizations/<uuid:organization_uuid>/integrations/analytics/",
+        "integrations/organizations/<uuid:organization_uuid>/analytics/",
         IntegrationAnalyticsView.as_view(),
         name="integration-analytics",
     ),
     path(
-        "organizations/<uuid:organization_uuid>/integrations/<uuid:integration_uuid>/analytics/",
+        "integrations/organizations/<uuid:organization_uuid>/<uuid:integration_uuid>/analytics/",
         IntegrationAnalyticsDetailView.as_view(),
         name="integration-analytics-detail",
     ),
     path(
-        "organizations/<uuid:organization_uuid>/integration-types/",
+        "integrations/organizations/<uuid:organization_uuid>/types/",
         IntegrationTypesView.as_view(),
         name="integration-types",
     ),

@@ -40,6 +40,8 @@ class FlowViewSet(viewsets.ModelViewSet):
         return self._cached_org
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Flow.objects.none()
         organization = self._organization()
         include_deleted = self.request.query_params.get("includeDeleted") == "true"
         base_qs = Flow.all_objects if include_deleted else Flow.objects
@@ -177,6 +179,8 @@ class FlowVersionViewSet(
         return self._cached_flow
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return FlowVersion.objects.none()
         flow = self._flow()
         ensure_flow_permission(self.request.user, flow.organization, "agents:flows:versions:read")
         return flow.versions.all().order_by("-version_number")

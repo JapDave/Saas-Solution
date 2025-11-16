@@ -14,7 +14,7 @@ for _ in {1..60}; do
 done
 
 # Make migrations (usually dev-only; safe no-op if none)
-python manage.py makemigrations accounts users organizations common products subscriptions roles teams files agents channels flows integrations || true
+python manage.py makemigrations --noinput || true
 
 # Apply migrations
 python manage.py migrate --noinput

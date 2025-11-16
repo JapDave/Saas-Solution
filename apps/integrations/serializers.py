@@ -39,7 +39,7 @@ class IntegrationReadSerializer(serializers.ModelSerializer):
             "webhook_secret",
         ]
 
-    def get_webhook_secret(self, obj: Integration):
+    def get_webhook_secret(self, obj: Integration) -> str | None:
         include = self.context.get("include_secret", False)
         if include and obj.integration_type == Integration.IntegrationType.WEBHOOK:
             return obj.webhook_secret

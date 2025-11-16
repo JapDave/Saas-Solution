@@ -42,6 +42,9 @@ LOCAL_APPS = [
     "apps.channels",
     "apps.flows",
     "apps.integrations",
+    "apps.knowledge_base",
+    "apps.llms",
+    "apps.tools",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

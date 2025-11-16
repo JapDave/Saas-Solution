@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -39,6 +40,8 @@ class IntegrationViewSet(viewsets.ModelViewSet):
         return self._cached_org
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Integration.objects.none()
         organization = self._organization()
         include_deleted = self.request.query_params.get("includeDeleted") == "true"
         base = Integration.all_objects if include_deleted else Integration.objects
@@ -133,7 +136,7 @@ class IntegrationViewSet(viewsets.ModelViewSet):
         payload["webhook_secret"] = secret
         return Response(payload, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], url_path="test")
+    @action(detail=True, methods=["post"], url_path="test", url_name="test")
     def test_integration(self, request, *args, **kwargs):
         integration = self.get_object()
         ensure_integration_permission(request.user, integration.organization, "integrations:test")
@@ -146,6 +149,7 @@ class IntegrationViewSet(viewsets.ModelViewSet):
 class IntegrationAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=IntegrationAnalyticsSerializer(many=True))
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_integration_permission(request.user, organization, "integrations:read")
@@ -175,6 +179,7 @@ class IntegrationAnalyticsView(APIView):
 class IntegrationTypesView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=IntegrationTypeSerializer(many=True))
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_integration_permission(request.user, organization, "integrations:read")
@@ -197,6 +202,7 @@ class IntegrationTypesView(APIView):
 class IntegrationAnalyticsDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=IntegrationAnalyticsSerializer)
     def get(self, request, organization_uuid: str, integration_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         integration = get_object_or_404(

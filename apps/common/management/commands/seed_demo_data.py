@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Dict, Iterable, List
+import uuid
 
 from django.contrib.auth import get_user_model
 from django.core.management import BaseCommand, CommandError, call_command
@@ -27,8 +28,16 @@ from apps.flows.services import (
     disable_flow,
 )
 from apps.integrations.models import Integration
+from apps.knowledge_base.models import Collection, Resource
 from apps.organizations.models import Organization
-from apps.roles.constants import AGENT_PERMISSION_KEYS, CHANNEL_PERMISSION_KEYS, FLOW_PERMISSION_KEYS, INTEGRATION_PERMISSION_KEYS
+from apps.roles.constants import (
+    AGENT_PERMISSION_KEYS,
+    CHANNEL_PERMISSION_KEYS,
+    FLOW_PERMISSION_KEYS,
+    INTEGRATION_PERMISSION_KEYS,
+    LLM_PERMISSION_KEYS,
+    TOOL_PERMISSION_KEYS,
+)
 from apps.products.models import Module
 from apps.subscriptions.models import Subscription
 from apps.teams.models import Team, TeamMember
@@ -38,6 +47,8 @@ AGENTS_MODULE_KEY = "AGENTS_MANAGEMENT"
 CHANNELS_MODULE_KEY = "CHANNELS_MANAGEMENT"
 FLOWS_MODULE_KEY = "FLOWS_MANAGEMENT"
 INTEGRATIONS_MODULE_KEY = "INTEGRATIONS_MANAGEMENT"
+LLM_MODULE_KEY = "LLM_MANAGEMENT"
+TOOLS_MODULE_KEY = "TOOLS_MANAGEMENT"
 
 
 @dataclass
@@ -82,6 +93,8 @@ class Command(BaseCommand):
     channel_permission_bundle: List[str] = list(CHANNEL_PERMISSION_KEYS)
     flow_permission_bundle: List[str] = list(FLOW_PERMISSION_KEYS)
     integration_permission_bundle: List[str] = list(INTEGRATION_PERMISSION_KEYS)
+    llm_permission_bundle: List[str] = list(LLM_PERMISSION_KEYS)
+    tool_permission_bundle: List[str] = list(TOOL_PERMISSION_KEYS)
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -120,17 +133,38 @@ class Command(BaseCommand):
                 "Module INTEGRATIONS_MANAGEMENT was not found. "
                 "Run migrations (including products 0005) before seeding."
             )
+        llm_module = Module.objects.filter(key=LLM_MODULE_KEY).first()
+        if llm_module is None:
+            raise CommandError(
+                "Module LLM_MANAGEMENT was not found. "
+                "Run migrations (including products 0007) before seeding."
+            )
+        tools_module = Module.objects.filter(key=TOOLS_MODULE_KEY).first()
+        if tools_module is None:
+            raise CommandError(
+                "Module TOOLS_MANAGEMENT was not found. "
+                "Run migrations (including products 0008) before seeding."
+            )
 
         users = self._create_users()
         accounts = self._create_accounts(users)
         organizations = self._create_organizations(users, accounts)
         self._assign_memberships(users, organizations)
-        self._create_subscriptions(agents_module, channels_module, flows_module, integrations_module, organizations)
+        self._create_subscriptions(
+            agents_module,
+            channels_module,
+            flows_module,
+            integrations_module,
+            llm_module,
+            tools_module,
+            organizations,
+        )
         self._create_teams(users, organizations)
         self._create_agents(users, organizations)
         self._create_channels(users, organizations)
         self._create_flows(users, organizations)
         self._create_integrations(users, organizations)
+        self._create_knowledge_base(users, organizations)
 
         self.stdout.write(self.style.SUCCESS("Demo data ready. Use the credentials below to explore the APIs:"))
         for key, seed in self.DEMO_USERS.items():
@@ -203,13 +237,15 @@ class Command(BaseCommand):
             permission_keys=self.agent_permission_bundle
             + self.channel_permission_bundle
             + self.flow_permission_bundle
-            + self.integration_permission_bundle,
+            + self.integration_permission_bundle
+            + self.llm_permission_bundle
+            + self.tool_permission_bundle,
             assigned_by=admin,
         )
         self._upsert_membership(
             user=viewer,
             organization=organizations["acme"],
-            permission_keys=["agents:read", "channels:read", "agents:flows:read"],
+            permission_keys=["agents:read", "channels:read", "agents:flows:read", "tools:read"],
             assigned_by=admin,
         )
 
@@ -219,13 +255,15 @@ class Command(BaseCommand):
         channels_module: Module,
         flows_module: Module,
         integrations_module: Module,
+        llm_module: Module,
+        tools_module: Module,
         organizations,
     ):
         acme = organizations["acme"]
         now = timezone.now()
         config = {
             "agents_max_agents_per_org": 5,
-            "agents_enabled_hosted_llms": ["gpt-4o-mini", "azure-gpt-35"],
+            "agents_enabled_hosted_llms": ["gpt-4o-mini", "gpt-4.1"],
             "agents_tool_invocations_per_month": 5000,
         }
         subscription, _ = Subscription.objects.update_or_create(
@@ -300,6 +338,43 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"Integrations subscription for {acme.name} ensured (id={integration_sub.id}).")
         )
 
+        llm_config = {
+            "llms.max_enabled": 5,
+        }
+        llm_sub, _ = Subscription.objects.update_or_create(
+            organization=acme,
+            module=llm_module,
+            defaults={
+                "status": Subscription.Status.ACTIVE,
+                "configuration": llm_config,
+                "start_date": now - timedelta(days=30),
+                "end_date": None,
+                "trial_end_date": now - timedelta(days=15),
+            },
+        )
+        self.stdout.write(
+            self.style.SUCCESS(f"LLM subscription for {acme.name} ensured (id={llm_sub.id}).")
+        )
+
+        tools_config = {
+            "tools_max_enabled_per_org": 10,
+            "tools_invocations_per_month": 500,
+        }
+        tools_sub, _ = Subscription.objects.update_or_create(
+            organization=acme,
+            module=tools_module,
+            defaults={
+                "status": Subscription.Status.ACTIVE,
+                "configuration": tools_config,
+                "start_date": now - timedelta(days=30),
+                "end_date": None,
+                "trial_end_date": now - timedelta(days=15),
+            },
+        )
+        self.stdout.write(
+            self.style.SUCCESS(f"Tools subscription for {acme.name} ensured (id={tools_sub.id}).")
+        )
+
     def _create_teams(self, users, organizations):
         admin = users["superadmin"]
         agent_manager = users["agent_manager"]
@@ -333,7 +408,8 @@ class Command(BaseCommand):
         acme_org = organizations["acme"]
 
         enable_llm_for_organization(organization=acme_org, model_key="gpt-4o-mini", actor=agent_manager)
-        enable_llm_for_organization(organization=acme_org, model_key="azure-gpt-35", actor=agent_manager)
+        enable_llm_for_organization(organization=acme_org, model_key="gpt-4.1", actor=agent_manager)
+        enable_llm_for_organization(organization=acme_org, model_key="gemini-2.5-pro", actor=agent_manager)
         enable_tool_for_organization(organization=acme_org, tool_key="kb_retriever", actor=agent_manager)
         enable_tool_for_organization(organization=acme_org, tool_key="calculator", actor=agent_manager)
 
@@ -360,7 +436,11 @@ class Command(BaseCommand):
         tools_payload = [
             {
                 "toolKey": "kb_retriever",
-                "configuration": {"collection_id": "demo-kb", "maxResults": 5, "similarityThreshold": 0.7},
+                "configuration": {
+                    "collection_id": str(uuid.uuid4()),
+                    "maxResults": 5,
+                    "similarityThreshold": 0.7,
+                },
             }
         ]
         agent.llm_configuration = validate_llm_configuration(llm_payload, organization=acme_org)
@@ -379,8 +459,8 @@ class Command(BaseCommand):
                 "system_prompts": "Assist sales with research tasks.",
                 "llm_configuration": validate_llm_configuration(
                     {
-                        "modelKey": "azure-gpt-35",
-                        "modelProvider": "AzureOpenAI",
+                        "modelKey": "gemini-2.5-pro",
+                        "modelProvider": "Google",
                         "configuration": {"temperature": 0.6, "maxTokens": 512},
                     },
                     organization=acme_org,
@@ -632,6 +712,49 @@ class Command(BaseCommand):
             self.style.SUCCESS(
                 f"Webhook integration '{archived_webhook.name}' {'created' if created else 'updated'} and marked deleted."
             )
+
+    def _create_knowledge_base(self, users, organizations):
+        agent_manager = users["agent_manager"]
+        acme_org = organizations["acme"]
+
+        collection, _ = Collection.objects.get_or_create(
+            organization=acme_org,
+            name="Customer Knowledge Base",
+            defaults={
+                "description": "Helpful answers for customers.",
+                "state": Collection.CollectionState.ACTIVE,
+                "created_by": agent_manager,
+                "updated_by": agent_manager,
+            },
+        )
+        collection.description = "Helpful answers for customers."
+        collection.save(update_fields=["description", "updated_at"])
+
+        Resource.objects.update_or_create(
+            collection=collection,
+            file_uuid=uuid.uuid4(),
+            defaults={
+                "resource_type": Resource.ResourceType.FAQ,
+                "title": "Onboarding guide",
+                "summary": "Overview of onboarding steps.",
+                "created_by": agent_manager,
+                "updated_by": agent_manager,
+            },
+        )
+        collection.bump_version(actor=agent_manager)
+
+        archive_collection, _ = Collection.objects.get_or_create(
+            organization=acme_org,
+            name="Legacy Policies",
+            defaults={
+                "description": "Archived legal policies.",
+                "state": Collection.CollectionState.ARCHIVED,
+                "created_by": agent_manager,
+                "updated_by": agent_manager,
+            },
+        )
+        archive_collection.state = Collection.CollectionState.ARCHIVED
+        archive_collection.save(update_fields=["state", "updated_at"])
         )
 
     # ------------------------------------------------------------------

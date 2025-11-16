@@ -28,4 +28,7 @@ urlpatterns = [
     path("api/", include("apps.channels.urls")),
     path("api/", include("apps.flows.urls")),
     path("api/", include("apps.integrations.urls")),
+    path("api/", include("apps.knowledge_base.urls")),
+    path("api/", include("apps.llms.urls")),
+    path("api/", include("apps.tools.urls")),
 ]

@@ -5,12 +5,12 @@ from apps.flows.views import FlowVersionViewSet, FlowViewSet
 
 router = DefaultRouter()
 router.register(
-    r"organizations/(?P<organization_uuid>[^/]+)/flows",
+    r"flows/organizations/(?P<organization_uuid>[^/]+)",
     FlowViewSet,
     basename="organization-flows",
 )
 router.register(
-    r"organizations/(?P<organization_uuid>[^/]+)/flows/(?P<flow_uuid>[^/]+)/versions",
+    r"flows/organizations/(?P<organization_uuid>[^/]+)/(?P<flow_uuid>[^/]+)/versions",
     FlowVersionViewSet,
     basename="flow-versions",
 )
@@ -18,4 +18,3 @@ router.register(
 urlpatterns = [
     path("", include(router.urls)),
 ]
-
