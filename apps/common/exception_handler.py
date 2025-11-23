@@ -33,10 +33,51 @@ DEFAULT_DOMAIN_MAP: dict[str, DomainConf] = {
         "invalid": "INVALID_ORGANIZATION_DATA",
         "prefixes": ["apps.organizations.", "apps.organization."],
     },
+    "users": {
+        "not_found": "USER_NOT_FOUND",
+        "invalid": "INVALID_USER_DATA",
+        "prefixes": ["apps.users."],
+    },
     "teams": {
         "not_found": "TEAM_NOT_FOUND",
         "invalid": "INVALID_TEAM_DATA",
         "prefixes": ["apps.teams."],
+    },
+    "roles": {
+        "not_found": "ROLE_NOT_FOUND",
+        "invalid": "INVALID_ROLE_DATA",
+        "prefixes": ["apps.roles."],
+    },
+    "files": {
+        "not_found": "FILE_NOT_FOUND",
+        "invalid": "INVALID_FILE_DATA",
+        "prefixes": ["apps.files."],
+    },
+    "subscriptions": {
+        "not_found": "SUBSCRIPTION_NOT_FOUND",
+        "invalid": "INVALID_SUBSCRIPTION_DATA",
+        "prefixes": ["apps.subscriptions."],
+    },
+    # For products vs modules, rely on per-view ERROR_DOMAIN hints
+    "products": {
+        "not_found": "PRODUCT_NOT_FOUND",
+        "invalid": "INVALID_PRODUCT_DATA",
+        "prefixes": ["apps.products."],
+    },
+    "modules": {
+        "not_found": "MODULE_NOT_FOUND",
+        "invalid": "INVALID_MODULE_DATA",
+        "prefixes": ["apps.products."],
+    },
+    "agents": {
+        "not_found": "AGENT_NOT_FOUND",
+        "invalid": "INVALID_AGENT_DATA",
+        "prefixes": ["apps.agents."],
+    },
+    "channels": {
+        "not_found": "CHANNEL_NOT_FOUND",
+        "invalid": "INVALID_CHANNEL_CONFIGURATION",
+        "prefixes": ["apps.channels."],
     },
 }
 
@@ -141,6 +182,9 @@ def exception_handler(exc: Exception, context: dict[str, Any]) -> Response | Non
 
     # Validation
     if isinstance(exc, ValidationError):
+        # If a ValidationError already carries a coded payload, keep it.
+        if isinstance(response.data, Mapping) and "code" in response.data:
+            return response
         errors = response.data if isinstance(response.data, Mapping) else {"detail": response.data}
         response.data = {"code": invalid_code, "errors": errors}
         return response

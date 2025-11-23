@@ -8,11 +8,12 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from apps.common.exceptions import (
-    InvalidTeamData,
-    TeamNameExists,
-    TeamNotFound,
-    UserAlreadyMember,
-    UserNotMember,
+    CustomError,
+    CustomValidationError,
+    INVALID_TEAM_DATA,
+    TEAM_NAME_EXISTS,
+    USER_ALREADY_MEMBER,
+    USER_NOT_MEMBER,
 )
 from apps.organizations.models import Organization
 
@@ -96,16 +97,22 @@ class TeamReadSerializer(serializers.ModelSerializer):
         memberships = getattr(obj, "_prefetched_memberships", None)
         if memberships is None:
             memberships = obj.memberships.select_related("user", "assigned_by")
-        serializer = TeamMemberReadSerializer(memberships, many=True, context=self.context)
+        serializer = TeamMemberReadSerializer(
+            memberships, many=True, context=self.context
+        )
         return serializer.data
 
 
 class TeamCreateSerializer(serializers.ModelSerializer):
     """Serializer used for team creation requests."""
 
-    organization = serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all())
+    organization = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.all()
+    )
     name = StrictCharField(max_length=100)
-    description = serializers.CharField(max_length=500, allow_blank=True, required=False)
+    description = serializers.CharField(
+        max_length=500, allow_blank=True, required=False
+    )
     configurations = serializers.JSONField(required=False)
 
     class Meta:
@@ -116,13 +123,22 @@ class TeamCreateSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         request_user = getattr(request, "user", None)
         organization: Organization = attrs["organization"]
-        if getattr(organization, "deleted_at", None) is not None or not getattr(organization, "is_active", True):
-            raise InvalidTeamData(detail="Organization must be active to create teams.")
+        if getattr(organization, "deleted_at", None) is not None or not getattr(
+            organization, "is_active", True
+        ):
+            raise CustomValidationError(
+                detail="Organization must be active to create teams.",
+                code=INVALID_TEAM_DATA,
+            )
 
         name = attrs.get("name", "").strip()
         attrs["name"] = name
         if Team.objects.filter(organization=organization, name__iexact=name).exists():
-            raise TeamNameExists()
+            raise CustomError(
+                code=TEAM_NAME_EXISTS,
+                status_code=409,
+                detail="Team name already exists within the organization",
+            )
         ensure_user_can_create_team(request_user, organization)
         enforce_team_creation_limits(organization=organization)
         return attrs
@@ -138,14 +154,18 @@ class TeamCreateSerializer(serializers.ModelSerializer):
             instance.save()
             return instance
         except serializers.ValidationError as exc:
-            raise InvalidTeamData(detail="Team model validation failed") from exc
+            raise CustomValidationError(
+                detail="Team model validation failed", code=INVALID_TEAM_DATA
+            ) from exc
 
 
 class TeamUpdateSerializer(serializers.ModelSerializer):
     """Serializer handling updates to team metadata."""
 
     name = StrictCharField(max_length=100, required=False)
-    description = serializers.CharField(max_length=500, allow_blank=True, required=False)
+    description = serializers.CharField(
+        max_length=500, allow_blank=True, required=False
+    )
     configurations = serializers.JSONField(required=False)
     is_active = serializers.BooleanField(required=False)
 
@@ -162,8 +182,18 @@ class TeamUpdateSerializer(serializers.ModelSerializer):
         if isinstance(name, str):
             name = name.strip()
             attrs["name"] = name
-            if Team.objects.filter(organization=instance.organization, name__iexact=name).exclude(pk=instance.pk).exists():
-                raise TeamNameExists()
+            if (
+                Team.objects.filter(
+                    organization=instance.organization, name__iexact=name
+                )
+                .exclude(pk=instance.pk)
+                .exists()
+            ):
+                raise CustomError(
+                    code=TEAM_NAME_EXISTS,
+                    status_code=409,
+                    detail="Team name already exists within the organization",
+                )
         return attrs
 
     def update(self, instance: Team, validated_data: Dict[str, Any]) -> Team:
@@ -172,7 +202,9 @@ class TeamUpdateSerializer(serializers.ModelSerializer):
         try:
             instance.full_clean()
         except serializers.ValidationError as exc:
-            raise InvalidTeamData(detail="Team model validation failed") from exc
+            raise CustomValidationError(
+                detail="Team model validation failed", code=INVALID_TEAM_DATA
+            ) from exc
         request_user = getattr(self.context.get("request"), "user", None)
         instance.updated_by = request_user
         instance.save()
@@ -193,13 +225,18 @@ class TeamMemberMutationSerializer(serializers.Serializer):
         try:
             return User.objects.get(uuid=value)
         except User.DoesNotExist as exc:
-            raise InvalidTeamData(detail="User does not exist.") from exc
+            raise CustomValidationError(
+                detail="User does not exist.", code=INVALID_TEAM_DATA
+            ) from exc
 
     def validate_role_keys(self, value: Iterable[str]):
         cleaned: List[str] = []
         for item in value or []:
             if not isinstance(item, str) or not item.strip():
-                raise InvalidTeamData(detail="Role keys must be non-empty strings.")
+                raise CustomValidationError(
+                    detail="Role keys must be non-empty strings.",
+                    code=INVALID_TEAM_DATA,
+                )
             cleaned.append(item.strip())
         return cleaned
 
@@ -209,10 +246,18 @@ class TeamMemberMutationSerializer(serializers.Serializer):
         request_user = getattr(request, "user", None)
         user: User = attrs["user"]
         if not getattr(user, "is_active", False):
-            raise InvalidTeamData(detail="Target user must be active.")
+            raise CustomValidationError(
+                detail="Target user must be active.", code=INVALID_TEAM_DATA
+            )
         ensure_user_can_manage_members(request_user, team)
-        if TeamMember.objects.filter(team=team, user=user, deleted_at__isnull=True).exists():
-            raise UserAlreadyMember()
+        if TeamMember.objects.filter(
+            team=team, user=user, deleted_at__isnull=True
+        ).exists():
+            raise CustomError(
+                code=USER_ALREADY_MEMBER,
+                status_code=409,
+                detail="User is already a member of the team",
+            )
         enforce_team_member_limits(team=team)
         attrs["user"] = user
         return attrs
@@ -224,22 +269,30 @@ class TeamMemberMutationSerializer(serializers.Serializer):
         request_user = getattr(request, "user", None)
         user: User = self.validated_data["user"]
         role_keys: List[str] = self.validated_data.get("role_keys", [])
-        existing = TeamMember.all_objects.filter(team=team, user=user).order_by("-created_at").first()
+        existing = (
+            TeamMember.all_objects.filter(team=team, user=user)
+            .order_by("-created_at")
+            .first()
+        )
         if existing and existing.deleted_at is not None:
             existing.deleted_at = None
             existing.is_active = True
             existing.role_keys = role_keys
             existing.assigned_by = request_user
             existing.full_clean()
-            existing.save(update_fields=[
-                "deleted_at",
-                "is_active",
-                "role_keys",
-                "assigned_by",
-                "updated_at",
-            ])
+            existing.save(
+                update_fields=[
+                    "deleted_at",
+                    "is_active",
+                    "role_keys",
+                    "assigned_by",
+                    "updated_at",
+                ]
+            )
             return existing
-        membership = TeamMember(team=team, user=user, assigned_by=request_user, role_keys=role_keys)
+        membership = TeamMember(
+            team=team, user=user, assigned_by=request_user, role_keys=role_keys
+        )
         membership.full_clean()
         membership.save()
         return membership
@@ -254,7 +307,11 @@ class TeamMemberRemovalSerializer(serializers.Serializer):
         try:
             return User.objects.get(uuid=value)
         except User.DoesNotExist as exc:
-            raise UserNotMember() from exc
+            raise CustomError(
+                code=USER_NOT_MEMBER,
+                status_code=400,
+                detail="User is not a member of the team",
+            ) from exc
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         request = self.context.get("request")
@@ -265,7 +322,11 @@ class TeamMemberRemovalSerializer(serializers.Serializer):
         try:
             membership = TeamMember.objects.get(team=team, user=user)
         except TeamMember.DoesNotExist as exc:
-            raise UserNotMember() from exc
+            raise CustomError(
+                code=USER_NOT_MEMBER,
+                status_code=400,
+                detail="User is not a member of the team",
+            ) from exc
         attrs["membership"] = membership
         return attrs
 

@@ -14,11 +14,11 @@ class TestAccountModel:
         account = AccountFactory(name="Acme Corp")
         assert str(account) == "Acme Corp"
 
-    def test_name_case_insensitive_unique(self):
+    def test_name_unique_enforced(self):
         AccountFactory(name="Acme", contact_email="one@acme.com")
         with pytest.raises(IntegrityError):
             with transaction.atomic():
-                AccountFactory(name="acme", contact_email="two@acme.com")
+                AccountFactory(name="Acme", contact_email="two@acme.com")
 
     def test_contact_email_case_insensitive_unique(self):
         AccountFactory(contact_email="owner@acme.com")

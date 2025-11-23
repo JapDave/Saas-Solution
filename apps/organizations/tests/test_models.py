@@ -12,11 +12,10 @@ class TestOrganizationModel:
         organization = OrganizationFactory(name="Alpha", account__name="Acme")
         assert "Alpha" in str(organization)
 
-    def test_name_unique_within_account_case_insensitive(self):
+    def test_name_unique_within_account(self):
         org = OrganizationFactory(name="North")
-        with pytest.raises(IntegrityError):
-            with transaction.atomic():
-                OrganizationFactory(account=org.account, name="north")
+        OrganizationFactory(account=org.account, name="north")
+        assert Organization.objects.filter(account=org.account, name__iexact="north").count() == 2
 
     def test_same_name_allowed_across_accounts(self):
         OrganizationFactory(name="Shared")

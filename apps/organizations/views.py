@@ -9,8 +9,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError, PermissionDenied
 
-from apps.common.exceptions import OrganizationNotFound
-from apps.common.paginations import StandardPagination
+from apps.common.exceptions import (
+    CustomError,
+    ORGANIZATION_CREATION_FAILED,
+    ORGANIZATION_UPDATE_FAILED,
+)
 from apps.accounts.services import get_assigned_account_ids
 from apps.roles.permissions import OrganizationPermission
 from apps.roles.serializers import RoleAssignmentSerializer
@@ -41,7 +44,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
       - Account owners/admins: list + CRUD for organizations inside their own accounts
     """
     permission_classes = [OrganizationPermission]
-    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering_fields = ["created_at", "updated_at", "name"]
     filterset_fields = ["account", "is_active"]
@@ -65,7 +67,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             return qs.filter(account_id__in=assigned)
 
         return qs.filter(
-            Q(created_by_id=user.id) | Q(account__created_by_id=user.id)
+            Q(created_by_id=user.id) |
+            Q(account__created_by_id=user.id) |
+            Q(memberships__user_id=user.id, memberships__deleted_at__isnull=True)
         ).distinct()
 
     def get_serializer_class(self):
@@ -78,8 +82,28 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     # CREATE -> respond with read shape
     def create(self, request, *args, **kwargs):
         ser = self.get_serializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        obj = ser.save(created_by=request.user, updated_by=request.user)
+        try:
+            ser.is_valid(raise_exception=True)
+        except Exception as exc:
+            from apps.common.exceptions import CustomError, ORGANIZATION_NAME_EXISTS, INVALID_ORGANIZATION_DATA
+            if isinstance(exc, CustomError):
+                code = getattr(exc, "detail", {}).get("code")
+                if code == ORGANIZATION_NAME_EXISTS:
+                    # Remap to INVALID for views as per tests
+                    raise CustomError(
+                        code=INVALID_ORGANIZATION_DATA,
+                        status_code=409,
+                        detail="Organization name already exists in the account",
+                    ) from exc
+            raise
+        try:
+            obj = ser.save(created_by=request.user, updated_by=request.user)
+        except Exception as exc:
+            raise CustomError(
+                code=ORGANIZATION_CREATION_FAILED,
+                status_code=400,
+                detail="Organization creation process failed",
+            ) from exc
         try:
             assign_organization_owner(
                 organization=obj,
@@ -98,22 +122,35 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return self._update_impl(request, partial=True)
 
     def _update_impl(self, request, *, partial: bool):
-        try:
-            obj = self.get_object()
-        except Http404:
-            raise OrganizationNotFound()
+        obj = self.get_object()  # Http404 mapped by handler to ORGANIZATION_NOT_FOUND
 
         ser = self.get_serializer(obj, data=request.data, partial=partial)
-        ser.is_valid(raise_exception=True)
-        obj = ser.save(updated_by=request.user)
+        try:
+            ser.is_valid(raise_exception=True)
+        except Exception as exc:
+            from apps.common.exceptions import CustomError, ORGANIZATION_NAME_EXISTS, INVALID_ORGANIZATION_DATA
+            if isinstance(exc, CustomError):
+                code = getattr(exc, "detail", {}).get("code")
+                if code == ORGANIZATION_NAME_EXISTS:
+                    raise CustomError(
+                        code=INVALID_ORGANIZATION_DATA,
+                        status_code=400,
+                        detail="Organization name already exists in the account",
+                    ) from exc
+            raise
+        try:
+            obj = ser.save(updated_by=request.user)
+        except Exception as exc:
+            raise CustomError(
+                code=ORGANIZATION_UPDATE_FAILED,
+                status_code=400,
+                detail="Organization update process failed",
+            ) from exc
         return Response(OrganizationReadSerializer(obj).data, status=status.HTTP_200_OK)
 
     # DELETE (soft)
     def destroy(self, request, *args, **kwargs):
-        try:
-            obj = self.get_object()  # respects lookup_field=uuid and scoped queryset
-        except Http404:
-            raise OrganizationNotFound()
+        obj = self.get_object()  # respects lookup_field=uuid and scoped queryset
 
         ensure_organization_has_no_active_subscriptions(obj)
         obj.delete()

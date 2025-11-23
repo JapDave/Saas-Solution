@@ -5,8 +5,9 @@ from typing import Optional, Sequence
 from django.utils import timezone
 
 from apps.common.exceptions import (
-    AccountHasActiveSubscriptions,
-    OrganizationHasActiveSubscriptions,
+    CustomError,
+    ACCOUNT_HAS_ACTIVE_SUBSCRIPTIONS,
+    ORGANIZATION_HAS_ACTIVE_SUBSCRIPTIONS,
 )
 from apps.subscriptions.models import Subscription
 
@@ -77,7 +78,7 @@ def ensure_account_has_no_active_subscriptions(account) -> None:
     detail = "Account has active subscriptions"
     if module_names:
         detail = f"Account has active subscriptions ({', '.join(module_names)})"
-    raise AccountHasActiveSubscriptions(detail=detail)
+    raise CustomError(code=ACCOUNT_HAS_ACTIVE_SUBSCRIPTIONS, status_code=409, detail=detail)
 
 
 def ensure_organization_has_no_active_subscriptions(organization) -> None:
@@ -90,7 +91,7 @@ def ensure_organization_has_no_active_subscriptions(organization) -> None:
     detail = "Organization has active subscriptions"
     if module_names:
         detail = f"Organization has active subscriptions ({', '.join(module_names)})"
-    raise OrganizationHasActiveSubscriptions(detail=detail)
+    raise CustomError(code=ORGANIZATION_HAS_ACTIVE_SUBSCRIPTIONS, status_code=409, detail=detail)
 
 
 def get_subscription_configuration(organization, module_key: str) -> dict:

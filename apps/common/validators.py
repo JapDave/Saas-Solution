@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from __future__ import annotations
+
 from django.conf import settings
 
 
+
 def email_has_allowed_system_domain(email: str) -> bool:
+    """Return ``True`` when ``email`` belongs to an allowed system domain."""
+
     """Return ``True`` when ``email`` belongs to an allowed system domain."""
 
     if not email or "@" not in email:

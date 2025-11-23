@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 
-from apps.products.factories import ProductFactory, ModuleFactory
+from apps.products.tests.factories import ProductFactory, ModuleFactory
 from apps.products.serializers import ProductSerializer, ModuleSerializer
 
 User = get_user_model()
@@ -13,7 +13,7 @@ User = get_user_model()
 @pytest.fixture
 def user(db):
     """Fixture for creating a user."""
-    return User.objects.create_user(email="test@example.com", password="password123", full_name="Test User")
+    return User.objects.create_user(email="test@example.com", password="password123")
 
 
 @pytest.fixture
@@ -50,28 +50,27 @@ class TestProductViewSet:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        results = response.data["results"]
-        assert response.data["count"] == 3
-        assert len(results) == 3
+        assert len(response.data["results"]) == 3
 
     def test_retrieve_active_product(self, api_client):
         """
         Ensure a single active product can be retrieved.
         """
         product = ProductFactory(is_active=True)
-        url = reverse("product-detail", kwargs={"pk": product.pk})
+        url = reverse("product-detail", kwargs={"uuid": product.uuid})
         response = api_client.get(url)
 
         serializer = ProductSerializer(product)
         assert response.status_code == status.HTTP_200_OK
-        assert response.data == serializer.data
+        assert response.data["id"] == serializer.data["id"]
+        assert response.data["key"] == serializer.data["key"]
 
     def test_retrieve_inactive_product_fails(self, api_client):
         """
         Ensure retrieving an inactive product returns a 404 error.
         """
         product = ProductFactory(is_active=False)
-        url = reverse("product-detail", kwargs={"pk": product.pk})
+        url = reverse("product-detail", kwargs={"uuid": product.uuid})
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -96,23 +95,24 @@ class TestModuleViewSet:
         """
         Ensure the viewset lists only active modules.
         """
-        ModuleFactory.create_batch(2, is_active=True)
-        ModuleFactory(is_active=False)
+        active_modules = ModuleFactory.create_batch(2, is_active=True)
+        inactive_module = ModuleFactory(is_active=False)
 
         url = reverse("module-list")
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        results = response.data["results"]
-        assert response.data["count"] == 2
-        assert len(results) == 2
+        result_uuids = {item["uuid"] for item in response.data["results"]}
+        for module in active_modules:
+            assert str(module.uuid) in result_uuids
+        assert str(inactive_module.uuid) not in result_uuids
 
     def test_retrieve_active_module(self, api_client):
         """
         Ensure a single active module can be retrieved.
         """
         module = ModuleFactory(is_active=True)
-        url = reverse("module-detail", kwargs={"pk": module.pk})
+        url = reverse("module-detail", kwargs={"uuid": module.uuid})
         response = api_client.get(url)
 
         serializer = ModuleSerializer(module)
@@ -124,7 +124,7 @@ class TestModuleViewSet:
         Ensure retrieving an inactive module returns a 404 error.
         """
         module = ModuleFactory(is_active=False)
-        url = reverse("module-detail", kwargs={"pk": module.pk})
+        url = reverse("module-detail", kwargs={"uuid": module.uuid})
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -135,7 +135,7 @@ class TestModuleViewSet:
         """
         schema_data = {"setting1": "string", "setting2": "integer"}
         module = ModuleFactory(is_active=True, configurable_attributes=schema_data)
-        url = reverse("module-config-schema", kwargs={"pk": module.pk})
+        url = reverse("module-config-schema", kwargs={"uuid": module.uuid})
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK

@@ -12,8 +12,8 @@ from apps.roles.models import Role, RoleAssignment
 def test_user_account_organization_flow(superadmin_client, superadmin_user, manager_user):
     """Exercise the full provisioning flow from superadmin down to member context switching."""
 
-    accounts_url = reverse("accounts-list")
-    organizations_url = reverse("organizations-list")
+    accounts_url = reverse("account-list")
+    organizations_url = reverse("organization-list")
 
     alpha_payload = {
         "name": "Alpha Corp",
@@ -92,7 +92,7 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
     )
     assert forbidden_org_resp.status_code == 403
 
-    users_url = reverse("users-list")
+    users_url = reverse("user-list")
     create_user_resp = manager_client.post(
         users_url,
         {
@@ -132,7 +132,7 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
     ).exists()
 
     duplicate_membership_resp = manager_client.post(
-        reverse("users-add-membership", kwargs={"uuid": member_uuid}),
+        reverse("user-add-membership", kwargs={"uuid": member_uuid}),
         {"organization": bravo_rd_id, "permissions": ["user:read"]},
         format="json",
     )
@@ -148,7 +148,7 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
     returned_ids = {item["id"] for item in member_orgs_resp.data["results"]}
     assert returned_ids == {alpha_hq_id, alpha_labs_id}
 
-    switch_url = reverse("users-switch-organization")
+    switch_url = reverse("user-switch-organization")
     switch_resp = member_client.post(
         switch_url,
         {"organization": alpha_labs_id},

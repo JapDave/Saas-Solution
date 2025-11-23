@@ -2,7 +2,13 @@ import pytest
 from rest_framework import serializers
 from rest_framework.test import APIRequestFactory
 
-from apps.common.exceptions import InvalidUserData, UserAlreadyMember, UserNotMember
+from apps.common.exceptions import (
+    CustomValidationError,
+    CustomError,
+    INVALID_USER_DATA,
+    USER_ALREADY_MEMBER,
+    USER_NOT_MEMBER,
+)
 from apps.organizations.tests.factories import OrganizationFactory
 from apps.roles.constants import ROLE_ORGANIZATION_OWNER
 from apps.roles.models import Role, RoleAssignment
@@ -109,7 +115,7 @@ class TestUserCreateSerializer:
             ],
         }
         serializer = UserCreateSerializer(data=payload, context={"request": superadmin_request})
-        with pytest.raises(InvalidUserData):
+        with pytest.raises(CustomValidationError) as exc:
             serializer.is_valid(raise_exception=True)
 
     def test_missing_memberships_raise(self, superadmin_request):
@@ -120,7 +126,7 @@ class TestUserCreateSerializer:
             "memberships": [],
         }
         serializer = UserCreateSerializer(data=payload, context={"request": superadmin_request})
-        with pytest.raises(InvalidUserData):
+        with pytest.raises(CustomValidationError) as exc:
             serializer.is_valid(raise_exception=True)
 
 
@@ -175,8 +181,9 @@ class TestMembershipMutationSerializer:
             },
             context={"request": superadmin_request, "user": membership.user},
         )
-        with pytest.raises(UserAlreadyMember):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == USER_ALREADY_MEMBER
 
 
 @pytest.mark.django_db
@@ -329,8 +336,9 @@ class TestMembershipRemovalSerializer:
             context={"request": superadmin_request, "user": user},
         )
         assert serializer.is_valid(raise_exception=True)
-        with pytest.raises(UserNotMember):
+        with pytest.raises(CustomError) as exc:
             serializer.remove()
+        assert getattr(exc.value, "detail", {}).get("code") == USER_NOT_MEMBER
 
 
 

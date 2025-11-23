@@ -14,7 +14,7 @@ for _ in {1..60}; do
 done
 
 # Make migrations (usually dev-only; safe no-op if none)
-python manage.py makemigrations accounts users organizations common products subscriptions || true
+python manage.py makemigrations --noinput || true
 
 # Apply migrations
 python manage.py migrate --noinput
@@ -54,4 +54,3 @@ if [ "${DEBUG:-0}" = "1" ]; then
 else
   gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
 fi
-

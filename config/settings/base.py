@@ -37,6 +37,14 @@ LOCAL_APPS = [
     "apps.products",
     "apps.subscriptions",
     "apps.roles",
+    "apps.files",
+    "apps.agents",
+    "apps.channels",
+    "apps.flows",
+    "apps.integrations",
+    "apps.knowledge_base",
+    "apps.llms",
+    "apps.tools",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -124,7 +132,7 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.common.exception_handler.exception_handler",
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_PAGINATION_CLASS": "apps.common.paginations.StandardPagination",
     "DEFAULT_THROTTLE_CLASSES": ["apps.common.throttling.DynamicScopedRateThrottle"],
     "PAGE_SIZE": 10,
     # allow ?page_size=... in requests (used by the test)
@@ -148,6 +156,14 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+
+# -------------------------------------------------------------------
+# DRF standardized error
+# -------------------------------------------------------------------
+DRF_STANDARDIZED_ERRORS = {
+    "EXCEPTION_FORMATTER_CLASS": "apps.common.exceptions.CustomExceptionFormatter",
+}
+
 # -------------------------------------------------------------------
 # Static / Media / Storages
 # -------------------------------------------------------------------

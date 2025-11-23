@@ -2,7 +2,6 @@
 from __future__ import annotations
 from django.db import models
 from django.conf import settings
-from django.db.models.functions import Lower
 from django.utils.translation import gettext_lazy as _
 
 from apps.common.models import BaseModel
@@ -58,8 +57,9 @@ class Account(BaseModel):
     _all_objects = models.Manager()          # raw access if ever needed
 
     class Meta:
-        indexes = [models.Index(Lower("name"), name="ix_account_name_ci")]
-        constraints = [models.UniqueConstraint(Lower("name"), name="uq_account_name_ci")]
+        indexes = [models.Index(fields=["name"], name="ix_account_name")]
+        constraints = [models.UniqueConstraint(fields=["name"], name="uq_account_name")]
 
     def __str__(self):
         return self.name
+

@@ -18,6 +18,23 @@ from apps.roles.constants import (
 from apps.roles.utils import has_permission, has_role
 
 
+class AnyOf(BasePermission):
+    """
+    Generic permission class that passes if ANY of the provided permission classes pass.
+    Permissions should be passed as uninitialized classes (e.g., AnyOf(P1, P2)).
+    """
+    def __init__(self, *permissions):
+        # We store the instantiated permission objects
+        self.permissions = [p() for p in permissions] 
+
+    def has_permission(self, request, view):
+        """Returns True if any permission in the list grants access."""
+        for permission in self.permissions:
+            if permission.has_permission(request, view):
+                return True
+        return False
+
+
 class BaseRolePermission(BasePermission):
     """Base helper for simple role checks inside an organization."""
 
@@ -48,12 +65,6 @@ class BaseRolePermission(BasePermission):
         user = getattr(request, "user", None)
         if not user or not getattr(user, "is_authenticated", False):
             return False
-
-        if getattr(user, "is_superuser", False):
-            return True
-
-        if has_role(user, ROLE_SAAS_ADMINISTRATOR):
-            return True
 
         user_roles = self._get_user_roles(request, view)
         return bool(self.required_roles.intersection(user_roles))
@@ -184,65 +195,48 @@ class OrganizationPermission(BasePermission):
 
 
 class HasRole(BasePermission):
-    """Generic role checker that supports organization-aware roles."""
+    """
+    A generic permission class that checks if a user has a specific role.
+
+    Usage:
+        permission_classes = [HasRole("Organization Owner")]
+    """
 
     def __init__(self, role_name: str):
         self.role_name = role_name
         super().__init__()
 
     def has_permission(self, request, view):
-        user = getattr(request, "user", None)
-        if not user or not getattr(user, "is_authenticated", False):
+        if not request.user or not request.user.is_authenticated:
             return False
 
-        if getattr(user, "is_superuser", False):
-            return True
+        # For organization-specific roles, the view must provide the org_uuid
+        organization_uuid = view.kwargs.get("organization_uuid")
 
-        if has_role(user, ROLE_SAAS_ADMINISTRATOR):
-            return True
-
-        organization_uuid = None
-        if hasattr(view, "kwargs"):
-            organization_uuid = view.kwargs.get("organization_uuid") or view.kwargs.get("uuid")
-        if not organization_uuid:
-            data = getattr(request, "data", {})
-            organization_uuid = data.get("organization_uuid")
-
-        return has_role(user, self.role_name, organization_uuid=organization_uuid)
+        return has_role(
+            request.user, self.role_name, organization_uuid=organization_uuid
+        )
 
 
 class HasPermission(BasePermission):
-    """Generic permission checker that supports global and scoped permissions."""
+    """
+    A generic permission class that checks if a user has a specific permission key.
 
-    def __init__(self, permission_key: str, *, organization_kwarg: Optional[str] = "organization_uuid"):
+    Usage:
+        permission_classes = [HasPermission("some.permission.key", "<organization_uuid>")]
+    """
+
+    def __init__(self, permission_key: str, organization_uuid: str | UUID):
         self.permission_key = permission_key
-        self.organization_kwarg = organization_kwarg
+        self.organization_uuid = organization_uuid
+
         super().__init__()
 
-    def _resolve_organization(self, request, view) -> Optional[Union[str, UUID]]:
-        if self.organization_kwarg and hasattr(view, "kwargs"):
-            candidate = view.kwargs.get(self.organization_kwarg)
-            if candidate:
-                return candidate
-
-        if hasattr(view, "kwargs"):
-            candidate = view.kwargs.get("uuid")
-            if candidate:
-                return candidate
-
-        data = getattr(request, "data", {})
-        if isinstance(data, dict):
-            for key in ("organization_uuid", "organization"):
-                candidate = data.get(key)
-                if candidate:
-                    return candidate
-        return None
-
     def has_permission(self, request, view):
-        user = getattr(request, "user", None)
-        if not user or not user.is_authenticated:
+        if not request.user or not request.user.is_authenticated:
             return False
 
-        organization_identifier = self._resolve_organization(request, view)
-        return has_permission(user, self.permission_key, organization_identifier)
 
+        return has_permission(
+            request.user, self.permission_key, self.organization_uuid
+        )

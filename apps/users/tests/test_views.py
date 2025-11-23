@@ -5,12 +5,12 @@ from apps.accounts.tests.factories import AccountFactory
 from apps.organizations.tests.factories import OrganizationFactory
 from apps.users.models import UserOrganization
 from apps.users.tests.factories import UserFactory
-
+from apps.roles.models import Role, RoleAssignment
 
 @pytest.mark.django_db
 class TestUserCreation:
     def test_superadmin_can_create_user_with_membership(self, superadmin_client, primary_account_alpha_organization):
-        url = reverse("users-list")
+        url = reverse("user-list")
         role = Role.objects.create(
             organization=primary_account_alpha_organization,
             name="Org Admin",
@@ -50,7 +50,7 @@ class TestUserCreation:
         ).exists()
 
     def test_create_user_requires_membership(self, superadmin_client):
-        url = reverse("users-list")
+        url = reverse("user-list")
         payload = {
             "email": "isolated.user@example.com",
             "password": "SecurePass8",
@@ -68,7 +68,7 @@ class TestUserStatus:
         owner = UserFactory(email="owner1@example.com", full_name="Owner User")
         account = AccountFactory(created_by=owner, updated_by=owner)
         OrganizationFactory(account=account, created_by=owner, updated_by=owner)
-        url = reverse("users-status-change", kwargs={"uuid": str(owner.uuid)})
+        url = reverse("user-status-change", kwargs={"uuid": str(owner.uuid)})
         response = superadmin_client.post(url, {"is_active": False}, format="json")
         assert response.status_code == 400
         assert response.json()["code"] == "CANNOT_DEACTIVATE_OWNER"
@@ -77,7 +77,7 @@ class TestUserStatus:
 @pytest.mark.django_db
 class TestMembershipManagement:
     def test_add_and_remove_membership(self, superadmin_client, primary_account_alpha_organization, secondary_account_charlie_organization):
-        url = reverse("users-list")
+        url = reverse("user-list")
         primary_role = Role.objects.create(
             organization=primary_account_alpha_organization,
             name="Primary Admin",
@@ -118,7 +118,7 @@ class TestMembershipManagement:
             deleted_at__isnull=True,
         ).exists()
 
-        add_url = reverse("users-add-membership", kwargs={"uuid": user_uuid})
+        add_url = reverse("user-add-membership", kwargs={"uuid": user_uuid})
         add_payload = {
             "organization": secondary_account_charlie_organization.id,
             "permissions": ["user:view"],
@@ -137,7 +137,7 @@ class TestMembershipManagement:
         ).exists()
 
         remove_url = reverse(
-            "users-remove-membership",
+            "user-remove-membership",
             kwargs={"uuid": user_uuid, "organization_id": secondary_account_charlie_organization.id},
         )
         remove_response = superadmin_client.delete(remove_url, format="json")
@@ -154,7 +154,7 @@ class TestMembershipManagement:
             deleted_at__isnull=True,
         ).exists()
 
-        add_url = reverse("users-add-membership", kwargs={"uuid": user_uuid})
+        add_url = reverse("user-add-membership", kwargs={"uuid": user_uuid})
         add_payload = {"organization": secondary_account_charlie_organization.id, "permissions": ["user:view"]}
         add_response = superadmin_client.post(add_url, add_payload, format="json")
         assert add_response.status_code == 201
@@ -163,7 +163,7 @@ class TestMembershipManagement:
         ).exists()
 
         remove_url = reverse(
-            "users-remove-membership",
+            "user-remove-membership",
             kwargs={"uuid": user_uuid, "organization_id": secondary_account_charlie_organization.id},
         )
         remove_response = superadmin_client.delete(remove_url, format="json")
@@ -218,7 +218,7 @@ class TestUserListing:
 
         client = api_client()
         client.force_authenticate(user=owner)
-        url = reverse("users-list")
+        url = reverse("user-list")
         response = client.get(url)
         assert response.status_code == 200
         data = response.json()
@@ -252,7 +252,7 @@ class TestSessionContext:
             role=role,
             assigned_by=membership.assigned_by,
         )
-        url = reverse("users-switch-organization")
+        url = reverse("user-switch-organization")
         response = regular_client.post(url, {"organization": org.id}, format="json")
         assert response.status_code == 200
         assert regular_client.session["active_organization_id"] == org.id

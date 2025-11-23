@@ -7,7 +7,7 @@ from apps.organizations.serializers import (
     OrganizationUpdateSerializer,
     OrganizationReadSerializer,
 )
-from apps.common.exceptions import OrganizationNameExists, InvalidLogoUrl
+from apps.common.exceptions import CustomError, ORGANIZATION_NAME_EXISTS, INVALID_LOGO_URL
 
 
 @pytest.mark.django_db
@@ -34,8 +34,9 @@ class TestOrganizationCreateSerializer:
             "description": "",
         }
         serializer = OrganizationCreateSerializer(data=payload)
-        with pytest.raises(OrganizationNameExists):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == ORGANIZATION_NAME_EXISTS
 
     def test_invalid_logo_url_raises(self):
         account = AccountFactory()
@@ -45,8 +46,9 @@ class TestOrganizationCreateSerializer:
             "logo_url": "ftp://invalid.example.com",
         }
         serializer = OrganizationCreateSerializer(data=payload)
-        with pytest.raises(InvalidLogoUrl):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == INVALID_LOGO_URL
 
 
 @pytest.mark.django_db
@@ -71,8 +73,9 @@ class TestOrganizationUpdateSerializer:
             data={"name": "existing"},
             partial=True,
         )
-        with pytest.raises(OrganizationNameExists):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == ORGANIZATION_NAME_EXISTS
 
     def test_invalid_logo_url_on_update_raises(self):
         target = OrganizationFactory()
@@ -81,8 +84,9 @@ class TestOrganizationUpdateSerializer:
             data={"logo_url": "ftp://bad.example.com"},
             partial=True,
         )
-        with pytest.raises(InvalidLogoUrl):
+        with pytest.raises(CustomError) as exc:
             serializer.is_valid(raise_exception=True)
+        assert getattr(exc.value, "detail", {}).get("code") == INVALID_LOGO_URL
 
 
 @pytest.mark.django_db

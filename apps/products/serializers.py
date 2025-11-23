@@ -6,10 +6,17 @@ from apps.products.models import Product, Module
 class ModuleSerializer(serializers.ModelSerializer):
     """Serializer for the Module model."""
 
+    products = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Product.objects.all(),
+        required=False,
+    )
+
     class Meta:
         model = Module
         fields = [
             "id",
+            "uuid",
             "key",
             "code",
             "name",
@@ -18,6 +25,7 @@ class ModuleSerializer(serializers.ModelSerializer):
             "configurable_attributes",
             "exposed_permissions",
             "is_active",
+            "products",
             "created_at",
             "updated_at",
         ]
@@ -31,6 +39,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             "id",
+            "uuid",
             "key",
             "name",
             "description",
@@ -44,4 +53,4 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_available_module_keys(self, obj):
         "Return object's related module keys "
-        return list(obj.modules.values_list("key", flat=True).distinct())
+        return obj.modules.values_list("key", flat=True).distinct()
