@@ -30,3 +30,4 @@ Business-Requirements/
 
 loc.py
 docker/*/tmp/
+*.code-workspace
