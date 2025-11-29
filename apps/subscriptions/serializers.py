@@ -16,7 +16,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
         fields = [
-            "id",
             "uuid",
             "module",
             "status",
@@ -94,4 +93,3 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 class SubscriptionStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Subscription.Status.choices)
-

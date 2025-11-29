@@ -162,7 +162,7 @@ class OrganizationReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = (
-            "id",
+            "uuid",
             "account",
             "name",
             "description",

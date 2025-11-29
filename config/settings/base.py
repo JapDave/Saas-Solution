@@ -146,10 +146,12 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE":"Huhud Rest Api Backend",
-    "DESCRIPTION":"Accounts/Orgs/Users/Teams/Subscriptions",
-    "VERSION":"1.0.0",
+    "TITLE": "Huhud Rest Api Backend",
+    "DESCRIPTION": "Accounts/Orgs/Users/Teams/Subscriptions",
+    "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Use our standardized error envelope as the default error schema
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 SIMPLE_JWT = {

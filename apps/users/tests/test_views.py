@@ -253,7 +253,9 @@ class TestSessionContext:
             assigned_by=membership.assigned_by,
         )
         url = reverse("user-switch-organization")
-        response = regular_client.post(url, {"organization": org.id}, format="json")
+        response = regular_client.post(
+            url, {"organization_uuid": str(org.uuid)}, format="json"
+        )
         assert response.status_code == 200
         assert regular_client.session["active_organization_id"] == org.id
 

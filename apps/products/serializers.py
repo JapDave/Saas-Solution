@@ -15,7 +15,6 @@ class ModuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Module
         fields = [
-            "id",
             "uuid",
             "key",
             "code",
@@ -38,7 +37,6 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            "id",
             "uuid",
             "key",
             "name",

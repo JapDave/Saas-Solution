@@ -98,7 +98,6 @@ def _resolve_roles_for_membership(*, organization: Organization, role_ids: Itera
 class MembershipSerializer(serializers.ModelSerializer):
     organization_uuid = serializers.UUIDField(source="organization.uuid", read_only=True)
     organization_name = serializers.CharField(source="organization.name", read_only=True)
-    account_id = serializers.IntegerField(source="organization.account_id", read_only=True)
     account_uuid = serializers.UUIDField(source="organization.account.uuid", read_only=True)
     permissions = serializers.ListField(child=serializers.CharField(), source="permission_keys", read_only=True)
     roles = serializers.SerializerMethodField()
@@ -118,12 +117,9 @@ class MembershipSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserOrganization
         fields = (
-            "id",
             "uuid",
-            "organization",
             "organization_uuid",
             "organization_name",
-            "account_id",
             "account_uuid",
             "permissions",
             "roles",
@@ -163,7 +159,6 @@ class UserReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
-            "id",
             "uuid",
             "email",
             "full_name",

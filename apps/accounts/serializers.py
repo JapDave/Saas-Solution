@@ -123,7 +123,7 @@ class AccountReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Account
         fields = (
-            "id",
+            "uuid",
             "name",
             "description",
             "contact_email",

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.common.exceptions import CustomError, FLOW_VERSION_NOT_FOUND
+from apps.common.serializers import ErrorSerializer
 from apps.flows.models import Flow, FlowVersion
 from apps.flows.serializers import (
     FlowCreateSerializer,
@@ -30,6 +32,25 @@ from apps.flows.services import (
 from apps.organizations.models import Organization
 
 
+@extend_schema(
+    tags=["Flows"],
+    responses={
+        400: ErrorSerializer,
+        403: ErrorSerializer,
+        404: ErrorSerializer,
+        500: ErrorSerializer,
+    },
+    description=(
+        "Flow management within an organization.\n\n"
+        "Permissions:\n"
+        "- List/Read: agents:flows:read\n"
+        "- Create: agents:flows:create\n"
+        "- Update: agents:flows:update\n"
+        "- Delete/Restore: agents:flows:delete\n"
+        "- Clone: agents:flows:clone\n"
+        "- Publish/Disable/Enable: agents:flows:publish/disable/enable\n"
+    ),
+)
 class FlowViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     lookup_field = "uuid"
@@ -178,6 +199,10 @@ class FlowVersionViewSet(
             )
         return self._cached_flow
 
+    @extend_schema(
+        responses={200: FlowVersionSummarySerializer(many=True), 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="List versions for a flow. Requires permission: agents:flows:versions:read.",
+    )
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return FlowVersion.objects.none()

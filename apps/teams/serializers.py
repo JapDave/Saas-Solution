@@ -49,7 +49,6 @@ class TeamMemberReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = TeamMember
         fields = (
-            "id",
             "uuid",
             "user",
             "user_uuid",
@@ -66,16 +65,15 @@ class TeamMemberReadSerializer(serializers.ModelSerializer):
 class TeamReadSerializer(serializers.ModelSerializer):
     """Read representation of a team including members."""
 
-    organization = serializers.IntegerField(source="organization_id", read_only=True)
+    organization_uuid = serializers.UUIDField(source="organization.uuid", read_only=True)
     member_count = serializers.SerializerMethodField()
     members = serializers.SerializerMethodField()
 
     class Meta:
         model = Team
         fields = (
-            "id",
             "uuid",
-            "organization",
+            "organization_uuid",
             "name",
             "description",
             "configurations",
