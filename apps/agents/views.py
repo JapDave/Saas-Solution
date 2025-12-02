@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -31,9 +32,22 @@ from apps.agents.services import (
     save_agent_version,
 )
 from apps.common.exceptions import CustomError, INVALID_STATE_TRANSITION
+from apps.common.serializers import ErrorSerializer
 from apps.organizations.models import Organization
 
 
+@extend_schema(
+    tags=["Agents"],
+    responses={400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer, 409: ErrorSerializer, 500: ErrorSerializer},
+    description=(
+        "Conversational agents for an organization.\n\n"
+        "Permissions:\n"
+        "- List/Read: agents:read\n"
+        "- Create/Update: agents:create / agents:update\n"
+        "- Delete: agents:delete\n"
+        "- Versioning: agents:versions:save / agents:versions:switch\n"
+    ),
+)
 class AgentViewSet(viewsets.ModelViewSet):
     queryset = Agent.objects.select_related("organization", "current_version").prefetch_related("versions")
     permission_classes = [IsAuthenticated]
@@ -181,6 +195,13 @@ class OrganizationLLMAvailableView(APIView):
     permission_classes = [IsAuthenticated]
     ERROR_DOMAIN = "agents"
 
+    @extend_schema(
+        responses={200: OrganizationEnabledLLMSerializer(many=True), 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description=(
+            "List available LLM definitions and configuration schemas for an organization. "
+            "Requires permission: agents:read."
+        ),
+    )
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_agent_permission(request.user, organization, "agents:read")
@@ -213,6 +234,10 @@ class OrganizationLLMView(APIView):
     def get_organization(self, organization_uuid):
         return get_object_or_404(Organization, uuid=organization_uuid)
 
+    @extend_schema(
+        responses={200: OrganizationEnabledLLMSerializer(many=True), 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="List enabled LLMs for an organization. Requires permission: agents:llms:enable.",
+    )
     def get(self, request, organization_uuid: str):
         organization = self.get_organization(organization_uuid)
         ensure_agent_permission(request.user, organization, "agents:llms:enable")
@@ -220,6 +245,11 @@ class OrganizationLLMView(APIView):
         serializer = OrganizationEnabledLLMSerializer(qs, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        request=LLMEnableSerializer,
+        responses={201: OrganizationEnabledLLMSerializer, 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="Enable an LLM for an organization. Requires permission: agents:llms:enable.",
+    )
     def post(self, request, organization_uuid: str):
         serializer = LLMEnableSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -237,6 +267,10 @@ class OrganizationLLMDisableView(APIView):
     permission_classes = [IsAuthenticated]
     ERROR_DOMAIN = "agents"
 
+    @extend_schema(
+        responses={200: OrganizationEnabledLLMSerializer, 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="Disable an LLM for an organization. Requires permission: agents:llms:enable.",
+    )
     def post(self, request, organization_uuid: str, model_key: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_agent_permission(request.user, organization, "agents:llms:enable")
@@ -248,6 +282,13 @@ class OrganizationToolAvailableView(APIView):
     permission_classes = [IsAuthenticated]
     ERROR_DOMAIN = "agents"
 
+    @extend_schema(
+        responses={200: OrganizationEnabledToolSerializer(many=True), 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description=(
+            "List available tools and configuration schemas for an organization. "
+            "Requires permission: agents:read."
+        ),
+    )
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_agent_permission(request.user, organization, "agents:read")
@@ -275,6 +316,10 @@ class OrganizationToolView(APIView):
     permission_classes = [IsAuthenticated]
     ERROR_DOMAIN = "agents"
 
+    @extend_schema(
+        responses={200: OrganizationEnabledToolSerializer(many=True), 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="List enabled tools for an organization. Requires permission: agents:tools:enable.",
+    )
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_agent_permission(request.user, organization, "agents:tools:enable")
@@ -282,6 +327,11 @@ class OrganizationToolView(APIView):
         serializer = OrganizationEnabledToolSerializer(qs, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        request=ToolEnableSerializer,
+        responses={201: OrganizationEnabledToolSerializer, 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="Enable a tool for an organization. Requires permission: agents:tools:enable.",
+    )
     def post(self, request, organization_uuid: str):
         serializer = ToolEnableSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -299,6 +349,10 @@ class OrganizationToolDisableView(APIView):
     permission_classes = [IsAuthenticated]
     ERROR_DOMAIN = "agents"
 
+    @extend_schema(
+        responses={200: OrganizationEnabledToolSerializer, 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="Disable a tool for an organization. Requires permission: agents:tools:enable.",
+    )
     def post(self, request, organization_uuid: str, tool_key: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_agent_permission(request.user, organization, "agents:tools:enable")

@@ -2,12 +2,16 @@ from rest_framework import serializers
 
 from apps.files.models import File
 
+
 class FileSerializer(serializers.ModelSerializer):
+    organization_uuid = serializers.UUIDField(source="organization.uuid", read_only=True)
+    parent_file_uuid = serializers.UUIDField(source="parent_file.uuid", read_only=True)
+
     class Meta:
         model = File
         fields = [
-            "id",
             "uuid",
+            "organization_uuid",
             "name",
             "display_name",
             "description",
@@ -15,10 +19,9 @@ class FileSerializer(serializers.ModelSerializer):
             "size",
             "hash",
             "file",
-            "organization",
             "uploaded_by",
             "version",
-            "parent_file",
+            "parent_file_uuid",
             "is_public",
             "metadata",
             "tags",
@@ -27,10 +30,12 @@ class FileSerializer(serializers.ModelSerializer):
         ]
 
         read_only_fields = [
-            "id",
             "uuid",
             "hash",
-            "parent_file",
-            "organization",
+            "organization_uuid",
             "uploaded_by",
+            "version",
+            "parent_file_uuid",
+            "created_at",
+            "updated_at",
         ]

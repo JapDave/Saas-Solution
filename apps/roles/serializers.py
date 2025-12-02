@@ -14,7 +14,6 @@ class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
         fields = [
-            "id",
             "uuid",
             "organization",
             "name",
@@ -116,7 +115,6 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoleAssignment
         fields = [
-            "id",
             "uuid",
             "user",
             "role",

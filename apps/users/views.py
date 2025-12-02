@@ -280,14 +280,14 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="switch-organization")
     def switch_organization(self, request):
-        organization_id = request.data.get("organization")
-        if organization_id is None:
+        organization_uuid = request.data.get("organization_uuid")
+        if not organization_uuid:
             raise CustomValidationError(
-                detail="Organization identifier is required.", code=INVALID_USER_DATA
+                detail="Organization UUID is required.", code=INVALID_USER_DATA
             )
         try:
             membership = UserOrganization.objects.get(
-                user=request.user, organization_id=organization_id
+                user=request.user, organization__uuid=organization_uuid
             )
         except UserOrganization.DoesNotExist as exc:
             raise InsufficientPermissions() from exc
@@ -303,7 +303,7 @@ class UserViewSet(viewsets.ModelViewSet):
             raise InsufficientPermissions()
         request.session["active_organization_id"] = membership.organization_id
         return Response(
-            {"organization": membership.organization_id}, status=status.HTTP_200_OK
+            {"organization_uuid": str(membership.organization.uuid)}, status=status.HTTP_200_OK
         )
 
     def _capture_membership_state(self, user, organization) -> dict:

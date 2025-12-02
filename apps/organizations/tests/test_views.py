@@ -24,9 +24,9 @@ class TestOrganizationPermissions:
         list_url = reverse("organization-list")
         response = manager_client_assigned_to_primary_account.get(list_url)
         assert response.status_code == 200
-        ids = {item["id"] for item in response.json()["results"]}
-        assert primary_account_alpha_organization.id in ids
-        assert secondary_account_charlie_organization.id not in ids
+        uuids = {item["uuid"] for item in response.json()["results"]}
+        assert str(primary_account_alpha_organization.uuid) in uuids
+        assert str(secondary_account_charlie_organization.uuid) not in uuids
 
         create_payload = {"account": primary_account.id, "name": "HQ"}
         assert manager_client_assigned_to_primary_account.post(list_url, create_payload, format="json").status_code == 201
@@ -68,9 +68,9 @@ class TestOrganizationPermissions:
 
         list_response = regular_client.get(list_url)
         assert list_response.status_code == 200
-        ids = {item["id"] for item in list_response.json()["results"]}
-        assert organization_owned_by_regular_user.id in ids
-        assert primary_account_alpha_organization.id not in ids
+        uuids = {item["uuid"] for item in list_response.json()["results"]}
+        assert str(organization_owned_by_regular_user.uuid) in uuids
+        assert str(primary_account_alpha_organization.uuid) not in uuids
 
         owned_payload = {"account": account_owned_by_regular_user.id, "name": "UHQ"}
         owned_response = regular_client.post(list_url, owned_payload, format="json")
@@ -150,8 +150,13 @@ class TestOrganizationRead:
         url = reverse("organization-list")
         response = admin_client.get(url)
         assert response.status_code == 200
-        ids = {item["id"] for item in response.json()["results"]}
-        assert {primary_account_alpha_organization.id, primary_account_bravo_organization.id, secondary_account_charlie_organization.id}.issubset(ids)
+        uuids = {item["uuid"] for item in response.json()["results"]}
+        expected = {
+            str(primary_account_alpha_organization.uuid),
+            str(primary_account_bravo_organization.uuid),
+            str(secondary_account_charlie_organization.uuid),
+        }
+        assert expected.issubset(uuids)
 
         assert admin_client.get(url + "?ordering=name").status_code == 200
         assert admin_client.get(url + "?is_active=true").status_code == 200
@@ -166,7 +171,7 @@ class TestOrganizationRead:
         url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         response = admin_client.get(url)
         assert response.status_code == 200
-        assert response.json()["id"] == primary_account_alpha_organization.id
+        assert response.json()["uuid"] == str(primary_account_alpha_organization.uuid)
 
 
 @pytest.mark.django_db
@@ -353,9 +358,9 @@ class TestOrganizationPermissions:
         list_url = reverse("organization-list")
         response = manager_client_assigned_to_primary_account.get(list_url)
         assert response.status_code == 200
-        ids = {item["id"] for item in response.json()["results"]}
-        assert primary_account_alpha_organization.id in ids
-        assert secondary_account_charlie_organization.id not in ids
+        uuids = {item["uuid"] for item in response.json()["results"]}
+        assert str(primary_account_alpha_organization.uuid) in uuids
+        assert str(secondary_account_charlie_organization.uuid) not in uuids
 
         create_payload = {"account": primary_account.id, "name": "HQ"}
         assert manager_client_assigned_to_primary_account.post(list_url, create_payload, format="json").status_code == 201
@@ -397,9 +402,9 @@ class TestOrganizationPermissions:
 
         list_response = regular_client.get(list_url)
         assert list_response.status_code == 200
-        ids = {item["id"] for item in list_response.json()["results"]}
-        assert organization_owned_by_regular_user.id in ids
-        assert primary_account_alpha_organization.id not in ids
+        uuids = {item["uuid"] for item in list_response.json()["results"]}
+        assert str(organization_owned_by_regular_user.uuid) in uuids
+        assert str(primary_account_alpha_organization.uuid) not in uuids
 
         owned_payload = {"account": account_owned_by_regular_user.id, "name": "UHQ"}
         owned_response = regular_client.post(list_url, owned_payload, format="json")
@@ -479,8 +484,13 @@ class TestOrganizationRead:
         url = reverse("organization-list")
         response = admin_client.get(url)
         assert response.status_code == 200
-        ids = {item["id"] for item in response.json()["results"]}
-        assert {primary_account_alpha_organization.id, primary_account_bravo_organization.id, secondary_account_charlie_organization.id}.issubset(ids)
+        uuids = {item["uuid"] for item in response.json()["results"]}
+        expected = {
+            str(primary_account_alpha_organization.uuid),
+            str(primary_account_bravo_organization.uuid),
+            str(secondary_account_charlie_organization.uuid),
+        }
+        assert expected.issubset(uuids)
 
         assert admin_client.get(url + "?ordering=name").status_code == 200
         assert admin_client.get(url + "?is_active=true").status_code == 200
@@ -495,7 +505,7 @@ class TestOrganizationRead:
         url = reverse("organization-detail", kwargs={"uuid": str(primary_account_alpha_organization.uuid)})
         response = admin_client.get(url)
         assert response.status_code == 200
-        assert response.json()["id"] == primary_account_alpha_organization.id
+        assert response.json()["uuid"] == str(primary_account_alpha_organization.uuid)
 
 
 @pytest.mark.django_db

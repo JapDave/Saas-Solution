@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.exceptions import CustomError, INTEGRATION_DELETED, INTEGRATION_NOT_FOUND
+from apps.common.serializers import ErrorSerializer
 from apps.integrations.models import Integration
 from apps.integrations.serializers import (
     IntegrationAnalyticsSerializer,
@@ -30,6 +31,19 @@ from apps.integrations.testing import run_mock_integration_test
 from apps.organizations.models import Organization
 
 
+@extend_schema(
+    tags=["Integrations"],
+    responses={400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer, 409: ErrorSerializer, 500: ErrorSerializer},
+    description=(
+        "API & webhook integrations for an organization.\n\n"
+        "Permissions:\n"
+        "- List/Read: integrations:read\n"
+        "- Create: integrations:create\n"
+        "- Update/Delete: integrations:update / integrations:delete\n"
+        "- Regenerate webhook secret: integrations:regenerate_secret\n"
+        "- Test invocation: integrations:test\n"
+    ),
+)
 class IntegrationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     lookup_field = "uuid"
@@ -149,7 +163,10 @@ class IntegrationViewSet(viewsets.ModelViewSet):
 class IntegrationAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses=IntegrationAnalyticsSerializer(many=True))
+    @extend_schema(
+        responses={200: IntegrationAnalyticsSerializer(many=True), 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="Summary analytics for integrations in an organization. Requires permission: integrations:read.",
+    )
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_integration_permission(request.user, organization, "integrations:read")
@@ -179,7 +196,10 @@ class IntegrationAnalyticsView(APIView):
 class IntegrationTypesView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses=IntegrationTypeSerializer(many=True))
+    @extend_schema(
+        responses={200: IntegrationTypeSerializer(many=True), 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="Available integration types and limits for an organization. Requires permission: integrations:read.",
+    )
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_integration_permission(request.user, organization, "integrations:read")
@@ -202,7 +222,10 @@ class IntegrationTypesView(APIView):
 class IntegrationAnalyticsDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses=IntegrationAnalyticsSerializer)
+    @extend_schema(
+        responses={200: IntegrationAnalyticsSerializer, 400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer},
+        description="Detailed analytics for a specific integration. Requires permission: integrations:read.",
+    )
     def get(self, request, organization_uuid: str, integration_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         integration = get_object_or_404(

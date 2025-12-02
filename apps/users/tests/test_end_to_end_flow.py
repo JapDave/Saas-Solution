@@ -30,34 +30,34 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
     bravo_response = superadmin_client.post(accounts_url, bravo_payload, format="json")
     assert alpha_response.status_code == 201
     assert bravo_response.status_code == 201
-    alpha_account_id = alpha_response.data["id"]
-    bravo_account_id = bravo_response.data["id"]
+    alpha_account_uuid = alpha_response.data["uuid"]
+    bravo_account_uuid = bravo_response.data["uuid"]
 
     alpha_hq_resp = superadmin_client.post(
         organizations_url,
-        {"account": alpha_account_id, "name": "Alpha HQ"},
+        {"account": alpha_account_uuid, "name": "Alpha HQ"},
         format="json",
     )
     alpha_labs_resp = superadmin_client.post(
         organizations_url,
-        {"account": alpha_account_id, "name": "Alpha Labs"},
+        {"account": alpha_account_uuid, "name": "Alpha Labs"},
         format="json",
     )
     bravo_rd_resp = superadmin_client.post(
         organizations_url,
-        {"account": bravo_account_id, "name": "Bravo R&D"},
+        {"account": bravo_account_uuid, "name": "Bravo R&D"},
         format="json",
     )
     assert alpha_hq_resp.status_code == 201
     assert alpha_labs_resp.status_code == 201
     assert bravo_rd_resp.status_code == 201
 
-    alpha_hq_id = alpha_hq_resp.data["id"]
-    alpha_labs_id = alpha_labs_resp.data["id"]
-    bravo_rd_id = bravo_rd_resp.data["id"]
+    alpha_hq_uuid = alpha_hq_resp.data["uuid"]
+    alpha_labs_uuid = alpha_labs_resp.data["uuid"]
+    bravo_rd_uuid = bravo_rd_resp.data["uuid"]
 
-    alpha_hq_org = Organization.objects.get(id=alpha_hq_id)
-    alpha_labs_org = Organization.objects.get(id=alpha_labs_id)
+    alpha_hq_org = Organization.objects.get(uuid=alpha_hq_uuid)
+    alpha_labs_org = Organization.objects.get(uuid=alpha_labs_uuid)
     role_hq = Role.objects.create(
         organization=alpha_hq_org,
         name="Alpha HQ Member",
@@ -78,7 +78,7 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
     )
 
     manager_client = APIClient()
-    manager_user.get_assigned_account_ids = lambda: [alpha_account_id]
+    manager_user.get_assigned_account_ids = lambda: [alpha_hq_org.account_id]
     manager_client.force_authenticate(user=manager_user)
 
     manager_accounts_resp = manager_client.get(accounts_url)
@@ -87,7 +87,7 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
 
     forbidden_org_resp = manager_client.post(
         organizations_url,
-        {"account": bravo_account_id, "name": "Bravo Secure"},
+        {"account": bravo_account_uuid, "name": "Bravo Secure"},
         format="json",
     )
     assert forbidden_org_resp.status_code == 403
@@ -101,12 +101,12 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
             "full_name": "Org Member",
             "memberships": [
                 {
-                    "organization": alpha_hq_id,
+                    "organization": alpha_hq_org.id,
                     "permissions": ["user:read"],
                     "roles": [str(role_hq.uuid)],
                 },
                 {
-                    "organization": alpha_labs_id,
+                    "organization": alpha_labs_org.id,
                     "permissions": ["user:read", "user:update"],
                     "roles": [str(role_labs.uuid)],
                 },
@@ -116,16 +116,15 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
     )
     assert create_user_resp.status_code == 201
     member_uuid = create_user_resp.data["uuid"]
-    member_id = create_user_resp.data["id"]
 
     assert RoleAssignment.objects.filter(
-        organization_id=alpha_hq_id,
+        organization_id=alpha_hq_org.id,
         user__uuid=member_uuid,
         role=role_hq,
         deleted_at__isnull=True,
     ).exists()
     assert RoleAssignment.objects.filter(
-        organization_id=alpha_labs_id,
+        organization_id=alpha_labs_org.id,
         user__uuid=member_uuid,
         role=role_labs,
         deleted_at__isnull=True,
@@ -133,25 +132,25 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
 
     duplicate_membership_resp = manager_client.post(
         reverse("user-add-membership", kwargs={"uuid": member_uuid}),
-        {"organization": bravo_rd_id, "permissions": ["user:read"]},
+        {"organization": bravo_rd_uuid, "permissions": ["user:read"]},
         format="json",
     )
     assert duplicate_membership_resp.status_code == 403
 
-    member = get_user_model().objects.get(id=member_id)
+    member = get_user_model().objects.get(uuid=member_uuid)
     member_client = APIClient()
     member_client.force_authenticate(user=member)
 
     member_orgs_resp = member_client.get(organizations_url)
     assert member_orgs_resp.status_code == 200
     assert member_orgs_resp.data["count"] == 2
-    returned_ids = {item["id"] for item in member_orgs_resp.data["results"]}
-    assert returned_ids == {alpha_hq_id, alpha_labs_id}
+    returned_uuids = {item["uuid"] for item in member_orgs_resp.data["results"]}
+    assert returned_uuids == {str(alpha_hq_org.uuid), str(alpha_labs_org.uuid)}
 
     switch_url = reverse("user-switch-organization")
     switch_resp = member_client.post(
         switch_url,
-        {"organization": alpha_labs_id},
+        {"organization_uuid": str(alpha_labs_org.uuid)},
         format="json",
     )
     assert switch_resp.status_code == 200
@@ -159,7 +158,7 @@ def test_user_account_organization_flow(superadmin_client, superadmin_user, mana
 
     forbidden_switch_resp = member_client.post(
         switch_url,
-        {"organization": bravo_rd_id},
+        {"organization_uuid": str(bravo_rd_uuid)},
         format="json",
     )
     assert forbidden_switch_resp.status_code == 403

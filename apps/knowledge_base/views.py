@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.common.exceptions import CustomError, KB_COLLECTION_NOT_FOUND, KB_DUPLICATE_RESOURCE, KB_RESOURCE_NOT_FOUND
+from apps.common.serializers import ErrorSerializer
 from apps.knowledge_base.models import Collection, Resource
 from apps.knowledge_base.serializers import (
     CollectionReadSerializer,
@@ -23,6 +25,19 @@ from apps.knowledge_base.services import (
 from apps.organizations.models import Organization
 
 
+@extend_schema(
+    tags=["Knowledge Base"],
+    responses={400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer, 500: ErrorSerializer},
+    description=(
+        "Knowledge base collections within an organization.\n\n"
+        "Permissions:\n"
+        "- List/Read: kb:collections:read\n"
+        "- Create: kb:collections:create\n"
+        "- Update: kb:collections:update\n"
+        "- Delete: kb:collections:delete\n"
+        "- Archive/Restore: kb:collections:archive/restore\n"
+    ),
+)
 class CollectionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     lookup_field = "uuid"
@@ -112,6 +127,18 @@ class CollectionViewSet(viewsets.ModelViewSet):
         return Response(CollectionReadSerializer(collection).data)
 
 
+@extend_schema(
+    tags=["Knowledge Base"],
+    responses={400: ErrorSerializer, 403: ErrorSerializer, 404: ErrorSerializer, 500: ErrorSerializer},
+    description=(
+        "Knowledge base resources inside a collection.\n\n"
+        "Permissions:\n"
+        "- List/Read: kb:collections:read\n"
+        "- Create: kb:resources:create\n"
+        "- Delete: kb:resources:delete\n"
+        "- Move/Copy: kb:resources:move / kb:resources:copy\n"
+    ),
+)
 class ResourceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     lookup_field = "uuid"
