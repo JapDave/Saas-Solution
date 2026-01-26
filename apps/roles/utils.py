@@ -4,6 +4,8 @@ from uuid import UUID
 
 from django.db.models import Q
 
+from apps.common.audit import get_audit_context, log_authorization_decision
+
 from apps.roles.constants import ROLE_SAAS_ADMINISTRATOR, SYSTEM_ROLES
 
 if TYPE_CHECKING:
@@ -54,6 +56,13 @@ def has_role(
         True if the user has the role, False otherwise.
     """
     if not user or not getattr(user, "is_authenticated", False):
+        log_authorization_decision(
+            get_audit_context().request,
+            decision=False,
+            roles=[role_name],
+            reason="unauthenticated",
+            resource={"organization_uuid": str(organization_uuid) if organization_uuid else None},
+        )
         return False
 
     normalised_name = (role_name or "").strip()
@@ -78,9 +87,25 @@ def has_role(
             org_filters |= Q(organization_id=org_id)
         if not org_filters:
             return False
-        return assignments.filter(org_filters).exists()
+        decision = assignments.filter(org_filters).exists()
+        log_authorization_decision(
+            get_audit_context().request,
+            decision=decision,
+            roles=[normalised_name],
+            reason=None if decision else "missing_role",
+            resource={"organization_uuid": str(organization_uuid)},
+        )
+        return decision
 
-    return assignments.filter(organization__isnull=True).exists()
+    decision = assignments.filter(organization__isnull=True).exists()
+    log_authorization_decision(
+        get_audit_context().request,
+        decision=decision,
+        roles=[normalised_name],
+        reason=None if decision else "missing_role",
+        resource={"organization_uuid": None},
+    )
+    return decision
 
 
 def has_permission(
@@ -104,6 +129,13 @@ def has_permission(
         True if the user has the permission, False otherwise.
     """
     if not user or not hasattr(user, "is_authenticated") or not user.is_authenticated:
+        log_authorization_decision(
+            get_audit_context().request,
+            decision=False,
+            permission=permission_key,
+            reason="unauthenticated",
+            resource={"organization_uuid": str(organization_uuid)},
+        )
         return False
 
     # Find active assignments for this user that are either for the specified
@@ -112,4 +144,12 @@ def has_permission(
         organization__uuid=organization_uuid,
         is_active=True,
     )
-    return assignments.filter(role__permissions__contains=[permission_key]).exists()
+    decision = assignments.filter(role__permissions__contains=[permission_key]).exists()
+    log_authorization_decision(
+        get_audit_context().request,
+        decision=decision,
+        permission=permission_key,
+        reason=None if decision else "missing_permission",
+        resource={"organization_uuid": str(organization_uuid)},
+    )
+    return decision

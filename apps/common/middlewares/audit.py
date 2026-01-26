@@ -1,48 +1,28 @@
 from __future__ import annotations
 
 import json
-from functools import lru_cache
-from typing import Any, Dict, Optional, Tuple
+import logging
+from typing import Any, Optional, Tuple
 
-from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from django.urls import resolve
 from django.utils.deprecation import MiddlewareMixin
 
+from apps.common.audit import (
+    clear_audit_context,
+    get_client_ip,
+    get_audit_context,
+    get_trace_context,
+    get_user_agent,
+    mask_sensitive,
+    set_audit_context,
+)
 from apps.common.models import AuditLog
 
-
-DEFAULT_SENSITIVE_FIELDS = frozenset({"password", "token", "secret", "logo_url"})
-
-
-@lru_cache(maxsize=1)
-def _sensitive_fields() -> frozenset[str]:
-    """Return the configured set of sensitive payload keys that must be masked."""
-
-    configured = getattr(settings, "AUDIT_LOG_SENSITIVE_FIELDS", None)
-    if not configured:
-        return DEFAULT_SENSITIVE_FIELDS
-
-    if isinstance(configured, (set, frozenset)):
-        return frozenset(str(field) for field in configured)
-    if isinstance(configured, (list, tuple)):
-        return frozenset(str(field) for field in configured)
-
-    return DEFAULT_SENSITIVE_FIELDS
+logger = logging.getLogger(__name__)
 
 
-def _get_client_ip(request: HttpRequest) -> str:
-    """Best-effort resolution of the originating client IP address."""
-
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded:
-        return forwarded.split(",", 1)[0].strip()
-    return request.META.get("REMOTE_ADDR", "") or ""
-
-
-def _try_parse_json_body(request: HttpRequest) -> Optional[Dict[str, Any]]:
-    """Parse the request body as JSON when possible, returning ``None`` otherwise."""
-
+def _try_parse_json_body(request: HttpRequest) -> Optional[dict[str, Any]]:
     content_type = (request.META.get("CONTENT_TYPE") or "").lower()
     if "application/json" not in content_type:
         return None
@@ -56,13 +36,10 @@ def _try_parse_json_body(request: HttpRequest) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _mask_payload(data: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Mask configured sensitive keys within a JSON payload."""
-
+def _mask_payload(data: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
     if not isinstance(data, dict):
         return None
-    sensitive = _sensitive_fields()
-    return {key: ("***" if key in sensitive else value) for key, value in data.items()}
+    return mask_sensitive(data)
 
 
 class AuditLogMiddleware(MiddlewareMixin):
@@ -70,28 +47,19 @@ class AuditLogMiddleware(MiddlewareMixin):
 
     _WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
-    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
-        """Record the request/response metadata while allowing the response to continue."""
-
+    def process_request(self, request: HttpRequest) -> None:
         method = request.method.upper()
-        try:
-            match = resolve(request.path_info)
-            view_name = f"{match.func.__module__}.{getattr(match.func, '__name__', '')}"
-            app_label, model, action = self._infer_ama(match, request.path, method)
-            object_id = self._infer_object_id(match)
-        except Exception:
-            view_name, app_label, model, action, object_id = "", "", "", "", ""
-
+        view_name, app_label, model, action, object_id = self._resolve_request(request, method)
         payload = (
             _mask_payload(_try_parse_json_body(request))
             if method in self._WRITE_METHODS
             else None
         )
-
-        status_code = int(getattr(response, "status_code", 0))
+        trace_id, span_id = get_trace_context()
+        user = request.user if getattr(request, "user", None) and request.user.is_authenticated else None
         try:
-            AuditLog.objects.create(
-                user=(request.user if getattr(request, "user", None) and request.user.is_authenticated else None),
+            audit_log = AuditLog.objects.create(
+                user=user,
                 method=method,
                 path=request.path,
                 view=view_name[:255] if view_name else "",
@@ -99,30 +67,100 @@ class AuditLogMiddleware(MiddlewareMixin):
                 model=model[:63],
                 action=action[:31],
                 object_id=str(object_id or "")[:63],
-                status_code=status_code,
-                success=200 <= status_code < 400,
-                ip_addr=_get_client_ip(request) or None,
+                status_code=0,
+                success=False,
+                ip_addr=get_client_ip(request) or None,
+                user_agent=get_user_agent(request) or None,
+                trace_id=trace_id,
+                span_id=span_id,
                 extra={"payload": payload} if payload else {},
             )
         except Exception:
-            pass
+            audit_log = None
+            logger.exception("Failed to create audit log entry.")
 
+        set_audit_context(
+            audit_log=audit_log,
+            user=user,
+            request=request,
+            trace_id=trace_id,
+            span_id=span_id,
+        )
+
+    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
+        status_code = int(getattr(response, "status_code", 0))
+        current = get_audit_context().audit_log
+
+        if current:
+            try:
+                current.status_code = status_code
+                current.success = 200 <= status_code < 400
+                current._allow_update = True
+                current.save(update_fields=["status_code", "success"])
+            except Exception:
+                logger.exception("Failed to finalize audit log entry.")
+        else:
+            method = request.method.upper()
+            view_name, app_label, model, action, object_id = self._resolve_request(request, method)
+            trace_id, span_id = get_trace_context()
+            user = request.user if getattr(request, "user", None) and request.user.is_authenticated else None
+            try:
+                AuditLog.objects.create(
+                    user=user,
+                    method=method,
+                    path=request.path,
+                    view=view_name[:255] if view_name else "",
+                    app_label=app_label[:63],
+                    model=model[:63],
+                    action=action[:31],
+                    object_id=str(object_id or "")[:63],
+                    status_code=status_code,
+                    success=200 <= status_code < 400,
+                    ip_addr=get_client_ip(request) or None,
+                    user_agent=get_user_agent(request) or None,
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    extra={},
+                )
+            except Exception:
+                logger.exception("Failed to create fallback audit log entry.")
+
+        clear_audit_context()
         return response
 
-    def _infer_ama(self, match, path: str, method: str) -> Tuple[str, str, str]:
-        """Infer ``(app_label, model, action)`` best-effort from the path/method pair."""
+    def process_exception(self, request: HttpRequest, exception: Exception) -> None:
+        clear_audit_context()
 
+    def _resolve_request(
+        self,
+        request: HttpRequest,
+        method: str,
+    ) -> Tuple[str, str, str, str, str]:
+        try:
+            match = resolve(request.path_info)
+            view_name = f"{match.func.__module__}.{getattr(match.func, '__name__', '')}"
+            app_label, model, action = self._infer_ama(match, request.path, method)
+            object_id = self._infer_object_id(match)
+            return view_name, app_label, model, action, object_id
+        except Exception:
+            return "", "", "", "", ""
+
+    def _infer_ama(self, match, path: str, method: str) -> Tuple[str, str, str]:
         lower_path = (path or "").lower()
+        module = getattr(getattr(match, "func", None), "__module__", "") or ""
+        app_label = ""
+        if module.startswith("apps."):
+            parts = module.split(".")
+            if len(parts) > 1:
+                app_label = parts[1]
         if "/organizations" in lower_path:
-            return self._map_action("organizations", "organization", lower_path, method)
+            return self._map_action(app_label or "organizations", "Organization", lower_path, method)
         if "/accounts" in lower_path:
-            return self._map_action("accounts", "account", lower_path, method)
-        return "", "", method.lower()
+            return self._map_action(app_label or "accounts", "Account", lower_path, method)
+        return app_label, "", method.lower()
 
     @staticmethod
     def _map_action(app: str, model: str, path: str, method: str) -> Tuple[str, str, str]:
-        """Translate the HTTP method (and path nuance) into an audit action."""
-
         if method == "POST":
             action = "assign_owner" if any(segment in path for segment in ("/assign-owner", "/owner/assign")) else "create"
         elif method in {"PUT", "PATCH"}:
@@ -135,7 +173,5 @@ class AuditLogMiddleware(MiddlewareMixin):
 
     @staticmethod
     def _infer_object_id(match) -> str:
-        """Return the best-effort identifier (uuid/pk/id) extracted from the resolver match."""
-
         kwargs = getattr(match, "kwargs", {}) or {}
         return str(kwargs.get("uuid") or kwargs.get("pk") or kwargs.get("id") or "")

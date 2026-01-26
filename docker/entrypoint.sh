@@ -48,9 +48,15 @@ fi
 # Collect static (no-op if none)
 python manage.py collectstatic --noinput || true
 
-# Run dev server if DEBUG=1, else gunicorn
-if [ "${DEBUG:-0}" = "1" ]; then
-  python manage.py runserver 0.0.0.0:8000
-else
-  gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
-fi
+# Always run Gunicorn with TLS termination
+CERT_FILE="${CERT_FILE:-certs/hudhud.local.pem}"
+KEY_FILE="${KEY_FILE:-certs/hudhud.local-key.pem}"
+GUNICORN_PORT="${GUNICORN_PORT:-8443}"
+GUNICORN_WORKERS="${GUNICORN_WORKERS:-3}"
+
+gunicorn config.wsgi:application \
+  --bind 0.0.0.0:"${GUNICORN_PORT}" \
+  --workers "${GUNICORN_WORKERS}" \
+  --timeout 120 \
+  --certfile "${CERT_FILE}" \
+  --keyfile "${KEY_FILE}"

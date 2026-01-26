@@ -17,6 +17,7 @@ from apps.common.exceptions import (
     USER_UPDATE_FAILED,
 )
 from apps.common.models import AuditLog
+from apps.common.audit import get_client_ip, get_trace_context, get_user_agent
 from apps.roles.models import RoleAssignment
 
 from .models import UserOrganization
@@ -54,6 +55,7 @@ class UserViewSet(viewsets.ModelViewSet):
         status_code: int,
         extra: dict | None = None,
     ) -> None:
+        trace_id, span_id = get_trace_context()
         AuditLog.objects.create(
             user=request.user,
             method=request.method,
@@ -65,6 +67,10 @@ class UserViewSet(viewsets.ModelViewSet):
             object_id=str(object_id or ""),
             status_code=status_code,
             success=200 <= status_code < 400,
+            ip_addr=get_client_ip(request) or None,
+            user_agent=get_user_agent(request) or None,
+            trace_id=trace_id,
+            span_id=span_id,
             extra=extra or {},
         )
 

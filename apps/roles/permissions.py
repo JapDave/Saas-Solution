@@ -7,6 +7,7 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 from apps.accounts.models import Account
 from apps.accounts.services import get_assigned_account_ids
+from apps.common.audit import log_authorization_decision
 from apps.roles.constants import (
     ROLE_ACCOUNT_ADMINISTRATOR,
     ROLE_ACCOUNT_OWNER,
@@ -16,6 +17,17 @@ from apps.roles.constants import (
     ROLE_SAAS_ADMINISTRATOR,
 )
 from apps.roles.utils import has_permission, has_role
+
+
+def _log_decision(request, *, decision: bool, permission: str | None = None, roles: list[str] | None = None, reason: str | None = None, resource: dict | None = None) -> None:
+    log_authorization_decision(
+        request,
+        decision=decision,
+        permission=permission,
+        roles=roles,
+        reason=reason,
+        resource=resource,
+    )
 
 
 class AnyOf(BasePermission):
@@ -63,11 +75,28 @@ class BaseRolePermission(BasePermission):
 
     def has_permission(self, request, view):
         user = getattr(request, "user", None)
+        kwargs = getattr(view, "kwargs", {})
+        organization_uuid = kwargs.get("organization_uuid") or kwargs.get("uuid")
         if not user or not getattr(user, "is_authenticated", False):
+            _log_decision(
+                request,
+                decision=False,
+                roles=sorted(self.required_roles),
+                reason="unauthenticated",
+                resource={"organization_uuid": organization_uuid},
+            )
             return False
 
         user_roles = self._get_user_roles(request, view)
-        return bool(self.required_roles.intersection(user_roles))
+        decision = bool(self.required_roles.intersection(user_roles))
+        _log_decision(
+            request,
+            decision=decision,
+            roles=sorted(self.required_roles),
+            reason=None if decision else "missing_role",
+            resource={"organization_uuid": organization_uuid},
+        )
+        return decision
 
 
 class IsSaaSAdmin(BasePermission):
@@ -112,30 +141,95 @@ class AccountPermission(BasePermission):
     def has_permission(self, request, view):
         user = getattr(request, "user", None)
         if not user or not user.is_authenticated:
+            _log_decision(
+                request,
+                decision=False,
+                permission="accounts:access",
+                reason="unauthenticated",
+            )
             return False
 
         if user.is_superuser or has_role(user, ROLE_SAAS_ADMINISTRATOR):
+            _log_decision(
+                request,
+                decision=True,
+                permission="accounts:access",
+                roles=[ROLE_SAAS_ADMINISTRATOR],
+            )
             return True
 
         action = getattr(view, "action", None)
         if action == "list":
-            return has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False)
+            decision = has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False)
+            _log_decision(
+                request,
+                decision=decision,
+                permission="accounts:list",
+                roles=[ROLE_SAAS_ACCOUNT_MANAGER],
+                reason=None if decision else "missing_role",
+            )
+            return decision
         if action == "create":
-            return has_role(user, ROLE_SAAS_ADMINISTRATOR)
+            decision = has_role(user, ROLE_SAAS_ADMINISTRATOR)
+            _log_decision(
+                request,
+                decision=decision,
+                permission="accounts:create",
+                roles=[ROLE_SAAS_ADMINISTRATOR],
+                reason=None if decision else "missing_role",
+            )
+            return decision
+        _log_decision(
+            request,
+            decision=True,
+            permission="accounts:object",
+            reason="defer_object",
+        )
         return True  # defer to object checks
 
     def has_object_permission(self, request, view, obj):
         user = getattr(request, "user", None)
         if not user or not user.is_authenticated:
+            _log_decision(
+                request,
+                decision=False,
+                permission="accounts:object",
+                reason="unauthenticated",
+                resource={"object_id": getattr(obj, "id", None)},
+            )
             return False
 
         if user.is_superuser or has_role(user, ROLE_SAAS_ADMINISTRATOR):
+            _log_decision(
+                request,
+                decision=True,
+                permission="accounts:object",
+                roles=[ROLE_SAAS_ADMINISTRATOR],
+                resource={"object_id": getattr(obj, "id", None)},
+            )
             return True
 
         if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False):
-            return request.method in SAFE_METHODS
+            decision = request.method in SAFE_METHODS
+            _log_decision(
+                request,
+                decision=decision,
+                permission="accounts:read",
+                roles=[ROLE_SAAS_ACCOUNT_MANAGER],
+                reason=None if decision else "unsafe_method",
+                resource={"object_id": getattr(obj, "id", None)},
+            )
+            return decision
 
-        return getattr(obj, "created_by_id", None) == getattr(user, "id", None)
+        decision = getattr(obj, "created_by_id", None) == getattr(user, "id", None)
+        _log_decision(
+            request,
+            decision=decision,
+            permission="accounts:owner",
+            reason=None if decision else "not_owner",
+            resource={"object_id": getattr(obj, "id", None)},
+        )
+        return decision
 
 
 class OrganizationPermission(BasePermission):
@@ -144,53 +238,156 @@ class OrganizationPermission(BasePermission):
     def has_permission(self, request, view):
         user = getattr(request, "user", None)
         if not user or not user.is_authenticated:
+            _log_decision(
+                request,
+                decision=False,
+                permission="organizations:access",
+                reason="unauthenticated",
+            )
             return False
 
         if user.is_superuser or has_role(user, ROLE_SAAS_ADMINISTRATOR):
+            _log_decision(
+                request,
+                decision=True,
+                permission="organizations:access",
+                roles=[ROLE_SAAS_ADMINISTRATOR],
+            )
             return True
 
         action = getattr(view, "action", None)
         if action == "create":
             account_id = getattr(request, "data", {}).get("account")
             if account_id is None:
+                _log_decision(
+                    request,
+                    decision=False,
+                    permission="organizations:create",
+                    reason="missing_account",
+                )
                 return False
             try:
                 account_id = int(account_id)
             except (TypeError, ValueError):
+                _log_decision(
+                    request,
+                    decision=False,
+                    permission="organizations:create",
+                    reason="invalid_account",
+                )
                 return False
 
             if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False):
-                return account_id in get_assigned_account_ids(user)
+                decision = account_id in get_assigned_account_ids(user)
+                _log_decision(
+                    request,
+                    decision=decision,
+                    permission="organizations:create",
+                    roles=[ROLE_SAAS_ACCOUNT_MANAGER],
+                    reason=None if decision else "account_not_assigned",
+                    resource={"account_id": account_id},
+                )
+                return decision
 
-            return Account.objects.filter(id=account_id, created_by_id=user.id).exists()
+            decision = Account.objects.filter(id=account_id, created_by_id=user.id).exists()
+            _log_decision(
+                request,
+                decision=decision,
+                permission="organizations:create",
+                reason=None if decision else "account_not_owned",
+                resource={"account_id": account_id},
+            )
+            return decision
 
+        _log_decision(
+            request,
+            decision=True,
+            permission="organizations:object",
+            reason="defer_object",
+        )
         return True
 
     def has_object_permission(self, request, view, obj):
         user = getattr(request, "user", None)
         if not user or not user.is_authenticated:
+            _log_decision(
+                request,
+                decision=False,
+                permission="organizations:object",
+                reason="unauthenticated",
+                resource={"organization_id": getattr(obj, "id", None)},
+            )
             return False
 
         if user.is_superuser or has_role(user, ROLE_SAAS_ADMINISTRATOR):
+            _log_decision(
+                request,
+                decision=True,
+                permission="organizations:object",
+                roles=[ROLE_SAAS_ADMINISTRATOR],
+                resource={"organization_id": getattr(obj, "id", None)},
+            )
             return True
 
         assigned_accounts = get_assigned_account_ids(user)
         if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False):
-            return getattr(obj, "account_id", None) in assigned_accounts
+            decision = getattr(obj, "account_id", None) in assigned_accounts
+            _log_decision(
+                request,
+                decision=decision,
+                permission="organizations:object",
+                roles=[ROLE_SAAS_ACCOUNT_MANAGER],
+                reason=None if decision else "account_not_assigned",
+                resource={"organization_id": getattr(obj, "id", None)},
+            )
+            return decision
 
         org_uuid = getattr(obj, "uuid", None)
         if org_uuid and has_role(user, ROLE_ORGANIZATION_OWNER, organization_uuid=org_uuid):
+            _log_decision(
+                request,
+                decision=True,
+                permission="organizations:owner",
+                roles=[ROLE_ORGANIZATION_OWNER],
+                resource={"organization_uuid": str(org_uuid)},
+            )
             return True
         if org_uuid and has_role(user, ROLE_ORGANIZATION_ADMINISTRATOR, organization_uuid=org_uuid):
+            _log_decision(
+                request,
+                decision=True,
+                permission="organizations:admin",
+                roles=[ROLE_ORGANIZATION_ADMINISTRATOR],
+                resource={"organization_uuid": str(org_uuid)},
+            )
             return True
 
         if getattr(obj, "created_by_id", None) == getattr(user, "id", None):
+            _log_decision(
+                request,
+                decision=True,
+                permission="organizations:creator",
+                resource={"organization_id": getattr(obj, "id", None)},
+            )
             return True
 
         account = getattr(obj, "account", None)
         if account and getattr(account, "created_by_id", None) == getattr(user, "id", None):
+            _log_decision(
+                request,
+                decision=True,
+                permission="organizations:account_owner",
+                resource={"organization_id": getattr(obj, "id", None)},
+            )
             return True
 
+        _log_decision(
+            request,
+            decision=False,
+            permission="organizations:object",
+            reason="no_access",
+            resource={"organization_id": getattr(obj, "id", None)},
+        )
         return False
 
 
@@ -235,8 +432,4 @@ class HasPermission(BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-
-
-        return has_permission(
-            request.user, self.permission_key, self.organization_uuid
-        )
+        return has_permission(request.user, self.permission_key, self.organization_uuid)
