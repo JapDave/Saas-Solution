@@ -30,6 +30,11 @@ services:
       CERT_FILE: /app/certs/hudhud.local.pem
       KEY_FILE: /app/certs/hudhud.local-key.pem
       GUNICORN_WORKERS: 3
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${APM_OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${APM_OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_EXPORTER_OTLP_INSECURE: ${APM_OTEL_EXPORTER_OTLP_INSECURE:-true}
+      OTEL_SERVICE_NAME: ${APM_SERVICE_NAME:-platform}
+      OTEL_LOG_LEVEL: debug
     ports: ["8000:8000", "8443:8443"]
     volumes:
       - ..:/app
@@ -45,7 +50,10 @@ services:
       - "4317:4317"
       - "4318:4318"
     depends_on:
-      - db
+      db:
+        condition: service_started
+      tempo:
+        condition: service_started
   tempo:
     image: grafana/tempo:2.4.1
     command: ["-config.file=/etc/tempo/tempo.yaml"]
@@ -53,8 +61,6 @@ services:
       - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
     ports:
       - "3200:3200"
-    depends_on:
-      - otel-collector
   loki:
     image: grafana/loki:2.9.4
     command: ["-config.file=/etc/loki/loki.yaml"]

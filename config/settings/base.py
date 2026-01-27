@@ -297,6 +297,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.common.middlewares.tracing.TracingMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "apps.common.middlewares.audit.AuditLogMiddleware",
 ]

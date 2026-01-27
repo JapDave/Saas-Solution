@@ -48,15 +48,47 @@ fi
 # Collect static (no-op if none)
 python manage.py collectstatic --noinput || true
 
-# Always run Gunicorn with TLS termination
+# Build gunicorn command with TLS
 CERT_FILE="${CERT_FILE:-certs/hudhud.local.pem}"
 KEY_FILE="${KEY_FILE:-certs/hudhud.local-key.pem}"
 GUNICORN_PORT="${GUNICORN_PORT:-8443}"
 GUNICORN_WORKERS="${GUNICORN_WORKERS:-3}"
 
-gunicorn config.wsgi:application \
-  --bind 0.0.0.0:"${GUNICORN_PORT}" \
-  --workers "${GUNICORN_WORKERS}" \
-  --timeout 120 \
-  --certfile "${CERT_FILE}" \
+BASE_CMD=(
+  gunicorn config.wsgi:application
+  --bind "0.0.0.0:${GUNICORN_PORT}"
+  --workers "${GUNICORN_WORKERS}"
+  --timeout 120
+  --certfile "${CERT_FILE}"
   --keyfile "${KEY_FILE}"
+)
+
+APM_PROVIDER="$(echo "${APM_PROVIDER:-}" | tr -d '\r' | tr '[:lower:]' '[:upper:]')"
+
+case "${APM_PROVIDER}" in
+  "OTEL")
+    # Map APM_* variables to standard OTEL_* envs if not already set
+    export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-${APM_SERVICE_NAME:-platform}}"
+    export OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-service.namespace=${APM_SERVICE_NAMESPACE:-hudhud},deployment.environment=${APM_ENVIRONMENT:-local}}"
+    export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-${APM_OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}}"
+    export OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-${APM_OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}}"
+    export OTEL_EXPORTER_OTLP_INSECURE="${OTEL_EXPORTER_OTLP_INSECURE:-${APM_OTEL_EXPORTER_OTLP_INSECURE:-true}}"
+    export OTEL_TRACES_EXPORTER="${OTEL_TRACES_EXPORTER:-otlp}"
+    export OTEL_METRICS_EXPORTER="${OTEL_METRICS_EXPORTER:-none}"
+    export OTEL_LOG_LEVEL="${OTEL_LOG_LEVEL:-info}"
+
+    echo "[ENTRYPOINT] APM_PROVIDER=OTEL -> opentelemetry-instrument (endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}, protocol=${OTEL_EXPORTER_OTLP_PROTOCOL}, service=${OTEL_SERVICE_NAME})"
+
+    exec opentelemetry-instrument \
+      --traces_exporter otlp \
+      --metrics_exporter none \
+      --service_name "${APM_SERVICE_NAME:-platform}" \
+      "${BASE_CMD[@]}"
+    ;;
+  "DATADOG")
+    exec ddtrace-run "${BASE_CMD[@]}"
+    ;;
+  *)
+    exec "${BASE_CMD[@]}"
+    ;;
+esac
