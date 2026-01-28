@@ -1,0 +1,6 @@
+# Ensure shell scripts always use LF line endings
+*.sh text eol=lf
+docker/**/*.sh text eol=lf
+
+# Ensure other text files use system default (but can be overridden)
+* text=auto
