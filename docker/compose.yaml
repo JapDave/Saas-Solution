@@ -26,10 +26,86 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DB_HOST: db
       DB_PORT: 5432
-    ports: ["8000:8000"]
+      GUNICORN_PORT: 8000
+      CERT_FILE: /app/certs/hudhud.local.pem
+      KEY_FILE: /app/certs/hudhud.local-key.pem
+      GUNICORN_WORKERS: 3
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${APM_OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${APM_OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_EXPORTER_OTLP_INSECURE: ${APM_OTEL_EXPORTER_OTLP_INSECURE:-true}
+      OTEL_SERVICE_NAME: ${APM_SERVICE_NAME:-platform}
+      OTEL_LOG_LEVEL: debug
+    # No host ports published; traffic goes via nginx. Enable manual publishes only if you want direct access.
     volumes:
       - ..:/app
+      - ../certs:/app/certs:ro
     command: ["bash", "docker/entrypoint.sh"]
+
+  nginx:
+    image: nginx:1.25-alpine
+    depends_on:
+      - web
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../certs:/etc/nginx/certs:ro
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.95.0
+    command: ["--config=/etc/otel/otel-collector.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel/otel-collector.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      db:
+        condition: service_started
+      tempo:
+        condition: service_started
+  tempo:
+    image: grafana/tempo:2.4.1
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
+    ports:
+      - "3200:3200"
+  loki:
+    image: grafana/loki:2.9.4
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./loki.yaml:/etc/loki/loki.yaml:ro
+    ports:
+      - "3100:3100"
+    depends_on:
+      - otel-collector
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+  grafana:
+    image: grafana/grafana:10.4.2
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - tempo
+      - prometheus
+      - loki
 
 volumes:
   pgdata:
+  grafana-data:

@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.common.models import AuditLog
+
 
 class CharFieldStrict(serializers.CharField):
     """Reject non-strings before DRF coerces them."""
@@ -30,3 +32,29 @@ class ErrorSerializer(serializers.Serializer):
     message = serializers.CharField()
     details = ErrorDetailsSerializer()
     timestamp = serializers.CharField()
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AuditLog
+        fields = [
+            "id",
+            "uuid",
+            "created_at",
+            "user",
+            "method",
+            "path",
+            "view",
+            "app_label",
+            "model",
+            "action",
+            "object_id",
+            "status_code",
+            "success",
+            "ip_addr",
+            "user_agent",
+            "trace_id",
+            "span_id",
+            "extra",
+        ]
+        read_only_fields = fields

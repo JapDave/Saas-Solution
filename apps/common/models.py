@@ -52,6 +52,7 @@ class BaseModel(models.Model):
 
 class AuditLog(models.Model):
     """Simple audit log record."""
+    uuid = models.UUIDField(_("UUID"), unique=True, default=uuid.uuid4, editable=False, db_index=True)
     created_at = models.DateTimeField(_("Created at"), default=timezone.now, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, verbose_name=_("User"))
     method = models.CharField(_("HTTP method"), max_length=8)
@@ -64,6 +65,9 @@ class AuditLog(models.Model):
     status_code = models.IntegerField(_("Status code"))
     success = models.BooleanField(_("Was successful"), default=False)
     ip_addr = models.GenericIPAddressField(_("IP address"), null=True, blank=True)
+    user_agent = models.CharField(_("User agent"), max_length=512, null=True, blank=True)
+    trace_id = models.CharField(_("Trace id"), max_length=64, null=True, blank=True, db_index=True)
+    span_id = models.CharField(_("Span id"), max_length=64, null=True, blank=True)
     extra = models.JSONField(_("Extra metadata"), default=dict, blank=True)
 
     class Meta:
@@ -71,4 +75,56 @@ class AuditLog(models.Model):
             models.Index(fields=["created_at"]),
             models.Index(fields=["path"]),
             models.Index(fields=["app_label", "model", "action"]),
+            models.Index(fields=["trace_id"]),
+            models.Index(fields=["user", "created_at"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk and not getattr(self, "_allow_update", False):
+            raise ValueError("AuditLog entries are immutable.")
+        return super().save(*args, **kwargs)
+
+
+class DataChangeLog(models.Model):
+    """Tracks per-model data changes with before/after values."""
+    ACTION_CHOICES = (
+        ("create", "create"),
+        ("update", "update"),
+        ("delete", "delete"),
+        ("restore", "restore"),
+    )
+    uuid = models.UUIDField(_("UUID"), unique=True, default=uuid.uuid4, editable=False, db_index=True)
+    created_at = models.DateTimeField(_("Created at"), default=timezone.now, db_index=True)
+    audit_log = models.ForeignKey(
+        AuditLog,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="data_changes",
+        verbose_name=_("Audit log"),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name=_("User"),
+    )
+    app_label = models.CharField(_("App label"), max_length=64, db_index=True)
+    model_name = models.CharField(_("Model name"), max_length=64, db_index=True)
+    object_id = models.CharField(_("Object ID"), max_length=64, db_index=True)
+    action = models.CharField(_("Action"), max_length=16, choices=ACTION_CHOICES)
+    changed_fields = models.JSONField(_("Changed fields"))
+    changed_fields_summary = models.CharField(_("Changed fields summary"), max_length=255)
+    trace_id = models.CharField(_("Trace id"), max_length=64, null=True, blank=True, db_index=True)
+    span_id = models.CharField(_("Span id"), max_length=64, null=True, blank=True)
+    extra = models.JSONField(_("Extra metadata"), default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["app_label", "model_name", "object_id"]),
+            models.Index(fields=["audit_log"]),
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["trace_id"]),
         ]
