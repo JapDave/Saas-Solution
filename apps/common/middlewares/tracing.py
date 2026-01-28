@@ -3,11 +3,14 @@ Lightweight OTEL tracing middleware to emit a span per HTTP request.
 Designed as a fallback when auto-instrumentation is unavailable.
 """
 from time import perf_counter
-from opentelemetry import trace
+from opentelemetry import trace, metrics
 from opentelemetry.trace import Status, StatusCode
 
-
-tracer = trace.get_tracer("hudhud.web")
+meter = metrics.get_meter("hudhud.web")
+request_counter = meter.create_counter("http.server.request.count", description="Total HTTP requests")
+duration_hist = meter.create_histogram(
+    "http.server.request.duration.ms", description="Request duration in milliseconds"
+)
 
 
 class TracingMiddleware:
@@ -15,6 +18,7 @@ class TracingMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        tracer = trace.get_tracer("hudhud.web")
         start = perf_counter()
         span = tracer.start_span(
             name=f"{request.method} {request.path}",
@@ -43,3 +47,10 @@ class TracingMiddleware:
                 if getattr(user, "email", None):
                     span.set_attribute("enduser.email", user.email)
             span.end()
+            attrs = {
+                "http.method": request.method,
+                "http.route": span.attributes.get("http.route", request.path),
+                "http.status_code": getattr(response, "status_code", 0) if "response" in locals() else 0,
+            }
+            request_counter.add(1, attributes=attrs)
+            duration_hist.record(elapsed_ms, attributes=attrs)

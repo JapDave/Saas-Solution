@@ -51,17 +51,24 @@ python manage.py collectstatic --noinput || true
 # Build gunicorn command with TLS
 CERT_FILE="${CERT_FILE:-certs/hudhud.local.pem}"
 KEY_FILE="${KEY_FILE:-certs/hudhud.local-key.pem}"
-GUNICORN_PORT="${GUNICORN_PORT:-8443}"
+GUNICORN_PORT="${GUNICORN_PORT:-8000}"
+GUNICORN_TLS_PORT="${GUNICORN_TLS_PORT:-9443}"
 GUNICORN_WORKERS="${GUNICORN_WORKERS:-3}"
+MANAGE_SSL_DIRECTLY="$(echo "${MANAGE_SSL_DIRECTLY:-false}" | tr '[:upper:]' '[:lower:]')"
+SECURED_PLATFORM="$(echo "${secured_platform:-${SECURED_PLATFORM:-true}}" | tr '[:upper:]' '[:lower:]')"
 
+# Build gunicorn command with optional TLS (direct mode)
 BASE_CMD=(
   gunicorn config.wsgi:application
-  --bind "0.0.0.0:${GUNICORN_PORT}"
   --workers "${GUNICORN_WORKERS}"
   --timeout 120
-  --certfile "${CERT_FILE}"
-  --keyfile "${KEY_FILE}"
 )
+
+if [ "${MANAGE_SSL_DIRECTLY}" = "true" ] && [ "${SECURED_PLATFORM}" = "true" ] && [ -f "${CERT_FILE}" ] && [ -f "${KEY_FILE}" ]; then
+  BASE_CMD+=(--bind "0.0.0.0:${GUNICORN_TLS_PORT}" --certfile "${CERT_FILE}" --keyfile "${KEY_FILE}")
+else
+  BASE_CMD+=(--bind "0.0.0.0:${GUNICORN_PORT}")
+fi
 
 APM_PROVIDER="$(echo "${APM_PROVIDER:-}" | tr -d '\r' | tr '[:lower:]' '[:upper:]')"
 
@@ -76,14 +83,12 @@ case "${APM_PROVIDER}" in
     export OTEL_TRACES_EXPORTER="${OTEL_TRACES_EXPORTER:-otlp}"
     export OTEL_METRICS_EXPORTER="${OTEL_METRICS_EXPORTER:-none}"
     export OTEL_LOG_LEVEL="${OTEL_LOG_LEVEL:-info}"
+    # Disable noisy auto-instrumentations; rely on custom middleware + manual OTEL init in settings.
+    export OTEL_PYTHON_DISABLED_INSTRUMENTATIONS="${OTEL_PYTHON_DISABLED_INSTRUMENTATIONS:-all}"
 
-    echo "[ENTRYPOINT] APM_PROVIDER=OTEL -> opentelemetry-instrument (endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}, protocol=${OTEL_EXPORTER_OTLP_PROTOCOL}, service=${OTEL_SERVICE_NAME})"
+    echo "[ENTRYPOINT] APM_PROVIDER=OTEL -> native OTLP export (endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}, protocol=${OTEL_EXPORTER_OTLP_PROTOCOL}, service=${OTEL_SERVICE_NAME})"
 
-    exec opentelemetry-instrument \
-      --traces_exporter otlp \
-      --metrics_exporter none \
-      --service_name "${APM_SERVICE_NAME:-platform}" \
-      "${BASE_CMD[@]}"
+    exec "${BASE_CMD[@]}"
     ;;
   "DATADOG")
     exec ddtrace-run "${BASE_CMD[@]}"

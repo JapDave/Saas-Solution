@@ -1,32 +1,10 @@
 import os
-import ssl
 from pathlib import Path
 from datetime import timedelta
 from typing import Iterable
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-
-_DEFAULT_SSL_VERSION = getattr(ssl, "PROTOCOL_TLS_SERVER", ssl.PROTOCOL_TLS)
-
-def _wrap_socket_compat(
-    socket,
-    certfile=None,
-    keyfile=None,
-    server_side=False,
-    ssl_version=None,
-    cert_reqs=None,
-    **kwargs,
-):
-    context = ssl.SSLContext(ssl_version or _DEFAULT_SSL_VERSION)
-    if certfile:
-        context.load_cert_chain(certfile, keyfile)
-    if cert_reqs is not None:
-        context.verify_mode = cert_reqs
-    return context.wrap_socket(socket, server_side=server_side, **kwargs)
-
-if not hasattr(ssl, "wrap_socket"):
-    ssl.wrap_socket = _wrap_socket_compat
 
 BASE_DIR = Path(__file__).resolve().parents[2]  # …/hudhud_backend
 load_dotenv(BASE_DIR / ".env")
@@ -110,6 +88,9 @@ def _get_config(
 
     if value not in (None, ""):
         return value
+    # If required and a default is provided, return the default.
+    if required and default is not None:
+        return default
     if required:
         raise RuntimeError(f"Missing required configuration value: {key}")
     return default
@@ -155,8 +136,10 @@ def _origin_from_url(url: str | None) -> str:
 
 _platform_hosts = [host for host in ([PLATFORM_URL] + EXTRA_PLATFORM_DOMAINS) if host]
 _platform_hosts_with_port = [_with_port(host) for host in _platform_hosts]
-_allowed_hosts = set(_split_csv(os.getenv("ALLOWED_HOSTS", "")))
-_allowed_hosts.update(_platform_hosts)
+
+# Derive ALLOWED_HOSTS purely from platform settings; do not read ALLOWED_HOSTS env.
+_allowed_hosts = set(_platform_hosts)
+_allowed_hosts.update(_platform_hosts_with_port)
 ALLOWED_HOSTS = sorted(h for h in _allowed_hosts if h) or ["*"]
 
 # -------------------------------------------------------------------
@@ -225,6 +208,80 @@ if ENABLE_APM:
             raise RuntimeError(f"Missing required APM configuration: {key}")
     if APM_PROVIDER != "OTEL" and ENABLE_OTEL_LOGS_EXPORTER:
         raise RuntimeError("ENABLE_OTEL_LOGS_EXPORTER can only be true when APM_PROVIDER=OTEL")
+
+    # Initialize OTEL exporter (traces, and logs if enabled)
+    if APM_PROVIDER == "OTEL":
+        try:  # pragma: no cover
+            from opentelemetry import trace
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+            from opentelemetry.sdk.resources import Resource
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+            from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+            from opentelemetry import metrics
+            from opentelemetry.sdk.metrics import MeterProvider
+            from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+
+            otlp_endpoint = _get_config("OTEL_EXPORTER_OTLP_ENDPOINT", default="http://otel-collector:4317")
+            otlp_insecure = str(_get_config("OTEL_EXPORTER_OTLP_INSECURE", default="true")).lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            sample_rate = float(_get_config("APM_OTEL_SAMPLE_RATE", default="1.0") or 1.0)
+
+            resource = Resource.create(
+                {
+                    "service.name": APM_SERVICE_NAME,
+                    "service.namespace": APM_SERVICE_NAMESPACE,
+                    "deployment.environment": APM_ENVIRONMENT,
+                }
+            )
+            sampler = TraceIdRatioBased(min(max(sample_rate, 0.0), 1.0))
+            provider = TracerProvider(resource=resource, sampler=sampler)
+            processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint, insecure=otlp_insecure))
+            provider.add_span_processor(processor)
+            if DEBUG or _truthy(_get_config("APM_DEBUG", default="false")):
+                try:
+                    from opentelemetry.exporter.console import ConsoleSpanExporter
+
+                    provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+                except Exception:
+                    pass
+            trace.set_tracer_provider(provider)
+
+            # Metrics provider -> Prometheus via collector
+            metric_exporter = OTLPMetricExporter(
+                endpoint=otlp_endpoint,
+                insecure=otlp_insecure,
+            )
+            reader = PeriodicExportingMetricReader(metric_exporter, export_interval_millis=10000)
+            meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
+            metrics.set_meter_provider(meter_provider)
+
+            if ENABLE_OTEL_LOGS_EXPORTER:
+                import logging
+                from opentelemetry._logs import set_logger_provider
+                from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+                from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+                from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+
+                try:
+                    logger_provider = LoggerProvider(resource=resource)
+                    logger_processor = BatchLogRecordProcessor(
+                        OTLPLogExporter(endpoint=otlp_endpoint, insecure=otlp_insecure)
+                    )
+                    logger_provider.add_log_record_processor(logger_processor)
+                    set_logger_provider(logger_provider)
+
+                    handler = LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)
+                    logging.getLogger().addHandler(handler)
+                except Exception as log_exc:
+                    print(f"[APM] Failed to init OTEL log exporter: {log_exc}")
+        except Exception as exc:
+            raise RuntimeError(f"Failed to initialize OTEL exporter: {exc}")
 
 ELASTIC_APM_SERVER_URL = _get_config("ELASTIC_APM_SERVER_URL", default="")
 ELASTIC_APM_SECRET_TOKEN = _get_config("ELASTIC_APM_SECRET_TOKEN", default="")
