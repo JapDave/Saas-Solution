@@ -252,6 +252,18 @@ if ENABLE_APM:
                     pass
             trace.set_tracer_provider(provider)
 
+            # Enable manual database instrumentation for database query spans
+            # We use psycopg3, so psycopg2 instrumentation won't work
+            # DjangoInstrumentor conflicts with our custom TracingMiddleware, so we use manual instrumentation
+            try:
+                from apps.common.instrumentation.database import instrument_database
+                instrument_database()
+                print("[APM] Enabled manual database instrumentation for query spans")
+            except Exception as db_instr_exc:
+                print(f"[APM] Failed to enable database instrumentation: {db_instr_exc}")
+                import traceback
+                traceback.print_exc()
+
             # Metrics provider -> Prometheus via collector
             metric_exporter = OTLPMetricExporter(
                 endpoint=otlp_endpoint,
@@ -277,7 +289,9 @@ if ENABLE_APM:
                     set_logger_provider(logger_provider)
 
                     handler = LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)
-                    logging.getLogger().addHandler(handler)
+                    root_logger = logging.getLogger()
+                    root_logger.setLevel(logging.DEBUG)
+                    root_logger.addHandler(handler)
                 except Exception as log_exc:
                     print(f"[APM] Failed to init OTEL log exporter: {log_exc}")
         except Exception as exc:

@@ -84,7 +84,7 @@ case "${APM_PROVIDER}" in
     export OTEL_METRICS_EXPORTER="${OTEL_METRICS_EXPORTER:-none}"
     export OTEL_LOG_LEVEL="${OTEL_LOG_LEVEL:-info}"
     # Disable noisy auto-instrumentations; rely on custom middleware + manual OTEL init in settings.
-    export OTEL_PYTHON_DISABLED_INSTRUMENTATIONS="${OTEL_PYTHON_DISABLED_INSTRUMENTATIONS:-all}"
+    # export OTEL_PYTHON_DISABLED_INSTRUMENTATIONS="${OTEL_PYTHON_DISABLED_INSTRUMENTATIONS:-requests,urllib3}"
 
     echo "[ENTRYPOINT] APM_PROVIDER=OTEL -> native OTLP export (endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}, protocol=${OTEL_EXPORTER_OTLP_PROTOCOL}, service=${OTEL_SERVICE_NAME})"
 
