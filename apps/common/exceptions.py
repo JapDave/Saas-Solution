@@ -12,6 +12,14 @@ from drf_standardized_errors.types import ErrorResponse
 from rest_framework.exceptions import APIException
 from rest_framework.exceptions import ValidationError
 
+# ---- Auth codes -------------------------------------------------------------
+INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+SESSION_EXPIRED = "SESSION_EXPIRED"
+SESSION_REVOKED = "SESSION_REVOKED"
+SESSION_CONCURRENCY_LIMIT = "SESSION_CONCURRENCY_LIMIT"
+CONTEXT_SWITCH_FORBIDDEN = "CONTEXT_SWITCH_FORBIDDEN"
+PASSWORD_POLICY_VIOLATION = "PASSWORD_POLICY_VIOLATION"
+LOGIN_RATE_LIMIT = "LOGIN_RATE_LIMIT"
 # ---- Account codes ----------------------------------------------------------
 ACCOUNT_NOT_FOUND = "ACCOUNT_NOT_FOUND"
 INSUFFICIENT_PERMISSIONS = "INSUFFICIENT_PERMISSIONS"
