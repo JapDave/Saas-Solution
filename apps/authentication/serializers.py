@@ -144,12 +144,22 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
             .values_list("organization_id", flat=True)
             .first()
         )
+
         if active_membership:
             access["active_organization_id"] = active_membership
             refresh["active_organization_id"] = active_membership
+            hours = _session_duration_hours(active_membership)
+        elif self.user.is_superuser:
+            # Superusers may log in without org membership; fall back to default session duration.
+            hours = getattr(settings, "AUTH_SESSION_DURATION_DEFAULT_HOURS", 24) or 24
+        else:
+            raise CustomError(
+                code=SESSION_EXPIRED,
+                detail="Organization context required for session duration.",
+                status_code=400,
+            )
 
-        # Adjust refresh lifetime based on org subscription config
-        hours = _session_duration_hours(active_membership)
+        # Adjust refresh lifetime based on resolved session duration
         refresh.set_exp(lifetime=timedelta(hours=hours))
         ip = _client_ip(request)
         ua = _user_agent(request)
