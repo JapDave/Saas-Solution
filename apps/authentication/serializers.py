@@ -161,7 +161,6 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
             access_jti=access["jti"],
             refresh_jti=refresh["jti"],
             access_expires_at=_dt_from_timestamp(access["exp"]),
-            refresh_expires_at=_dt_from_timestamp(refresh["exp"]),
             ip_address=ip,
             user_agent=ua,
         )
@@ -182,7 +181,24 @@ class SessionTokenRefreshSerializer(TokenRefreshSerializer):
     }
 
     def validate(self, attrs):
-        data = super().validate(attrs)
+        try:
+            data = super().validate(attrs)
+        except Exception:
+            # Attempt to mark session as deactivated when refresh is invalid/expired
+            try:
+                refresh = RefreshToken(attrs.get("refresh"))
+                jti = refresh.get("jti")
+                user_id = refresh.get("user_id")
+                if jti and user_id:
+                    AuthSession.objects.filter(
+                        refresh_jti=jti,
+                        user_id=user_id,
+                        deactivated_at__isnull=True,
+                    ).update(deactivated_at=timezone.now(), deactivated_reason="refresh_invalid_or_expired")
+            except Exception:
+                pass
+            raise
+
         refresh = RefreshToken(attrs["refresh"])
         user_id = refresh.get("user_id")
         jti = refresh.get("jti")

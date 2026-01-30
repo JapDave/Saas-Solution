@@ -143,32 +143,6 @@ def test_refresh_fails_for_deactivated_session():
     assert resp.status_code in (400, 401)
 
 
-def test_context_switch_requires_membership_and_sets_org():
-    account, org1 = _setup_tenant()
-    _create_subscription(org1)
-    user = _create_user()
-    UserOrganization.objects.create(user=user, organization=org1)
-    client = auth_client()
-    login = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json").json()
-    client.credentials(HTTP_AUTHORIZATION=f"Bearer {login['access']}")
-    resp = client.post("/api/auth/context-switch/", {"organization_id": org1.id}, format="json")
-    assert resp.status_code == 200
-    assert resp.json()["active_organization_id"] == org1.id
-
-
-def test_context_switch_denies_non_member():
-    account, org1 = _setup_tenant()
-    _create_subscription(org1)
-    user = _create_user()
-    UserOrganization.objects.create(user=user, organization=org1)
-    client = auth_client()
-    login = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json").json()
-    assert "access" in login
-    client.credentials(HTTP_AUTHORIZATION=f"Bearer {login['access']}")
-    resp = client.post("/api/auth/context-switch/", {"organization_id": org1.id + 999}, format="json")
-    assert resp.status_code in (400, 403)
-
-
 def test_password_reset_flow_sets_new_password_and_revokes_old_sessions():
     account, org = _setup_tenant()
     _create_subscription(org)

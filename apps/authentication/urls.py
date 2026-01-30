@@ -1,7 +1,6 @@
 from django.urls import path
 
 from apps.authentication.views import (
-    ContextSwitchView,
     PasswordResetConfirmView,
     PasswordResetRequestView,
     SessionLogoutView,
@@ -11,7 +10,6 @@ from apps.authentication.views import (
 
 urlpatterns = [
     path("auth/logout/", SessionLogoutView.as_view(), name="token_logout"),
-    path("auth/context-switch/", ContextSwitchView.as_view(), name="context_switch"),
     path("auth/password-reset/", PasswordResetRequestView.as_view(), name="password_reset"),
     path("auth/password-reset/confirm/", PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
 ]

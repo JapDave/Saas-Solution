@@ -4,15 +4,19 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.utils import timezone
 from django.conf import settings
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import (
+    extend_schema,
+    inline_serializer,
+    OpenApiResponse,
+)
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework import serializers
 
 from apps.authentication.serializers import (
-    ContextSwitchSerializer,
     LogoutSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -20,7 +24,6 @@ from apps.authentication.serializers import (
     SessionTokenRefreshSerializer,
 )
 from apps.authentication.throttles import (
-    ContextSwitchRateThrottle,
     LoginRateThrottle,
     LogoutRateThrottle,
     PasswordResetRateThrottle,
@@ -40,7 +43,20 @@ from django.db.models import Q
 from apps.authentication.serializers import _session_duration_hours as session_duration_hours  # type: ignore
 
 
-@extend_schema(tags=["Auth"])
+@extend_schema(
+    tags=["Auth"],
+    request=SessionTokenObtainPairSerializer,
+    responses=OpenApiResponse(
+        response=inline_serializer(
+            name="SessionTokenObtainPairResponse",
+            fields={
+                "access": serializers.CharField(),
+                "refresh": serializers.CharField(),
+                "session_id": serializers.UUIDField(),
+            },
+        )
+    ),
+)
 class SessionTokenObtainPairView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = SessionTokenObtainPairSerializer
@@ -106,14 +122,35 @@ class SessionTokenObtainPairView(TokenObtainPairView):
             raise
 
 
-@extend_schema(tags=["Auth"])
+@extend_schema(
+    tags=["Auth"],
+    request=SessionTokenRefreshSerializer,
+    responses=OpenApiResponse(
+        response=inline_serializer(
+            name="SessionTokenRefreshResponse",
+            fields={
+                "access": serializers.CharField(),
+                "session_id": serializers.UUIDField(),
+            },
+        )
+    ),
+)
 class SessionTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
     serializer_class = SessionTokenRefreshSerializer
     throttle_classes = [RefreshRateThrottle]
 
 
-@extend_schema(tags=["Auth"])
+@extend_schema(
+    tags=["Auth"],
+    request=LogoutSerializer,
+    responses=OpenApiResponse(
+        response=inline_serializer(
+            name="SessionLogoutResponse",
+            fields={"status": serializers.CharField()},
+        )
+    ),
+)
 class SessionLogoutView(APIView):
     throttle_classes = [LogoutRateThrottle]
 
@@ -124,56 +161,23 @@ class SessionLogoutView(APIView):
         return Response({"status": "ok"}, status=status.HTTP_205_RESET_CONTENT)
 
 
-@extend_schema(tags=["Auth"])
-class ContextSwitchView(APIView):
-    throttle_classes = [ContextSwitchRateThrottle]
 
-    def post(self, request):
-        serializer = ContextSwitchSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        membership = serializer.validated_data["membership"]
 
-        # Deactivate current session (best-effort)
-        current_session = getattr(request, "auth_session", None)
-        if current_session:
-            try:
-                current_session.deactivate(reason="context_switch")
-            except Exception:
-                pass
-
-        # Issue fresh token pair scoped to new org context
-        refresh = RefreshToken.for_user(request.user)
-        access = refresh.access_token
-        access["active_organization_id"] = membership.organization_id
-        refresh["active_organization_id"] = membership.organization_id
-
-        # Adjust refresh lifetime based on org subscription config
-        hours = session_duration_hours(membership.organization_id)
-        refresh.set_exp(lifetime=timedelta(hours=hours))
-
-        # Persist a new session row
-        session = AuthSession.objects.create(
-            user=request.user,
-            access_jti=access["jti"],
-            refresh_jti=refresh["jti"],
-            access_expires_at=datetime.fromtimestamp(access["exp"], tz=dt_timezone.utc),
-            refresh_expires_at=datetime.fromtimestamp(refresh["exp"], tz=dt_timezone.utc),
-            ip_address=request.META.get("REMOTE_ADDR"),
-            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
-        )
-
-        return Response(
-            {
-                "access": str(access),
-                "refresh": str(refresh),
-                "session_id": str(session.id),
-                "active_organization_id": membership.organization_id,
+@extend_schema(
+    tags=["Auth"],
+    request=PasswordResetRequestSerializer,
+    responses=OpenApiResponse(
+        response=inline_serializer(
+            name="PasswordResetRequestResponse",
+            fields={
+                "sent": serializers.BooleanField(),
+                # uid/token are only returned in non-prod/testing contexts
+                "uid": serializers.CharField(required=False),
+                "token": serializers.CharField(required=False),
             },
-            status=status.HTTP_200_OK,
         )
-
-
-@extend_schema(tags=["Auth"])
+    ),
+)
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [PasswordResetRateThrottle]
@@ -186,7 +190,16 @@ class PasswordResetRequestView(APIView):
         return Response({"sent": True, **{k: v for k, v in result.items() if k in {"uid", "token"}}})
 
 
-@extend_schema(tags=["Auth"])
+@extend_schema(
+    tags=["Auth"],
+    request=PasswordResetConfirmSerializer,
+    responses=OpenApiResponse(
+        response=inline_serializer(
+            name="PasswordResetConfirmResponse",
+            fields={"status": serializers.CharField()},
+        )
+    ),
+)
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [PasswordResetRateThrottle]

@@ -184,6 +184,20 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 AUTH_USER_MODEL = "users.User"
 
 # -------------------------------------------------------------------
+# Cache (Redis preferred for multi-instance consistency)
+# -------------------------------------------------------------------
+REDIS_URL = _get_config("REDIS_URL", default="redis://redis:6379/0")
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+
+# -------------------------------------------------------------------
 # APM & logging baseline
 # -------------------------------------------------------------------
 DJANGO_LOG_LEVEL = os.getenv("DJANGO_LOG_LEVEL", "INFO")
@@ -345,6 +359,7 @@ AUTH_RATE_LIMIT_REFRESH = _get_config("AUTH_RATE_LIMIT_REFRESH", default="30/min
 AUTH_RATE_LIMIT_LOGOUT = _get_config("AUTH_RATE_LIMIT_LOGOUT", default="60/min")
 AUTH_RATE_LIMIT_CONTEXT_SWITCH = _get_config("AUTH_RATE_LIMIT_CONTEXT_SWITCH", default="30/min")
 AUTH_SESSION_DURATION_DEFAULT_HOURS = int(_get_config("AUTH_SESSION_DURATION_DEFAULT_HOURS", default="24") or 24)
+AUTH_MAX_CONCURRENT_SESSIONS = int(_get_config("AUTH_MAX_CONCURRENT_SESSIONS", default="5") or 5)
 AUTH_RATE_LIMIT_PASSWORD_RESET = _get_config("AUTH_RATE_LIMIT_PASSWORD_RESET", default="5/hour")
 AUTH_RATE_LIMIT_PERMISSION_CHECK = _get_config("AUTH_RATE_LIMIT_PERMISSION_CHECK", default="200/min")
 AUTH_LOGIN_RATE_LIMIT_ATTEMPTS = int(_get_config("AUTH_LOGIN_RATE_LIMIT_ATTEMPTS", default="3") or 3)

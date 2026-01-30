@@ -18,13 +18,11 @@ class AuthSessionQuerySet(models.QuerySet):
             deleted_at__isnull=True,
             deactivated_at__isnull=True,
             access_expires_at__gt=now,
-            refresh_expires_at__gt=now,
         )
 
 
 class AuthSession(BaseModel):
     """Database-backed session for JWT pairs (spec v1.1.0)."""
-
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -35,7 +33,6 @@ class AuthSession(BaseModel):
     access_jti = models.CharField(_("Access token JTI"), max_length=64, unique=True)
     refresh_jti = models.CharField(_("Refresh token JTI"), max_length=64, unique=True)
     access_expires_at = models.DateTimeField(_("Access token expires at"))
-    refresh_expires_at = models.DateTimeField(_("Refresh token expires at"))
     ip_address = models.GenericIPAddressField(_("IP address"), null=True, blank=True)
     user_agent = models.CharField(_("User agent"), max_length=500, blank=True, default="")
     last_activity_at = models.DateTimeField(_("Last activity at"), auto_now_add=True)
@@ -72,7 +69,6 @@ class AuthSession(BaseModel):
             self.deactivated_at is None
             and self.deleted_at is None
             and self.access_expires_at > now
-            and self.refresh_expires_at > now
         )
 
     def mark_new_access(self, *, access_jti: str, access_expires_at: datetime) -> None:
