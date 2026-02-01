@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.agents.models import OrganizationEnabledLLM
+from apps.llms.models import LLMDefinition
 from apps.organizations.tests.factories import OrganizationFactory
 from apps.products.models import Module
 from apps.roles.constants import LLM_PERMISSION_KEYS
@@ -17,6 +18,26 @@ from apps.users.tests.factories import UserFactory
 def llm_client(db):
     organization = OrganizationFactory()
     user = UserFactory()
+    # seed definitions in DB
+    LLMDefinition.objects.create(
+        model_key="gpt-4o-mini",
+        model_provider="OpenAI",
+        display_name="GPT-4o-mini",
+        description="",
+        model_configuration={"temperature": {"type": "number", "required": False, "validation": {"min": 0, "max": 1}},
+                             "maxTokens": {"type": "number", "required": False, "validation": {"min": 1, "max": 1000000}}},
+        supported_modalities=["text"],
+        max_context_tokens=128000,
+    )
+    LLMDefinition.objects.create(
+        model_key="gpt-4.1",
+        model_provider="OpenAI",
+        display_name="GPT-4.1",
+        description="",
+        model_configuration={"temperature": {"type": "number", "required": False, "validation": {"min": 0, "max": 1}}},
+        supported_modalities=["text"],
+        max_context_tokens=128000,
+    )
     UserOrganization.objects.create(
         user=user,
         organization=organization,
@@ -48,8 +69,8 @@ def llm_client(db):
 
 @pytest.mark.django_db
 def test_list_definitions(llm_client):
-    _, _, client = llm_client
-    url = reverse("llm-list")
+    organization, _, client = llm_client
+    url = reverse("organization-llms-available", kwargs={"organization_uuid": organization.uuid})
     response = client.get(url)
     assert response.status_code == status.HTTP_200_OK
     assert response.json()

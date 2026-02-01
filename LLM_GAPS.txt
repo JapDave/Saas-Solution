@@ -1,0 +1,26 @@
+LLM management gaps vs LLM-MANAGEMNT_NEW.md (2025-11-07)
+---------------------------------------------------------
+1) Source of truth for LLMDefinition
+   - DB model now exists and code reads from it (falls back to llms-list.json only if DB is empty). Admin UI/seed tooling still missing.
+
+2) Subscription-driven auto-disable for hosted models
+   - Enabling hosted models is blocked unless subscription allows; still missing the automation to disable existing hosted LLMs when subscription access is later removed.
+
+3) Permissions/roles hardening
+   - Added role checks (SaaS Administrator, SaaS Account Manager, Agent Manager read/list) in ensure_llm_permission. Still relies on external role assignments being present; no automatic role seeding/mapping included.
+
+4) Organization bootstrap state
+   - Spec: “All LLMs disabled by default for new organizations.” There is no hook creating/marking defaults on org creation; availability is computed at request time only.
+
+5) Disabled records retention detail
+   - We clear disabled_at on re-enable, but we do not retain the actor/timestamp history beyond the latest enable/disable. Spec only says keep record; if audit trail is required, add AuditLog entries.
+
+6) Admin list / definition edit UI
+   - Spec notes platform team manages LLM definitions via admin interface. Model exists but no admin/CRUD UI or seeding commands are provided.
+
+7) Swagger polish (warnings)
+   - Many endpoints (channels/tools/agents/llms org actions) still lack serializer hints; schema generation logs warnings/errors. Authorize button now works.
+   - LLM endpoints are now clean; remaining warnings/errors are in other modules (channels, tools, agents, roles, subscriptions, products). Need serializer/extend_schema fixes there.
+
+8) Tests for new flows
+   - LLM tests updated and passing for new endpoints. Other app tests unaffected; no coverage yet for hosted auto-disable or admin seeding.

@@ -10,6 +10,8 @@ from typing import Any, Dict, Iterable, List
 
 from django.conf import settings
 
+from apps.llms.models import LLMDefinition as LLMDefinitionModel
+
 
 LLM_DEFINITIONS_PATH = Path(settings.BASE_DIR) / "Business-Requirements" / "PRODUCT-MODULES" / "llms-list.json"
 TOOL_DEFINITIONS_PATH = Path(settings.BASE_DIR) / "Business-Requirements" / "PRODUCT-MODULES" / "tools-list.json"
@@ -67,8 +69,50 @@ def _load_json(path: Path) -> Dict[str, Any]:
 
 @lru_cache(maxsize=1)
 def _load_llm_definitions() -> Dict[str, LLMDefinition]:
-    payload = _load_json(LLM_DEFINITIONS_PATH)
+    # Primary source: database table
+    qs = (
+        LLMDefinitionModel.objects.filter(deleted_at__isnull=True, is_active=True)
+        .order_by("model_provider", "model_key")
+        .values(
+            "model_key",
+            "model_provider",
+            "display_name",
+            "description",
+            "supported_modalities",
+            "max_context_tokens",
+            "model_configuration",
+        )
+    )
     definitions: Dict[str, LLMDefinition] = {}
+    if qs.exists():
+        for entry in qs:
+            config = entry.get("model_configuration") or {}
+            parameters = {name: _build_parameter_rule(field) for name, field in config.items()}
+            provider = entry.get("model_provider", "")
+            requires_hosted = provider.lower().startswith("hudhud")
+            raw = {
+                "modelKey": entry["model_key"],
+                "modelProvider": provider,
+                "displayName": entry["display_name"],
+                "description": entry.get("description", ""),
+                "supportedModalities": entry.get("supported_modalities") or [],
+                "maxContextTokens": entry.get("max_context_tokens"),
+                "modelConfiguration": config,
+            }
+            definition = LLMDefinition(
+                key=entry["model_key"],
+                provider=provider,
+                display_name=entry["display_name"],
+                description=entry.get("description", ""),
+                raw=raw,
+                requires_hosted_subscription=requires_hosted,
+                parameters=parameters,
+            )
+            definitions[definition.key] = definition
+        return definitions
+
+    # Fallback: legacy JSON file if DB not seeded
+    payload = _load_json(LLM_DEFINITIONS_PATH)
     for entry in payload.get("llms", []):
         config = entry.get("modelConfiguration") or {}
         parameters = {name: _build_parameter_rule(field) for name, field in config.items()}
