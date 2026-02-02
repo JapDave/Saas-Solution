@@ -20,6 +20,7 @@ from apps.llms.services import (
     validate_configuration,
     agents_usage_by_model_keys,
 )
+from apps.llms.telemetry import inc_llm_list, inc_llm_validation, inc_llm_schema
 from apps.organizations.models import Organization
 from apps.agents.services import ensure_llm_allowed_for_subscription
 
@@ -31,6 +32,8 @@ class OrganizationLLMDefinitionsView(APIView):
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_llm_permission(request.user, organization, "llms:list")
+        inc_llm_list()
+        inc_llm_schema()
 
         definitions = list_llm_definitions()
         # filter hosted models by subscription allowance
@@ -71,8 +74,13 @@ class LLMValidationView(APIView):
         serializer.is_valid(raise_exception=True)
         organization = get_object_or_404(Organization, uuid=serializer.validated_data["organization_uuid"])
         ensure_llm_permission(request.user, organization, "llms:read")
-        validated = validate_configuration(serializer.validated_data, organization=organization)
-        return Response(validated, status=status.HTTP_200_OK)
+        try:
+            validated = validate_configuration(serializer.validated_data, organization=organization)
+            inc_llm_validation(success=True)
+            return Response(validated, status=status.HTTP_200_OK)
+        except Exception:
+            inc_llm_validation(success=False)
+            raise
 
 
 class OrganizationLLMViewSet(viewsets.ReadOnlyModelViewSet):
@@ -95,6 +103,7 @@ class OrganizationLLMViewSet(viewsets.ReadOnlyModelViewSet):
     def list(self, request, *args, **kwargs):
         organization = self._organization()
         ensure_llm_permission(request.user, organization, "llms:read")
+        inc_llm_list()
         enabled = list(self.get_queryset())
         model_keys = [row.model_key for row in enabled]
         usage = agents_usage_by_model_keys(organization, model_keys)
@@ -153,6 +162,9 @@ class OrganizationLLMDisableView(APIView):
         record = disable_llm(organization, model_key, request.user)
         usage = agents_usage_by_model_keys(organization, [record.model_key]).get(record.model_key, 0)
         definition = get_llm_definition(record.model_key)
+        warning = None
+        if usage > 0:
+            warning = f"{usage} agent(s) currently use this LLM. Disabling will hide it from new configs."
         payload = {
             "modelKey": record.model_key,
             "modelProvider": record.model_provider,
@@ -161,6 +173,8 @@ class OrganizationLLMDisableView(APIView):
             "modelConfiguration": definition.raw.get("modelConfiguration") if definition else {},
             "usedByAgents": usage,
             "disabledAt": record.disabled_at,
+            "warning": warning,
         }
         serializer = LLMDefinitionSerializer(payload)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        status_code = status.HTTP_200_OK
+        return Response(serializer.data, status=status_code)

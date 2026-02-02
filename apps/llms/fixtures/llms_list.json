@@ -1,0 +1,1675 @@
+{
+    "llms": [
+        {
+            "modelProvider": "OpenAI",
+            "modelKey": "gpt-4o-mini",
+            "displayName": "GPT-4o Mini",
+            "description": "GPT-4o Mini is a small, fast, and powerful model that is perfect for most use cases.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 1000000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 1000000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "frequencyPenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The frequency penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "presencePenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The presence penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "seed": {
+                    "type": "number",
+                    "default": 42,
+                    "required": false,
+                    "description": "The seed of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1000000
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "OpenAI",
+            "modelKey": "gpt-4.1",
+            "displayName": "GPT-4.1",
+            "description": "GPT-4.1 is an advanced language model with enhanced reasoning capabilities.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "frequencyPenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The frequency penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "presencePenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The presence penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "seed": {
+                    "type": "number",
+                    "default": 42,
+                    "required": false,
+                    "description": "The seed of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1000000
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "OpenAI",
+            "modelKey": "gpt-5",
+            "displayName": "GPT-5",
+            "description": "GPT-5 is the next generation of OpenAI's flagship language model with breakthrough capabilities.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 2000000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 2000000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "frequencyPenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The frequency penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "presencePenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The presence penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "seed": {
+                    "type": "number",
+                    "default": 42,
+                    "required": false,
+                    "description": "The seed of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1000000
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "OpenAI",
+            "modelKey": "gpt-5-mini",
+            "displayName": "GPT-5 Mini",
+            "description": "GPT-5 Mini is a smaller, faster, and more efficient version of GPT-5.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 1000000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 1000000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "frequencyPenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The frequency penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "presencePenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The presence penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "seed": {
+                    "type": "number",
+                    "default": 42,
+                    "required": false,
+                    "description": "The seed of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1000000
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Google",
+            "modelKey": "gemini-2.5-pro",
+            "displayName": "Gemini 2.5 Pro",
+            "description": "Gemini 2.5 Pro is Google's most capable multimodal AI model with advanced reasoning.",
+            "supportedModalities": [
+                "text",
+                "image",
+                "audio",
+                "video"
+            ],
+            "maxContextTokens": 2000000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 2000000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Google",
+            "modelKey": "gemini-2.5-flash",
+            "displayName": "Gemini 2.5 Flash",
+            "description": "Gemini 2.5 Flash is a fast and efficient multimodal model optimized for speed and performance.",
+            "supportedModalities": [
+                "text",
+                "image",
+                "audio",
+                "video"
+            ],
+            "maxContextTokens": 1000000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 1000000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Anthropic",
+            "modelKey": "claude-sonnet-4.5",
+            "displayName": "Claude Sonnet 4.5",
+            "description": "Claude Sonnet 4.5 is Anthropic's most advanced model with exceptional reasoning and analytical capabilities.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 2000000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 2000000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Anthropic",
+            "modelKey": "claude-sonnet-4",
+            "displayName": "Claude Sonnet 4",
+            "description": "Claude Sonnet 4 is a powerful model with strong reasoning and analytical capabilities.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 1000000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 1000000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "deepseek-v3-0324",
+            "displayName": "DeepSeek V3 0324",
+            "description": "DeepSeek V3 0324 is a large-scale model with advanced capabilities hosted by Hudhud.",
+            "supportedModalities": [
+                "text"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "frequencyPenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The frequency penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "presencePenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The presence penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "deepseek-r1",
+            "displayName": "DeepSeek R1",
+            "description": "DeepSeek R1 is a large, powerful, and accurate model hosted by Hudhud.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 1000000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 1000000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "frequencyPenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The frequency penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "presencePenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The presence penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "seed": {
+                    "type": "number",
+                    "default": 42,
+                    "required": false,
+                    "description": "The seed of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1000000
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "qwen3-8b",
+            "displayName": "Qwen3 8B",
+            "description": "Qwen3 8B is a medium-sized efficient model hosted by Hudhud.",
+            "supportedModalities": [
+                "text"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "qwen3-14b",
+            "displayName": "Qwen3 14B",
+            "description": "Qwen3 14B is a balanced model with good performance hosted by Hudhud.",
+            "supportedModalities": [
+                "text"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "qwen3-32b",
+            "displayName": "Qwen3 32B",
+            "description": "Qwen3 32B is a large model with strong capabilities hosted by Hudhud.",
+            "supportedModalities": [
+                "text"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "qwen3-vl-8b",
+            "displayName": "Qwen3 VL 8B",
+            "description": "Qwen3 VL 8B is a vision-language model with multimodal capabilities hosted by Hudhud.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "qwen3-vl-32b",
+            "displayName": "Qwen3 VL 32B",
+            "description": "Qwen3 VL 32B is a large vision-language model with advanced multimodal capabilities hosted by Hudhud.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "gemma3-4b",
+            "displayName": "Gemma3 4B",
+            "description": "Gemma3 4B is a small, efficient model hosted by Hudhud.",
+            "supportedModalities": [
+                "text"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "gemma3-12b",
+            "displayName": "Gemma3 12B",
+            "description": "Gemma3 12B is a medium-sized balanced model hosted by Hudhud.",
+            "supportedModalities": [
+                "text"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "Hudhud Hosted",
+            "modelKey": "gemma3-27b",
+            "displayName": "Gemma3 27B",
+            "description": "Gemma3 27B is a large model with strong capabilities hosted by Hudhud.",
+            "supportedModalities": [
+                "text"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "topK": {
+                    "type": "number",
+                    "default": 40,
+                    "required": false,
+                    "description": "The top k of the model.",
+                    "validation": {
+                        "min": 1,
+                        "max": 100
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
