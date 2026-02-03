@@ -1,0 +1,4 @@
+TOOLS management gaps vs TOOLS-MANAGEMENT.md (2025-11-07)
+---------------------------------------------------------
+1) Subscription invocation limit (tools_invocations_per_month)
+   - Spec: enforce per-org monthly tool invocations on execution. Execution isn’t handled here, so no counter/limit is implemented.

@@ -29,3 +29,4 @@ opentelemetry-instrumentation==0.47b0
 opentelemetry-instrumentation-django==0.47b0
 opentelemetry-instrumentation-psycopg2==0.47b0
 ddtrace==2.9.0
+prometheus-client==0.20.0
