@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Any, Optional
+import hashlib
 
 from django.conf import settings
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.urls import reverse
+from django.core.validators import validate_ipv46_address
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
@@ -36,9 +39,18 @@ def _client_ip(request) -> str | None:
     if not request:
         return None
     forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    ip_candidate = None
     if forwarded:
-        return forwarded.split(",", 1)[0].strip()
-    return request.META.get("REMOTE_ADDR")
+        ip_candidate = forwarded.split(",", 1)[0].strip()
+    else:
+        ip_candidate = request.META.get("REMOTE_ADDR")
+    if not ip_candidate:
+        return None
+    try:
+        validate_ipv46_address(ip_candidate)
+    except DjangoValidationError as exc:
+        raise ValueError(f"Invalid IP address: {ip_candidate}") from exc
+    return ip_candidate
 
 
 def _user_agent(request) -> str:
@@ -50,6 +62,10 @@ def _user_agent(request) -> str:
 
 def _dt_from_timestamp(ts: Any) -> datetime:
     return datetime.fromtimestamp(int(ts), tz=dt_timezone.utc)
+
+
+def _hash_refresh(refresh: str) -> str:
+    return hashlib.sha256(refresh.encode("utf-8")).hexdigest()
 
 
 def _session_duration_hours(org_id: Optional[int]) -> int:
@@ -83,9 +99,19 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         data = super().validate(attrs)
+        # Explicitly block inactive/deleted users
+        if not getattr(self.user, "is_active", True) or getattr(self.user, "deleted_at", None):
+            raise CustomError(
+                code=INVALID_CREDENTIALS,
+                detail="Invalid email or password.",
+                status_code=400,
+            )
         request = self.context.get("request")
         refresh: RefreshToken = self.get_token(self.user)
+        refresh_str = str(refresh)
+        refresh_hash = _hash_refresh(refresh_str)
         access = refresh.access_token
+        access.set_exp(lifetime=timedelta(minutes=60))
 
         # Attach default organization context if available
         active_membership = (
@@ -101,15 +127,18 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Adjust refresh lifetime based on resolved session duration
         refresh.set_exp(lifetime=timedelta(hours=hours))
-        ip = _client_ip(request)
+        try:
+            ip = _client_ip(request)
+        except ValueError:
+            raise CustomError(code=INVALID_CREDENTIALS, detail="Invalid client IP address.", status_code=400)
         ua = _user_agent(request)
 
         self._evict_if_needed(self.user)
 
         session = AuthSession.objects.create(
             user=self.user,
-            access_jti=access["jti"],
-            refresh_jti=refresh["jti"],
+            token_jti=access["jti"],
+            refresh_token_hash=refresh_hash,
             access_expires_at=_dt_from_timestamp(access["exp"]),
             ip_address=ip,
             user_agent=ua,
@@ -118,7 +147,7 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
         data.update(
             {
                 "access": str(access),
-                "refresh": str(refresh),
+                "refresh": refresh_str,
                 "session_id": str(session.id),
             }
         )
@@ -131,17 +160,18 @@ class SessionTokenRefreshSerializer(TokenRefreshSerializer):
     }
 
     def validate(self, attrs):
+        refresh_str = attrs.get("refresh")
+        refresh_hash = _hash_refresh(refresh_str or "")
         try:
             data = super().validate(attrs)
         except Exception:
             # Attempt to mark session as deactivated when refresh is invalid/expired
             try:
-                refresh = RefreshToken(attrs.get("refresh"))
-                jti = refresh.get("jti")
+                refresh = RefreshToken(refresh_str or "")
                 user_id = refresh.get("user_id")
-                if jti and user_id:
+                if user_id:
                     AuthSession.objects.filter(
-                        refresh_jti=jti,
+                        refresh_token_hash=refresh_hash,
                         user_id=user_id,
                         deactivated_at__isnull=True,
                     ).update(deactivated_at=timezone.now(), deactivated_reason="refresh_invalid_or_expired")
@@ -149,23 +179,31 @@ class SessionTokenRefreshSerializer(TokenRefreshSerializer):
                 pass
             raise
 
-        refresh = RefreshToken(attrs["refresh"])
+        try:
+            refresh = RefreshToken(refresh_str or "")
+        except Exception:
+            raise CustomError(code=SESSION_EXPIRED, detail="Session expired or invalid.", status_code=401)
         user_id = refresh.get("user_id")
-        jti = refresh.get("jti")
-        if not jti or not user_id:
+        if not user_id:
             raise CustomError(code=SESSION_EXPIRED, detail="Refresh token missing claims.", status_code=401)
 
-        try:
-            session = AuthSession.objects.active().get(refresh_jti=jti, user_id=user_id)
-        except AuthSession.DoesNotExist:
+        qs = AuthSession.objects.active().filter(refresh_token_hash=refresh_hash, user_id=user_id)
+        if not qs.exists():
             raise CustomError(code=SESSION_EXPIRED, detail="Session expired or revoked.", status_code=401)
 
+        # Invalidate existing access sessions for this refresh, then create a new one for the new access token
+        qs.update(deactivated_at=timezone.now(), deactivated_reason="refresh_rotation")
+
         access = refresh.access_token
-        session.mark_new_access(
-            access_jti=access["jti"],
+        access.set_exp(lifetime=timedelta(minutes=60))
+        session = AuthSession.objects.create(
+            user_id=user_id,
+            token_jti=access["jti"],
+            refresh_token_hash=_hash_refresh(str(refresh)),
             access_expires_at=_dt_from_timestamp(access["exp"]),
+            ip_address=None,
+            user_agent="",
         )
-        session.touch()
         data["access"] = str(access)
         data["session_id"] = str(session.id)
         return data
@@ -175,16 +213,19 @@ class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField(required=True)
 
     def save(self, **kwargs):
-        refresh_token = RefreshToken(self.validated_data["refresh"])
-        jti = refresh_token.get("jti")
-        user_id = refresh_token.get("user_id")
-        if not jti or not user_id:
+        try:
+            refresh_token = RefreshToken(self.validated_data["refresh"])
+        except Exception:
             raise CustomError(code=SESSION_EXPIRED, detail="Invalid refresh token.", status_code=401)
-        qs = AuthSession.objects.filter(refresh_jti=jti, user_id=user_id, deactivated_at__isnull=True)
-        updated = qs.update(deactivated_at=timezone.now(), deactivated_reason="logout")
-        access_jti = qs.first().access_jti if updated and qs.exists() else ""
-        if not updated:
+        user_id = refresh_token.get("user_id")
+        if not user_id:
+            raise CustomError(code=SESSION_EXPIRED, detail="Invalid refresh token.", status_code=401)
+        refresh_hash = _hash_refresh(str(refresh_token))
+        qs = AuthSession.objects.filter(refresh_token_hash=refresh_hash, user_id=user_id, deactivated_at__isnull=True)
+        if not qs.exists():
             raise CustomError(code=SESSION_REVOKED, detail="Session already revoked.", status_code=400)
+        access_jti = qs.first().token_jti if qs.exists() else ""
+        qs.update(deactivated_at=timezone.now(), deactivated_reason="logout")
         return {"access_jti": access_jti}
 
 
@@ -280,3 +321,4 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             deactivated_at=timezone.now(), deactivated_reason="password_reset"
         )
         return True
+

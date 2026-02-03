@@ -118,8 +118,6 @@ services:
     ports:
       - "8025:8025"   # web UI
       - "1025:1025"   # SMTP
-    environment:
-      MP_UI_AUTH: "false"
     restart: unless-stopped
 
 volumes:

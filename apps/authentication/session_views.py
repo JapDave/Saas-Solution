@@ -10,7 +10,18 @@ from apps.authentication.models import AuthSession
 class SessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuthSession
-        fields = ["id", "access_jti", "refresh_jti", "access_expires_at", "last_activity_at", "deactivated_at", "deactivated_reason", "ip_address", "user_agent", "created_at"]
+        fields = [
+            "id",
+            "token_jti",
+            "refresh_token_hash",
+            "access_expires_at",
+            "last_activity_at",
+            "deactivated_at",
+            "deactivated_reason",
+            "ip_address",
+            "user_agent",
+            "created_at",
+        ]
 
 
 class SessionListView(APIView):
