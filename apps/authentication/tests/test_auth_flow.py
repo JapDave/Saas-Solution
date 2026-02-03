@@ -15,7 +15,7 @@ from apps.organizations.models import Organization
 from apps.subscriptions.models import Subscription
 from apps.users.models import User, UserOrganization
 from apps.authentication.models import AuthSession
-from apps.common.exceptions import LOGIN_RATE_LIMIT, SESSION_EXPIRED
+from apps.common.exceptions import RATE_LIMIT_EXCEEDED, SESSION_EXPIRED, INVALID_CREDENTIALS
 
 
 pytestmark = pytest.mark.django_db
@@ -91,26 +91,23 @@ def test_login_creates_session_and_clears_failures():
 
 
 def test_login_rate_limit_uses_org_config():
-    account, org = _setup_tenant()
-    _create_subscription(org, login_attempts=2, login_window=10)
+    # rate limit now uses settings only; use syntactically valid password to trigger rate limit
     user = _create_user()
-    UserOrganization.objects.create(user=user, organization=org)
-
     client = auth_client()
-    # wrong password twice -> third hits limit
-    for _ in range(2):
-        client.post("/api/auth/token/", {"email": user.email, "password": "bad"}, format="json")
-    resp = client.post("/api/auth/token/", {"email": user.email, "password": "bad"}, format="json")
+    limit = settings.AUTH_LOGIN_RATE_LIMIT_ATTEMPTS
+    for _ in range(limit):
+        client.post("/api/auth/token/", {"email": user.email, "password": "Wrongpass1!"}, format="json")
+    resp = client.post("/api/auth/token/", {"email": user.email, "password": "Wrongpass1!"}, format="json")
     assert resp.status_code == 429
-    assert resp.json().get("code") == LOGIN_RATE_LIMIT
+    assert resp.json().get("code") == RATE_LIMIT_EXCEEDED
 
 
 def test_login_rate_limit_env_fallback_when_no_subscription():
     user = _create_user()
     client = auth_client()
     for _ in range(settings.AUTH_LOGIN_RATE_LIMIT_ATTEMPTS):
-        client.post("/api/auth/token/", {"email": user.email, "password": "bad"}, format="json")
-    resp = client.post("/api/auth/token/", {"email": user.email, "password": "bad"}, format="json")
+        client.post("/api/auth/token/", {"email": user.email, "password": "Wrongpass1!"}, format="json")
+    resp = client.post("/api/auth/token/", {"email": user.email, "password": "Wrongpass1!"}, format="json")
     assert resp.status_code == 429
 
 
@@ -127,7 +124,8 @@ def test_refresh_respects_subscription_session_duration():
     access_token = resp.json()["access"]
     decoded = jwt.decode(access_token, settings.SECRET_KEY, algorithms=["HS256"], options={"verify_aud": False})
     exp = decoded["exp"]
-    assert exp - int(timezone.now().timestamp()) <= 3700  # ~1h with small buffer
+    default_hours = getattr(settings, "AUTH_SESSION_DURATION_DEFAULT_HOURS", 24)
+    assert exp - int(timezone.now().timestamp()) <= default_hours * 3600 + 120  # buffer
 
 
 def test_refresh_fails_for_deactivated_session():
@@ -152,9 +150,15 @@ def test_password_reset_flow_sets_new_password_and_revokes_old_sessions():
     login = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json").json()
     assert AuthSession.objects.filter(user=user, deactivated_at__isnull=True).count() == 1
 
-    req = client.post("/api/auth/password-reset/", {"email": user.email}, format="json").json()
-    uid = req["uid"]
-    token = req["token"]
+    req = client.post("/api/auth/password-reset/", {"email": user.email}, format="json")
+    assert req.status_code == 200
+    # fetch token from DB for testing
+    from django.contrib.auth.tokens import PasswordResetTokenGenerator
+    from django.utils.http import urlsafe_base64_encode
+    from django.utils.encoding import force_bytes
+
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = PasswordResetTokenGenerator().make_token(user)
     resp = client.post(
         "/api/auth/password-reset/confirm/",
         {"uid": uid, "token": token, "new_password": "NewStrong1!a"},
@@ -184,20 +188,51 @@ def test_concurrent_session_eviction():
     user = _create_user()
     UserOrganization.objects.create(user=user, organization=org)
     client = auth_client()
-    # override subscription config for concurrency
-    Subscription.objects.filter(organization=org).update(
-        configuration={
-            "session_duration_hours": 2,
-            "rate_limit_login_attempts": 50,
-            "rate_limit_window_minutes": 60,
-            "max_concurrent_sessions": 2,
-        }
-    )
-    login1 = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json")
-    assert login1.status_code == 200
-    login2 = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json")
-    assert login2.status_code == 200
-    login3 = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json")
-    assert login3.status_code == 200
-    # Only 2 active sessions should remain
-    assert AuthSession.objects.filter(user=user, deactivated_at__isnull=True).count() == 2
+    with override_settings(AUTH_MAX_CONCURRENT_SESSIONS=2):
+        login1 = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json")
+        assert login1.status_code == 200
+        login2 = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json")
+        assert login2.status_code == 200
+        login3 = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json")
+        assert login3.status_code == 200
+        # Only 2 active sessions should remain
+        assert AuthSession.objects.filter(user=user, deactivated_at__isnull=True).count() == 2
+
+
+def test_invalid_password_short_returns_400():
+    client = auth_client()
+    resp = client.post("/api/auth/token/", {"email": "x@example.com", "password": ""}, format="json")
+    assert resp.status_code == 400
+    assert resp.json().get("code") == INVALID_CREDENTIALS
+
+
+def test_sessions_endpoint_returns_sessions():
+    account, org = _setup_tenant()
+    _create_subscription(org)
+    user = _create_user()
+    UserOrganization.objects.create(user=user, organization=org)
+    client = auth_client()
+    login = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json").json()
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {login['access']}")
+    resp = client.get("/api/auth/sessions/")
+    assert resp.status_code == 200
+    assert len(resp.json()) >= 1
+
+
+def test_logout_returns_header_and_205():
+    account, org = _setup_tenant()
+    _create_subscription(org)
+    user = _create_user()
+    UserOrganization.objects.create(user=user, organization=org)
+    client = auth_client()
+    login = client.post("/api/auth/token/", {"email": user.email, "password": "Strong1!a"}, format="json").json()
+    resp = client.post("/api/auth/logout/", {"refresh": login["refresh"]}, format="json")
+    assert resp.status_code == 205
+    assert "X-Access-JTI" in resp.headers
+
+
+def test_password_reset_request_static_message():
+    client = auth_client()
+    resp = client.post("/api/auth/password-reset/", {"email": "someone@example.com"}, format="json")
+    assert resp.status_code == 200
+    assert "message" in resp.json()

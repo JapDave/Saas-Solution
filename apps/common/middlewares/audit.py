@@ -93,10 +93,17 @@ class AuditLogMiddleware(MiddlewareMixin):
 
         if current:
             try:
+                # back-fill user if authenticated and missing
+                req_user = getattr(request, "user", None)
+                if req_user and getattr(req_user, "is_authenticated", False) and not current.user_id:
+                    current.user = req_user
                 current.status_code = status_code
                 current.success = 200 <= status_code < 400
                 current._allow_update = True
-                current.save(update_fields=["status_code", "success"])
+                update_fields = ["status_code", "success"]
+                if current.user_id:
+                    update_fields.append("user")
+                current.save(update_fields=update_fields)
             except Exception:
                 logger.exception("Failed to finalize audit log entry.")
         else:
