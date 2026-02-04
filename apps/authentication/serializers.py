@@ -49,7 +49,8 @@ def _client_ip(request) -> str | None:
     try:
         validate_ipv46_address(ip_candidate)
     except DjangoValidationError as exc:
-        raise ValueError(f"Invalid IP address: {ip_candidate}") from exc
+        # Best-effort: ignore invalid IP rather than blocking login
+        return None
     return ip_candidate
 
 
@@ -127,10 +128,7 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Adjust refresh lifetime based on resolved session duration
         refresh.set_exp(lifetime=timedelta(hours=hours))
-        try:
-            ip = _client_ip(request)
-        except ValueError:
-            raise CustomError(code=INVALID_CREDENTIALS, detail="Invalid client IP address.", status_code=400)
+        ip = _client_ip(request)
         ua = _user_agent(request)
 
         self._evict_if_needed(self.user)
