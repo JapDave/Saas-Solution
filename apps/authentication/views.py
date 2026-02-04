@@ -37,6 +37,8 @@ from apps.authentication.rate_limit import (
     check_login_rate_limit,
     record_login_failure,
     clear_login_failures,
+    check_refresh_rate_limit,
+    record_refresh_attempt,
 )
 from apps.authentication.serializers import _session_duration_hours as session_duration_hours  # type: ignore
 
@@ -117,6 +119,24 @@ class SessionTokenRefreshView(TokenRefreshView):
     serializer_class = SessionTokenRefreshSerializer
     throttle_classes = [RefreshRateThrottle]
 
+    def post(self, request, *args, **kwargs):
+        # Optional small delay to slow brute-force refresh attempts
+        import time
+
+        delay = float(getattr(settings, "AUTH_REFRESH_DELAY_SECONDS", 0.25) or 0)
+        if delay > 0:
+            time.sleep(delay)
+        ip = request.META.get("REMOTE_ADDR")
+        blocked, retry_after = check_refresh_rate_limit(ip=ip, limit=None, window_minutes=None)
+        if blocked:
+            return Response(
+                {"code": RATE_LIMIT_EXCEEDED, "message": "Too many refresh attempts. Try later."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+                headers={"Retry-After": str(retry_after)},
+            )
+        record_refresh_attempt(ip=ip, limit=None, window_minutes=None)
+        return super().post(request, *args, **kwargs)
+
 
 @extend_schema(
     tags=["Auth"],
@@ -133,14 +153,12 @@ class SessionLogoutView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = LogoutSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        refresh_token = serializer.validated_data["refresh"]
-        result = serializer.save()
-        headers = {}
-        if result and isinstance(result, dict):
-            headers["X-Access-JTI"] = result.get("access_jti", "")
-        return Response(status=status.HTTP_205_RESET_CONTENT, headers=headers)
+        # Spec: logout by access token only (refresh not required)
+        session = getattr(request, "auth_session", None)
+        if not session:
+            raise CustomError(code=SESSION_REVOKED, detail="No active session to logout.", status_code=400)
+        session.deactivate(reason="logout")
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={"X-Access-JTI": session.token_jti})
 
 
 
@@ -165,6 +183,18 @@ class PasswordResetRequestView(APIView):
     throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
+        from apps.authentication.rate_limit import check_password_reset_rate_limit, record_password_reset_attempt
+
+        email = (request.data.get("email") or "").lower()
+        ip = request.META.get("REMOTE_ADDR")
+        blocked, retry_after = check_password_reset_rate_limit(email=email, ip=ip, limit=3, window_minutes=60)
+        if blocked:
+            return Response(
+                {"code": RATE_LIMIT_EXCEEDED, "message": "Too many reset requests. Try later."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+                headers={"Retry-After": str(retry_after)},
+            )
+        record_password_reset_attempt(email=email, ip=ip, limit=3, window_minutes=60)
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()

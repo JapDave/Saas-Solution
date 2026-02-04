@@ -25,7 +25,7 @@ class LoginRateThrottle(_BaseAuthThrottle):
 
 class RefreshRateThrottle(_BaseAuthThrottle):
     scope = "auth_refresh"
-    rate = _BaseAuthThrottle.configured_rate("AUTH_RATE_LIMIT_REFRESH", "30/min")
+    rate = _BaseAuthThrottle.configured_rate("AUTH_RATE_LIMIT_REFRESH", "10/hour")
 
 
 class LogoutRateThrottle(_BaseAuthThrottle):
@@ -40,7 +40,18 @@ class ContextSwitchRateThrottle(_BaseAuthThrottle):
 
 class PasswordResetRateThrottle(_BaseAuthThrottle):
     scope = "auth_password_reset"
-    rate = _BaseAuthThrottle.configured_rate("AUTH_RATE_LIMIT_PASSWORD_RESET", "5/hour")
+    rate = _BaseAuthThrottle.configured_rate("AUTH_RATE_LIMIT_PASSWORD_RESET", "3/hour")
+
+    def get_cache_key(self, request, view):
+        # throttle per email when available, otherwise per IP
+        email = ""
+        if request and hasattr(request, "data"):
+            email = (request.data.get("email") or "").lower()
+        if email:
+            ident = f"email:{email}"
+        else:
+            ident = self.get_ident(request)
+        return self.cache_format % {"scope": self.scope, "ident": ident}
 
 
 class PermissionCheckRateThrottle(_BaseAuthThrottle):

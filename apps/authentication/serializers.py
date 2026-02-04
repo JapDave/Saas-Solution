@@ -172,6 +172,15 @@ class SessionTokenRefreshSerializer(TokenRefreshSerializer):
         except Exception:
             raise CustomError(code=SESSION_EXPIRED, detail="Session expired or invalid.", status_code=401)
         user_id = refresh.get("user_id")
+        # ensure user still active
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            user_obj = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            raise CustomError(code=SESSION_EXPIRED, detail="Session expired or revoked.", status_code=401)
+        if not user_obj.is_active or getattr(user_obj, "deleted_at", None):
+            raise CustomError(code=SESSION_EXPIRED, detail="Session expired or revoked.", status_code=401)
         if not user_id:
             raise CustomError(code=SESSION_EXPIRED, detail="Refresh token missing claims.", status_code=401)
 
