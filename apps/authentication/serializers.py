@@ -114,17 +114,7 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
         access = refresh.access_token
         access.set_exp(lifetime=timedelta(minutes=60))
 
-        # Attach default organization context if available
-        active_membership = (
-            UserOrganization.objects.filter(user=self.user, is_active=True, deleted_at__isnull=True)
-            .values_list("organization_id", flat=True)
-            .first()
-        )
-        if active_membership:
-            access["active_organization_id"] = active_membership
-            refresh["active_organization_id"] = active_membership
-
-        hours = _session_duration_hours(active_membership)
+        hours = _session_duration_hours(None)
 
         # Adjust refresh lifetime based on resolved session duration
         refresh.set_exp(lifetime=timedelta(hours=hours))
