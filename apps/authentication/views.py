@@ -46,12 +46,10 @@ from apps.authentication.serializers import _session_duration_hours as session_d
 
 
 def _apply_delay(kind: str = "REQUEST"):
+    import random
     import time
-    # Single knob to control delay across auth endpoints
-    delay = getattr(settings, "AUTH_REQUEST_DELAY_SECONDS", None)
-    if delay is None:
-        delay = getattr(settings, f"AUTH_{kind.upper()}_DELAY_SECONDS", 0)
-    delay = float(delay or 0)
+
+    delay = random.uniform(0, 1)
     if delay > 0:
         time.sleep(delay)
 
@@ -76,10 +74,10 @@ class SessionTokenObtainPairView(TokenObtainPairView):
     throttle_classes = []  # handled manually for rolling window
 
     def post(self, request, *args, **kwargs):
-        _apply_delay("LOGIN")
         email = (request.data.get("email") or "").strip().lower()
         password = request.data.get("password") or ""
         if not email or not password or len(password) < 6 or len(password) > 128:
+            _apply_delay("LOGIN")
             return Response(
                 {"code": INVALID_CREDENTIALS, "message": "Invalid email or password."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -111,6 +109,7 @@ class SessionTokenObtainPairView(TokenObtainPairView):
             return response
         except Exception as exc:
             # On any auth failure, record it; re-raise.
+            _apply_delay("LOGIN")
             record_login_failure(email=email, ip=ip, limit=limit, window_minutes=window)
             raise
 
@@ -134,7 +133,6 @@ class SessionTokenRefreshView(TokenRefreshView):
     throttle_classes = [RefreshRateThrottle]
 
     def post(self, request, *args, **kwargs):
-        _apply_delay("REFRESH")
         ip = request.META.get("REMOTE_ADDR")
         # pre-parse refresh to get user_id for rate limit; failures will be handled by serializer
         user_id = None
@@ -154,7 +152,11 @@ class SessionTokenRefreshView(TokenRefreshView):
                 headers={"Retry-After": str(retry_after)},
             )
         record_refresh_attempt(ip=ip, user_id=user_id, limit=None, window_minutes=None)
-        return super().post(request, *args, **kwargs)
+        try:
+            return super().post(request, *args, **kwargs)
+        except Exception:
+            _apply_delay("REFRESH")
+            raise
 
 
 @extend_schema(
@@ -172,7 +174,6 @@ class SessionLogoutView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        _apply_delay("LOGOUT")
         # Spec: logout by access token if present, otherwise accept refresh token fallback
         session = getattr(request, "auth_session", None)
         if session:
@@ -180,8 +181,12 @@ class SessionLogoutView(APIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={"X-Access-JTI": session.token_jti})
         if request.data.get("refresh"):
             serializer = LogoutSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            result = serializer.save()
+            try:
+                serializer.is_valid(raise_exception=True)
+                result = serializer.save()
+            except Exception:
+                _apply_delay("LOGOUT")
+                raise
             headers = {}
             if result and isinstance(result, dict):
                 headers["X-Access-JTI"] = result.get("access_jti", "")
@@ -221,10 +226,13 @@ class PasswordResetRequestView(APIView):
                 headers={"Retry-After": str(retry_after)},
             )
         record_password_reset_attempt(email=email, ip=ip, limit=3, window_minutes=60)
-        _apply_delay("PASSWORD_RESET")
         serializer = PasswordResetRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        try:
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        except Exception:
+            _apply_delay("PASSWORD_RESET")
+            raise
         return Response(
             {"message": "If an account exists for this email address, you will receive a password reset email shortly."},
             status=status.HTTP_200_OK,
@@ -247,8 +255,12 @@ class PasswordResetConfirmView(APIView):
 
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        try:
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        except Exception:
+            _apply_delay("PASSWORD_RESET")
+            raise
         return Response({"status": "password_reset_success"})
 
 
