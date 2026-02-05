@@ -10,6 +10,7 @@ from django.db import IntegrityError, transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from django.contrib.auth.password_validation import validate_password
 
 from apps.common.exceptions import (
     CustomError,
@@ -224,6 +225,23 @@ class UserCreateSerializer(serializers.ModelSerializer):
     def validate_password(self, value: str) -> str:
         if not isinstance(value, str) or not 8 <= len(value) <= 128:
             raise CustomValidationError(detail="Password must be between 8 and 128 characters.", code=INVALID_USER_DATA)
+        # Additional similarity checks against provided memberships (if present)
+        memberships = self.initial_data.get("memberships") if hasattr(self, "initial_data") else []
+        org_account_names = []
+        if isinstance(memberships, list):
+            for item in memberships:
+                org = item.get("organization") if isinstance(item, dict) else None
+                if org and hasattr(org, "name"):
+                    org_account_names.append(str(getattr(org, "name", "")).lower())
+                    acc = getattr(org, "account", None)
+                    if acc and getattr(acc, "name", None):
+                        org_account_names.append(str(acc.name).lower())
+        lower_pwd = value.lower()
+        for name in org_account_names:
+            if name and name in lower_pwd:
+                raise CustomValidationError(
+                    detail="Password is too similar to organization/account name.", code=INVALID_USER_DATA
+                )
         return value
 
     def validate_memberships(self, value: List[Dict[str, Any]]):
@@ -251,14 +269,17 @@ class UserCreateSerializer(serializers.ModelSerializer):
         request_user = getattr(request, "user", None)
         with transaction.atomic():
             try:
-                user = User.objects.create_user(password=password, **validated_data)
+                user = User(**validated_data)
+                # Run password validators (includes complexity and similarity checks)
+                validate_password(password, user=user)
+                user.set_password(password)
+                user.save()
             except IntegrityError as exc:
                 if "email" in str(exc).lower():
                     raise CustomError(code=EMAIL_ALREADY_EXISTS, status_code=409, detail='Email address is already in use')
                 raise CustomValidationError(detail="Unable to create user.", code=INVALID_USER_DATA) from exc
             user.created_by = request_user
             user.updated_by = request_user
-            user.set_password(password)
             user.save(update_fields=["password", "created_by", "updated_by", "updated_at"])
 
             for membership in memberships:

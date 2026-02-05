@@ -106,6 +106,20 @@ services:
       - prometheus
       - loki
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", ""]  # disable RDB persistence for dev
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"   # web UI
+      - "1025:1025"   # SMTP
+    restart: unless-stopped
+
 volumes:
   pgdata:
   grafana-data:

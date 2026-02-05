@@ -2,14 +2,18 @@ from django.contrib import admin
 from django.urls import path, include
 from django.http import HttpResponseRedirect
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
-from config.auth_views import PublicTokenObtainPairView, PublicTokenRefreshView
+from apps.authentication.views import (
+    SessionTokenObtainPairView,
+    SessionTokenRefreshView,
+)
 
 urlpatterns = [
     path("", lambda r: HttpResponseRedirect("/api/docs/")),
     path("admin/", admin.site.urls),
     # Auth
-    path("api/auth/token/", PublicTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/auth/token/refresh/", PublicTokenRefreshView.as_view(), name="token_refresh"),
+    path("api/auth/token/", SessionTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/auth/token/refresh/", SessionTokenRefreshView.as_view(), name="token_refresh"),
+    path("api/", include("apps.authentication.urls")),
     # OpenAPI / Docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

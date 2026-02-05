@@ -176,11 +176,26 @@ LOCAL_APPS = [
     "apps.knowledge_base",
     "apps.llms",
     "apps.tools",
+    "apps.authentication",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 AUTH_USER_MODEL = "users.User"
+
+# -------------------------------------------------------------------
+# Cache (Redis preferred for multi-instance consistency)
+# -------------------------------------------------------------------
+REDIS_URL = _get_config("REDIS_URL", default="redis://redis:6379/0")
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
 
 # -------------------------------------------------------------------
 # APM & logging baseline
@@ -335,6 +350,21 @@ PASSWORD_MIN_CAPITAL_LETTERS = int(_get_config("PASSWORD_MIN_CAPITAL_LETTERS", d
 PASSWORD_MIN_NUMBERS = int(_get_config("PASSWORD_MIN_NUMBERS", default="1") or 1)
 PASSWORD_MIN_SPECIAL_CHARACTERS = int(_get_config("PASSWORD_MIN_SPECIAL_CHARACTERS", default="1") or 1)
 
+# Auth/session policies (AUTHENTICATION-AND-AUTHORIZATION v1.1.0)
+AUTH_MAX_CONCURRENT_SESSIONS = int(_get_config("AUTH_MAX_CONCURRENT_SESSIONS", default="5") or 5)
+AUTH_SESSION_INACTIVITY_MINUTES = int(_get_config("AUTH_SESSION_INACTIVITY_MINUTES", default="60") or 60)
+AUTH_PERMISSION_CACHE_TTL = int(_get_config("AUTH_PERMISSION_CACHE_TTL", default="300") or 300)
+AUTH_RATE_LIMIT_LOGIN = _get_config("AUTH_RATE_LIMIT_LOGIN", default="10/min")
+AUTH_RATE_LIMIT_REFRESH = _get_config("AUTH_RATE_LIMIT_REFRESH", default="10/hour")
+AUTH_RATE_LIMIT_LOGOUT = _get_config("AUTH_RATE_LIMIT_LOGOUT", default="60/min")
+AUTH_RATE_LIMIT_CONTEXT_SWITCH = _get_config("AUTH_RATE_LIMIT_CONTEXT_SWITCH", default="30/min")
+AUTH_SESSION_DURATION_DEFAULT_HOURS = int(_get_config("AUTH_SESSION_DURATION_DEFAULT_HOURS", default="24") or 24)
+AUTH_MAX_CONCURRENT_SESSIONS = int(_get_config("AUTH_MAX_CONCURRENT_SESSIONS", default="5") or 5)
+AUTH_RATE_LIMIT_PASSWORD_RESET = _get_config("AUTH_RATE_LIMIT_PASSWORD_RESET", default="5/hour")
+AUTH_RATE_LIMIT_PERMISSION_CHECK = _get_config("AUTH_RATE_LIMIT_PERMISSION_CHECK", default="200/min")
+AUTH_LOGIN_RATE_LIMIT_ATTEMPTS = int(_get_config("AUTH_LOGIN_RATE_LIMIT_ATTEMPTS", default="3") or 3)
+AUTH_LOGIN_RATE_LIMIT_WINDOW_MINUTES = int(_get_config("AUTH_LOGIN_RATE_LIMIT_WINDOW_MINUTES", default="10") or 10)
+
 SSO_ENABLED = _truthy(_get_config("SSO_ENABLED", default="False"))
 OIDC_RP_CLIENT_ID = _get_config("OIDC_RP_CLIENT_ID", default="")
 OIDC_RP_CLIENT_SECRET = _get_config("OIDC_RP_CLIENT_SECRET", default="")
@@ -445,7 +475,7 @@ TEMPLATES = [
 # REST / Auth / OpenAPI
 # -------------------------------------------------------------------
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.authentication.authentication.SessionJWTAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
@@ -471,12 +501,39 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     # Use our standardized error envelope as the default error schema
     "COMPONENT_SPLIT_REQUEST": True,
+    # Enable JWT bearer auth in Swagger/Redoc
+    "COMPONENTS": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
+        }
+    },
+    "SECURITY": [{"bearerAuth": []}],
+    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": False,
 }
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
+    {"NAME": "apps.common.password_validation.ComplexityValidator"},
+]
+
+# Use bcrypt with 12 rounds as baseline
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+]
+BCRYPT_ROUNDS = 12
+PASSWORD_RESET_TIMEOUT = 3600  # seconds (1 hour)
 
 # -------------------------------------------------------------------
 # DRF standardized error
@@ -519,6 +576,13 @@ if STORAGE_TYPE == "MINIO":
             raise RuntimeError(f"Missing required MINIO configuration: {key}")
 
 EMAIL_TYPE = _get_config("EMAIL_TYPE", default=None)
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = _get_config("EMAIL_HOST", default="mailpit")
+EMAIL_PORT = int(_get_config("EMAIL_PORT", default="1025") or 1025)
+EMAIL_HOST_USER = _get_config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = _get_config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = _truthy(_get_config("EMAIL_USE_TLS", default="False"))
+DEFAULT_FROM_EMAIL = _get_config("DEFAULT_FROM_EMAIL", default="no-reply@hudhud.local")
 
 # -------------------------------------------------------------------
 # CORS / Security

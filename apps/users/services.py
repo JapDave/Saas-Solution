@@ -6,6 +6,7 @@ from typing import Dict, Iterable, Optional, Set
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.core.cache import cache
+from django.conf import settings
 
 from apps.accounts.models import Account
 from apps.common.exceptions import (
@@ -16,13 +17,17 @@ from apps.common.exceptions import (
 )
 from apps.accounts.services import get_assigned_account_ids
 from apps.organizations.models import Organization
+from apps.subscriptions.models import Subscription
+from django.utils import timezone
+import logging
 
 from .models import UserOrganization
 
 User = get_user_model()
 
 _PERMISSION_CACHE_PREFIX = "users:permissions"
-_PERMISSION_CACHE_TIMEOUT = 300
+_PERMISSION_CACHE_TIMEOUT = getattr(settings, "AUTH_PERMISSION_CACHE_TTL", 300) or 300
+_AUTHZ_LOGGER = logging.getLogger("authz.decisions")
 
 
 def _permission_cache_key(user_id: int, organization_id: int) -> str:
@@ -99,7 +104,18 @@ def user_has_organization_permission(user, organization_id: int, permission_key:
     if not permission_key:
         return True
     permissions_map = get_user_membership_permissions(user)
-    return permission_key in {perm.lower() for perm in permissions_map.get(organization_id, set())}
+    granted = permission_key in {perm.lower() for perm in permissions_map.get(organization_id, set())}
+    if _AUTHZ_LOGGER:
+        _AUTHZ_LOGGER.info(
+            "authz_decision",
+            extra={
+                "user_id": getattr(user, "id", None),
+                "organization_id": organization_id,
+                "permission": permission_key,
+                "granted": granted,
+            },
+        )
+    return granted
 
 
 def ensure_user_can_manage_organization(request_user, organization: Organization, *, permission_key: str = "") -> None:
@@ -115,6 +131,15 @@ def ensure_user_can_manage_organization(request_user, organization: Organization
         return
     if user_has_organization_permission(request_user, organization.id, permission_key):
         return
+    if _AUTHZ_LOGGER:
+        _AUTHZ_LOGGER.info(
+            "authz_denied_manage_org",
+            extra={
+                "user_id": getattr(request_user, "id", None),
+                "organization_id": organization.id,
+                "permission": permission_key,
+            },
+        )
     raise InsufficientPermissions()
 
 
@@ -166,7 +191,9 @@ def resolve_effective_permission_keys(user, organization_id: int) -> Set[str]:
     This is a forward-compatible entry point so that a future role module can
     contribute permissions without changing call sites in the user domain.
     """
-    permissions = set(get_user_membership_permissions(user, organization_id=organization_id).get(organization_id, set()))
+    permissions = set(
+        get_user_membership_permissions(user, organization_id=organization_id).get(organization_id, set())
+    )
 
     user_id = getattr(user, "id", None)
     cache_key = _permission_cache_key(user_id, organization_id) if user_id else None
@@ -183,6 +210,22 @@ def resolve_effective_permission_keys(user, organization_id: int) -> Set[str]:
         additional = role_services.resolve_user_permissions(user=user, organization_id=organization_id)
         if additional:
             permissions.update(additional)
+
+    # Subscription-based permission filtering
+    now = timezone.now()
+    active_subs = Subscription.objects.filter(
+        organization_id=organization_id,
+        status__in=[Subscription.Status.ACTIVE, Subscription.Status.TRIAL],
+        start_date__lte=now,
+    ).exclude(end_date__lt=now)
+    allowed_perms: Set[str] = set()
+    for sub in active_subs.select_related("module"):
+        allowed_perms.update({p.strip().lower() for p in (sub.module.exposed_permissions or []) if p})
+
+    if allowed_perms:
+        permissions = {perm.lower() for perm in permissions if perm.lower() in allowed_perms}
+    else:
+        permissions = set()
 
     sorted_permissions = sorted(permissions)
     if cache_key:

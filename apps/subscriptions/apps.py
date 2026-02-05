@@ -1,6 +1,9 @@
 from django.apps import AppConfig
 
 
-class ProductsConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.subscriptions'
+class SubscriptionsConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.subscriptions"
+
+    def ready(self):
+        from . import signals  # noqa: F401
