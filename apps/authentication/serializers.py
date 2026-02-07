@@ -193,13 +193,16 @@ class SessionTokenRefreshSerializer(TokenRefreshSerializer):
 
         access = refresh.access_token
         access.set_exp(lifetime=timedelta(minutes=60))
+        request = self.context.get("request")
+        ip = _client_ip(request)
+        ua = _user_agent(request)
         session = AuthSession.objects.create(
             user_id=user_id,
             token_jti=access["jti"],
             refresh_token_hash=_hash_refresh(str(refresh)),
             access_expires_at=_dt_from_timestamp(access["exp"]),
-            ip_address=None,
-            user_agent="",
+            ip_address=ip,
+            user_agent=ua,
         )
         data["access"] = str(access)
         data["session_id"] = str(session.id)
