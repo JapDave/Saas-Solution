@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Any, Optional
+import hashlib
 
 from django.conf import settings
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.urls import reverse
+from django.core.validators import validate_ipv46_address
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
@@ -27,8 +30,6 @@ from apps.common.exceptions import (
     PASSWORD_POLICY_VIOLATION,
 )
 from apps.users.models import UserOrganization
-from apps.subscriptions.models import Subscription
-from django.db.models import Q
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -38,9 +39,19 @@ def _client_ip(request) -> str | None:
     if not request:
         return None
     forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    ip_candidate = None
     if forwarded:
-        return forwarded.split(",", 1)[0].strip()
-    return request.META.get("REMOTE_ADDR")
+        ip_candidate = forwarded.split(",", 1)[0].strip()
+    else:
+        ip_candidate = request.META.get("REMOTE_ADDR")
+    if not ip_candidate:
+        return None
+    try:
+        validate_ipv46_address(ip_candidate)
+    except DjangoValidationError as exc:
+        # Best-effort: ignore invalid IP rather than blocking login
+        return None
+    return ip_candidate
 
 
 def _user_agent(request) -> str:
@@ -54,64 +65,20 @@ def _dt_from_timestamp(ts: Any) -> datetime:
     return datetime.fromtimestamp(int(ts), tz=dt_timezone.utc)
 
 
+def _hash_refresh(refresh: str) -> str:
+    return hashlib.sha256(refresh.encode("utf-8")).hexdigest()
+
+
 def _session_duration_hours(org_id: Optional[int]) -> int:
-    """Resolve session duration (refresh lifetime) from active subscription config (no env fallback)."""
-    if not org_id:
-        raise CustomError(code=SESSION_EXPIRED, detail="Organization context required for session duration.", status_code=400)
-    now = timezone.now()
-    sub = (
-        Subscription.objects.filter(
-            organization_id=org_id,
-            status__in=[Subscription.Status.ACTIVE, Subscription.Status.TRIAL],
-            start_date__lte=now,
-        )
-        .filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
-        .order_by("-start_date")
-        .first()
-    )
-    hours = None
-    if sub and isinstance(sub.configuration, dict):
-        hours = sub.configuration.get("session_duration_hours")
-    try:
-        hours_int = int(hours)
-    except Exception:
-        raise CustomError(code=SESSION_EXPIRED, detail="Missing session_duration_hours in subscription config.", status_code=400)
-    return max(1, min(24, hours_int))
+    """Resolve session duration (refresh lifetime) from settings default (subscription override removed)."""
+    hours = getattr(settings, "AUTH_SESSION_DURATION_DEFAULT_HOURS", 24) or 24
+    return max(1, min(24, int(hours)))
 
 
 def _max_concurrent_sessions_for_user(user) -> int:
-    """Resolve max concurrent sessions for the user based on active org subscriptions (no env fallback)."""
-    if not user or not getattr(user, "id", None):
-        return 0
-    now = timezone.now()
-    org_ids = list(
-        UserOrganization.objects.filter(user=user, is_active=True, deleted_at__isnull=True).values_list(
-            "organization_id", flat=True
-        )
-    )
-    if not org_ids:
-        return 0
-    subs = (
-        Subscription.objects.filter(
-            organization_id__in=org_ids,
-            status__in=[Subscription.Status.ACTIVE, Subscription.Status.TRIAL],
-            start_date__lte=now,
-        )
-        .filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
-        .values_list("configuration", flat=True)
-    )
-    limits = []
-    for cfg in subs:
-        if isinstance(cfg, dict) and cfg.get("max_concurrent_sessions") is not None:
-            try:
-                limits.append(int(cfg.get("max_concurrent_sessions")))
-            except Exception:
-                continue
-    if limits:
-        limit = min([l for l in limits if l >= 0])
-    else:
-        limit = 0
-    return max(0, min(10, limit))
+    """Resolve max concurrent sessions from settings default (subscription override removed)."""
+    limit = getattr(settings, "AUTH_MAX_CONCURRENT_SESSIONS", 5) or 5
+    return max(0, int(limit))
 
 
 class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -133,31 +100,21 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         data = super().validate(attrs)
-        request = self.context.get("request")
-
-        refresh: RefreshToken = self.get_token(self.user)
-        access = refresh.access_token
-
-        # Attach default organization context if any
-        active_membership = (
-            UserOrganization.objects.filter(user=self.user, is_active=True, deleted_at__isnull=True)
-            .values_list("organization_id", flat=True)
-            .first()
-        )
-
-        if active_membership:
-            access["active_organization_id"] = active_membership
-            refresh["active_organization_id"] = active_membership
-            hours = _session_duration_hours(active_membership)
-        elif self.user.is_superuser:
-            # Superusers may log in without org membership; fall back to default session duration.
-            hours = getattr(settings, "AUTH_SESSION_DURATION_DEFAULT_HOURS", 24) or 24
-        else:
+        # Explicitly block inactive/deleted users
+        if not getattr(self.user, "is_active", True) or getattr(self.user, "deleted_at", None):
             raise CustomError(
-                code=SESSION_EXPIRED,
-                detail="Organization context required for session duration.",
+                code=INVALID_CREDENTIALS,
+                detail="Invalid email or password.",
                 status_code=400,
             )
+        request = self.context.get("request")
+        refresh: RefreshToken = self.get_token(self.user)
+        refresh_str = str(refresh)
+        refresh_hash = _hash_refresh(refresh_str)
+        access = refresh.access_token
+        access.set_exp(lifetime=timedelta(minutes=60))
+
+        hours = _session_duration_hours(None)
 
         # Adjust refresh lifetime based on resolved session duration
         refresh.set_exp(lifetime=timedelta(hours=hours))
@@ -168,8 +125,8 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         session = AuthSession.objects.create(
             user=self.user,
-            access_jti=access["jti"],
-            refresh_jti=refresh["jti"],
+            token_jti=access["jti"],
+            refresh_token_hash=refresh_hash,
             access_expires_at=_dt_from_timestamp(access["exp"]),
             ip_address=ip,
             user_agent=ua,
@@ -178,7 +135,7 @@ class SessionTokenObtainPairSerializer(TokenObtainPairSerializer):
         data.update(
             {
                 "access": str(access),
-                "refresh": str(refresh),
+                "refresh": refresh_str,
                 "session_id": str(session.id),
             }
         )
@@ -191,17 +148,18 @@ class SessionTokenRefreshSerializer(TokenRefreshSerializer):
     }
 
     def validate(self, attrs):
+        refresh_str = attrs.get("refresh")
+        refresh_hash = _hash_refresh(refresh_str or "")
         try:
             data = super().validate(attrs)
         except Exception:
             # Attempt to mark session as deactivated when refresh is invalid/expired
             try:
-                refresh = RefreshToken(attrs.get("refresh"))
-                jti = refresh.get("jti")
+                refresh = RefreshToken(refresh_str or "")
                 user_id = refresh.get("user_id")
-                if jti and user_id:
+                if user_id:
                     AuthSession.objects.filter(
-                        refresh_jti=jti,
+                        refresh_token_hash=refresh_hash,
                         user_id=user_id,
                         deactivated_at__isnull=True,
                     ).update(deactivated_at=timezone.now(), deactivated_reason="refresh_invalid_or_expired")
@@ -209,23 +167,43 @@ class SessionTokenRefreshSerializer(TokenRefreshSerializer):
                 pass
             raise
 
-        refresh = RefreshToken(attrs["refresh"])
+        try:
+            refresh = RefreshToken(refresh_str or "")
+        except Exception:
+            raise CustomError(code=SESSION_EXPIRED, detail="Session expired or invalid.", status_code=401)
         user_id = refresh.get("user_id")
-        jti = refresh.get("jti")
-        if not jti or not user_id:
+        # ensure user still active
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            user_obj = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            raise CustomError(code=SESSION_EXPIRED, detail="Session expired or revoked.", status_code=401)
+        if not user_obj.is_active or getattr(user_obj, "deleted_at", None):
+            raise CustomError(code=SESSION_EXPIRED, detail="Session expired or revoked.", status_code=401)
+        if not user_id:
             raise CustomError(code=SESSION_EXPIRED, detail="Refresh token missing claims.", status_code=401)
 
-        try:
-            session = AuthSession.objects.active().get(refresh_jti=jti, user_id=user_id)
-        except AuthSession.DoesNotExist:
+        qs = AuthSession.objects.active().filter(refresh_token_hash=refresh_hash, user_id=user_id)
+        if not qs.exists():
             raise CustomError(code=SESSION_EXPIRED, detail="Session expired or revoked.", status_code=401)
 
+        # Invalidate existing access sessions for this refresh, then create a new one for the new access token
+        qs.update(deactivated_at=timezone.now(), deactivated_reason="refresh_rotation")
+
         access = refresh.access_token
-        session.mark_new_access(
-            access_jti=access["jti"],
+        access.set_exp(lifetime=timedelta(minutes=60))
+        request = self.context.get("request")
+        ip = _client_ip(request)
+        ua = _user_agent(request)
+        session = AuthSession.objects.create(
+            user_id=user_id,
+            token_jti=access["jti"],
+            refresh_token_hash=_hash_refresh(str(refresh)),
             access_expires_at=_dt_from_timestamp(access["exp"]),
+            ip_address=ip,
+            user_agent=ua,
         )
-        session.touch()
         data["access"] = str(access)
         data["session_id"] = str(session.id)
         return data
@@ -235,16 +213,20 @@ class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField(required=True)
 
     def save(self, **kwargs):
-        refresh_token = RefreshToken(self.validated_data["refresh"])
-        jti = refresh_token.get("jti")
-        user_id = refresh_token.get("user_id")
-        if not jti or not user_id:
+        try:
+            refresh_token = RefreshToken(self.validated_data["refresh"])
+        except Exception:
             raise CustomError(code=SESSION_EXPIRED, detail="Invalid refresh token.", status_code=401)
-        qs = AuthSession.objects.filter(refresh_jti=jti, user_id=user_id, deactivated_at__isnull=True)
-        updated = qs.update(deactivated_at=timezone.now(), deactivated_reason="logout")
-        if not updated:
+        user_id = refresh_token.get("user_id")
+        if not user_id:
+            raise CustomError(code=SESSION_EXPIRED, detail="Invalid refresh token.", status_code=401)
+        refresh_hash = _hash_refresh(str(refresh_token))
+        qs = AuthSession.objects.filter(refresh_token_hash=refresh_hash, user_id=user_id, deactivated_at__isnull=True)
+        if not qs.exists():
             raise CustomError(code=SESSION_REVOKED, detail="Session already revoked.", status_code=400)
-        return True
+        access_jti = qs.first().token_jti if qs.exists() else ""
+        qs.update(deactivated_at=timezone.now(), deactivated_reason="logout")
+        return {"access_jti": access_jti}
 
 
 class ContextSwitchSerializer(serializers.Serializer):
@@ -334,4 +316,9 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         new_password = self.validated_data["new_password"]
         user.set_password(new_password)
         user.save(update_fields=["password", "updated_at"])
+        # Deactivate all active sessions on password reset
+        AuthSession.objects.filter(user=user, deactivated_at__isnull=True).update(
+            deactivated_at=timezone.now(), deactivated_reason="password_reset"
+        )
         return True
+

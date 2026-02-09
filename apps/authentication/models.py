@@ -30,8 +30,8 @@ class AuthSession(BaseModel):
         related_name="auth_sessions",
         verbose_name=_("User"),
     )
-    access_jti = models.CharField(_("Access token JTI"), max_length=64, unique=True)
-    refresh_jti = models.CharField(_("Refresh token JTI"), max_length=64, unique=True)
+    token_jti = models.CharField(_("Access token JTI"), max_length=64, unique=True)
+    refresh_token_hash = models.CharField(_("Refresh token hash"), max_length=128)
     access_expires_at = models.DateTimeField(_("Access token expires at"))
     ip_address = models.GenericIPAddressField(_("IP address"), null=True, blank=True)
     user_agent = models.CharField(_("User agent"), max_length=500, blank=True, default="")
@@ -45,8 +45,8 @@ class AuthSession(BaseModel):
     class Meta:
         indexes = [
             models.Index(fields=["user_id", "created_at"]),
-            models.Index(fields=["access_jti"]),
-            models.Index(fields=["refresh_jti"]),
+            models.Index(fields=["token_jti"]),
+            models.Index(fields=["refresh_token_hash"]),
         ]
         ordering = ["-created_at"]
 
@@ -71,8 +71,8 @@ class AuthSession(BaseModel):
             and self.access_expires_at > now
         )
 
-    def mark_new_access(self, *, access_jti: str, access_expires_at: datetime) -> None:
-        self.access_jti = access_jti
+    def mark_new_access(self, *, token_jti: str, access_expires_at: datetime) -> None:
+        self.token_jti = token_jti
         self.access_expires_at = access_expires_at
         self.touch(commit=False)
-        self.save(update_fields=["access_jti", "access_expires_at", "last_activity_at", "updated_at"])
+        self.save(update_fields=["token_jti", "access_expires_at", "last_activity_at", "updated_at"])

@@ -9,60 +9,7 @@ class Migration(migrations.Migration):
         ('authentication', '0002_remove_refresh_expires'),
     ]
 
-    # The underlying database indexes were already renamed by earlier runs.
-    # Here we only align the migration state with the current model/index names,
-    # without issuing any database operations (to avoid "relation does not exist"
-    # errors when rerunning migrations on existing databases).
-    operations = [
-        migrations.SeparateDatabaseAndState(
-            database_operations=[
-                migrations.RunSQL(
-                    sql='ALTER INDEX IF EXISTS "apps_authen_user_id_14f31c_idx" RENAME TO "authenticat_user_id_82caaa_idx";',
-                    reverse_sql='ALTER INDEX IF EXISTS "authenticat_user_id_82caaa_idx" RENAME TO "apps_authen_user_id_14f31c_idx";',
-                ),
-                migrations.RunSQL(
-                    sql='ALTER INDEX IF EXISTS "apps_authen_access__b84622_idx" RENAME TO "authenticat_access__26b64f_idx";',
-                    reverse_sql='ALTER INDEX IF EXISTS "authenticat_access__26b64f_idx" RENAME TO "apps_authen_access__b84622_idx";',
-                ),
-                migrations.RunSQL(
-                    sql='ALTER INDEX IF EXISTS "apps_authen_refresh__c41954_idx" RENAME TO "authenticat_refresh_73d227_idx";',
-                    reverse_sql='ALTER INDEX IF EXISTS "authenticat_refresh_73d227_idx" RENAME TO "apps_authen_refresh__c41954_idx";',
-                ),
-            ],
-            state_operations=[
-                migrations.RemoveIndex(
-                    model_name="authsession",
-                    name="apps_authen_user_id_14f31c_idx",
-                ),
-                migrations.RemoveIndex(
-                    model_name="authsession",
-                    name="apps_authen_access__b84622_idx",
-                ),
-                migrations.RemoveIndex(
-                    model_name="authsession",
-                    name="apps_authen_refresh__c41954_idx",
-                ),
-                migrations.AddIndex(
-                    model_name="authsession",
-                    index=models.Index(
-                        fields=["user_id", "created_at"],
-                        name="authenticat_user_id_82caaa_idx",
-                    ),
-                ),
-                migrations.AddIndex(
-                    model_name="authsession",
-                    index=models.Index(
-                        fields=["access_jti"],
-                        name="authenticat_access__26b64f_idx",
-                    ),
-                ),
-                migrations.AddIndex(
-                    model_name="authsession",
-                    index=models.Index(
-                        fields=["refresh_jti"],
-                        name="authenticat_refresh_73d227_idx",
-                    ),
-                ),
-            ],
-        ),
-    ]
+    # No-op: earlier versions attempted to rename indexes that never existed.
+    # Keeping the migration number for compatibility while avoiding errors on
+    # fresh databases.
+    operations = []
