@@ -21,6 +21,10 @@ from apps.roles.utils import has_role
 from apps.common.models import AuditLog
 from apps.common.audit import get_audit_context, get_client_ip, get_user_agent
 from apps.llms.telemetry import inc_llm_enabled, inc_llm_disabled
+from apps.accounts.services import get_assigned_account_ids
+from apps.common.validators import user_has_active_membership
+from django.contrib.auth import get_user_model
+from django.conf import settings
 
 LLM_MODULE_KEY = "LLM_MANAGEMENT"
 
@@ -36,8 +40,13 @@ DEFAULT_LIMITS = LLMLimits(max_enabled=20)
 
 def resolve_llm_limits(organization) -> LLMLimits:
     config = get_subscription_configuration(organization, LLM_MODULE_KEY) or {}
+    max_enabled = (
+        config.get("llms_max_enabled_per_org")
+        if config.get("llms_max_enabled_per_org") is not None
+        else config.get("llms.max_enabled")
+    )
     return LLMLimits(
-        max_enabled=int(config.get("llms.max_enabled", DEFAULT_LIMITS.max_enabled)),
+        max_enabled=int(max_enabled or DEFAULT_LIMITS.max_enabled),
     )
 
 
@@ -61,19 +70,38 @@ def ensure_llm_permission(user, organization, permission_key: str):
     if has_role(user, ROLE_SAAS_ADMINISTRATOR):
         return
     if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
+        # SaaS Account Managers are scoped to assigned accounts
+        if organization.account_id in get_assigned_account_ids(user):
+            return
         return
-    # Org role: Agent Manager may list/read enabled LLMs
-    if permission_key.lower() in {"llms:read", "llms:list"} and has_role(
-        user, ROLE_AGENT_MANAGER, organization.uuid
-    ):
+    lowered_key = (permission_key or "").lower()
+    # Listing available LLMs is restricted to SaaS roles only.
+    if lowered_key == "llms:list":
+        raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
+    # Org role: Agent Manager may read enabled LLMs only
+    if lowered_key == "llms:read" and has_role(user, ROLE_AGENT_MANAGER, organization.uuid):
         return
-    # treat list as read for backward compatibility
-    if permission_key.lower() == "llms:list":
-        permission_key = "llms:read"
+    # Any active org member can read enabled LLMs
+    if lowered_key == "llms:read" and user_has_active_membership(user, organization):
+        return
     permissions = {perm.lower() for perm in resolve_effective_permission_keys(user, organization.id)}
     if permission_key.lower() in permissions or "llms:admin" in permissions:
         return
     raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
+
+
+def _system_user():
+    user_model = get_user_model()
+    email = getattr(settings, "AUDIT_SYSTEM_USER_EMAIL", "") or ""
+    if not email:
+        return user_model.objects.filter(is_superuser=True).order_by("id").first()
+    try:
+        user = user_model.objects.filter(email=email).first()
+        if user:
+            return user
+        return user_model.objects.create_user(email=email, password=None, is_active=True)
+    except Exception:
+        return None
 
 
 def _with_linear_retry(func: Callable, *, attempts: int = 3, base_delay: float = 0.5, retry_exceptions: Sequence[Type[BaseException]] = (Exception,)):
@@ -183,3 +211,33 @@ def agents_usage_by_model_keys(org, model_keys: list[str]) -> dict[str, int]:
     for key in qs:
         usage[key] = usage.get(key, 0) + 1
     return usage
+
+
+def disable_hosted_llms_for_subscription(*, organization, allowed_hosted_models: set[str] | None, reason: str = "subscription_change"):
+    """
+    Disable any hosted LLMs that are enabled but no longer allowed by subscription.
+    """
+    hosted_keys = {d.key for d in list_llm_definitions() if d.requires_hosted_subscription}
+    if allowed_hosted_models is None:
+        allowed_hosted_models = set()
+    to_disable = hosted_keys - set(allowed_hosted_models)
+    if not to_disable:
+        return
+    records = OrganizationEnabledLLM.objects.filter(
+        organization=organization,
+        disabled_at__isnull=True,
+        model_key__in=to_disable,
+    )
+    if not records.exists():
+        return
+    actor = _system_user()
+    for record in records:
+        record.disable(actor=actor)
+        _audit_llm_action(
+            user=actor,
+            organization=organization,
+            model_key=record.model_key,
+            action="disable",
+            success=True,
+            reason=reason,
+        )

@@ -93,8 +93,12 @@ def ensure_llm_allowed_for_subscription(organization, model_key: str):
     definition = get_llm_definition(model_key)
     if not definition or not definition.requires_hosted_subscription:
         return
-    limits = resolve_agent_limits(organization)
-    if model_key not in limits.enabled_hosted_llms:
+    llm_config = get_subscription_configuration(organization, "LLM_MANAGEMENT") or {}
+    hosted_allowed = llm_config.get("llms_enabled_hosted_models")
+    if hosted_allowed is None:
+        limits = resolve_agent_limits(organization)
+        hosted_allowed = list(limits.enabled_hosted_llms)
+    if model_key not in set(str(k) for k in (hosted_allowed or [])):
         raise CustomError(
             code=LLM_NOT_PERMITTED,
             status_code=403,

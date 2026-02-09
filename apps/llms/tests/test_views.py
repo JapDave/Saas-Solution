@@ -8,7 +8,8 @@ from apps.agents.models import OrganizationEnabledLLM
 from apps.llms.models import LLMDefinition
 from apps.organizations.tests.factories import OrganizationFactory
 from apps.products.models import Module
-from apps.roles.constants import LLM_PERMISSION_KEYS
+from apps.roles.constants import LLM_PERMISSION_KEYS, ROLE_SAAS_ADMINISTRATOR
+from apps.roles.models import Role, RoleAssignment
 from apps.subscriptions.models import Subscription
 from apps.users.models import UserOrganization
 from apps.users.tests.factories import UserFactory
@@ -43,6 +44,22 @@ def llm_client(db):
         organization=organization,
         permission_keys=list(LLM_PERMISSION_KEYS),
         assigned_by=user,
+    )
+    saas_role, _ = Role.objects.get_or_create(
+        organization=None,
+        name=ROLE_SAAS_ADMINISTRATOR,
+        defaults={
+            "description": "System role for tests",
+            "permissions": list(LLM_PERMISSION_KEYS),
+            "role_type": Role.RoleType.SYSTEM,
+            "created_by": user,
+        },
+    )
+    RoleAssignment.objects.get_or_create(
+        user=user,
+        role=saas_role,
+        organization=None,
+        defaults={"assigned_by": user},
     )
     client = APIClient()
     client.force_authenticate(user=user)

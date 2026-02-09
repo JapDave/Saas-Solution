@@ -35,10 +35,19 @@ class OrganizationLLMDefinitionsView(APIView):
         inc_llm_list()
         inc_llm_schema()
 
+        provider_filter = (request.query_params.get("provider") or "").strip().lower()
+        modality_filter = (request.query_params.get("modality") or "").strip().lower()
+
         definitions = list_llm_definitions()
         # filter hosted models by subscription allowance
         filtered_defs = []
         for definition in definitions:
+            if provider_filter and definition.provider.lower() != provider_filter:
+                continue
+            if modality_filter and modality_filter not in [
+                (m or "").strip().lower() for m in (definition.raw.get("supportedModalities") or [])
+            ]:
+                continue
             try:
                 ensure_llm_allowed_for_subscription(organization, definition.key)
             except Exception:
