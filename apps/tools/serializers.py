@@ -2,24 +2,22 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from apps.agents.models import OrganizationEnabledTool
-
-
 class ToolDefinitionSerializer(serializers.Serializer):
     toolKey = serializers.CharField()
     displayName = serializers.CharField()
     description = serializers.CharField()
-    categories = serializers.ListField(child=serializers.CharField(), required=False)
+    category = serializers.CharField()
+    configurationSchema = serializers.DictField()
+    usedByAgents = serializers.IntegerField(required=False)
 
 
-class ToolValidationSerializer(serializers.Serializer):
-    organization_uuid = serializers.UUIDField()
-    toolKey = serializers.CharField()
-    configuration = serializers.DictField()
-
-
-class OrganizationEnabledToolSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = OrganizationEnabledTool
-        fields = ["uuid", "tool_key", "enabled_at", "disabled_at"]
-
+class OrganizationEnabledToolSerializer(serializers.Serializer):
+    id = serializers.UUIDField(source="uuid")
+    organizationId = serializers.UUIDField(source="organization.uuid")
+    toolKey = serializers.CharField(source="tool_key")
+    displayName = serializers.CharField(source="display_name")
+    category = serializers.CharField()
+    enabledBy = serializers.UUIDField(source="enabled_by.uuid", allow_null=True)
+    enabledAt = serializers.DateTimeField(source="enabled_at")
+    disabledAt = serializers.DateTimeField(source="disabled_at", allow_null=True)
+    disabledBy = serializers.UUIDField(source="disabled_by.uuid", allow_null=True)

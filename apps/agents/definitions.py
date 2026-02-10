@@ -25,6 +25,9 @@ class ParameterRule:
     maximum: float | None = None
     choices: Iterable[Any] | None = None
     format: str | None = None
+    min_items: int | None = None
+    max_items: int | None = None
+    items: "ParameterRule | None" = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,15 @@ class ToolDefinition:
 def _build_parameter_rule(field: Dict[str, Any]) -> ParameterRule:
     validation = field.get("validation") or {}
     choices = validation.get("enum") or validation.get("choices")
+    items = validation.get("items") or {}
+    item_rule = None
+    if isinstance(items, dict) and items:
+        item_rule = ParameterRule(
+            type=(items.get("type") or "string").lower(),
+            required=True,
+            choices=items.get("enum") or items.get("choices"),
+            format=items.get("format"),
+        )
     return ParameterRule(
         type=(field.get("type") or "string").lower(),
         required=field.get("required", False),
@@ -57,6 +69,9 @@ def _build_parameter_rule(field: Dict[str, Any]) -> ParameterRule:
         maximum=validation.get("max"),
         choices=choices,
         format=validation.get("format"),
+        min_items=validation.get("minItems"),
+        max_items=validation.get("maxItems"),
+        items=item_rule,
     )
 
 

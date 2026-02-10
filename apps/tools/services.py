@@ -3,29 +3,37 @@ from __future__ import annotations
 from dataclasses import dataclass
 import time
 
-from apps.agents.definitions import get_tool_definition, list_tool_definitions
+from apps.agents.definitions import get_tool_definition
 from apps.agents.services import enable_tool_for_organization, disable_tool_for_organization
 from apps.agents.validators import validate_tools_configuration
-from apps.agents.models import OrganizationEnabledTool, Agent
+from apps.agents.models import OrganizationEnabledTool
+from django.core.exceptions import ValidationError
+
 from apps.common.exceptions import (
     CustomError,
     INSUFFICIENT_PERMISSIONS,
-    SUBSCRIPTION_LIMIT_EXCEEDED,
+    INVALID_CONFIGURATION,
+    INVALID_URL_FORMAT,
+    INVALID_UUID_FORMAT,
+    KB_COLLECTION_NOT_FOUND,
+    MAX_TOOLS_EXCEEDED,
+    TOOL_ALREADY_DISABLED,
+    TOOL_DUPLICATE,
     TOOL_NOT_FOUND,
+    TOOL_NOT_ENABLED,
 )
 from apps.knowledge_base.models import Collection
 from apps.subscriptions.services import get_subscription_configuration
 from apps.users.services import resolve_effective_permission_keys
-from apps.roles.constants import ROLE_SAAS_ADMINISTRATOR, ROLE_SAAS_ACCOUNT_MANAGER, ROLE_ACCOUNT_ADMINISTRATOR
+from apps.accounts.services import get_assigned_account_ids
+from apps.roles.constants import ROLE_SAAS_ADMINISTRATOR, ROLE_SAAS_ACCOUNT_MANAGER
 from apps.roles.utils import has_role
-from apps.users.models import Membership
 from apps.common.models import AuditLog
 from apps.common.audit import get_audit_context, get_client_ip, get_user_agent
 from apps.tools.telemetry import (
     inc_tool_enabled,
     inc_tool_disabled,
 )
-from apps.tools.usage import agents_usage_by_tool_keys
 
 TOOLS_MODULE_KEY = "TOOLS_MANAGEMENT"
 
@@ -52,7 +60,7 @@ def enforce_tool_limit(organization):
     ).count()
     if count >= limits.max_enabled:
         raise CustomError(
-            code=SUBSCRIPTION_LIMIT_EXCEEDED,
+            code=MAX_TOOLS_EXCEEDED,
             status_code=409,
             detail=f"{count}/{limits.max_enabled} tools enabled.",
         )
@@ -63,20 +71,19 @@ def ensure_tool_permission(user, organization, permission_key: str):
         raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Authentication required.")
     if user.is_superuser:
         return
-    # SaaS-level overrides
-    if has_role(user, ROLE_SAAS_ADMINISTRATOR) or has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
-        return
-    # Account Admin (org scope) can enable/disable/read
-    if has_role(user, ROLE_ACCOUNT_ADMINISTRATOR, organization.uuid):
-        return
-    permissions = {perm.lower() for perm in resolve_effective_permission_keys(user, organization.id)}
     lowered = permission_key.lower()
-    if lowered in permissions or "tools:admin" in permissions:
+    if has_role(user, ROLE_SAAS_ADMINISTRATOR):
         return
-    # Enabled list/read should be visible to any org member
-    if lowered in {"tools:read", "tools:list"} and Membership.objects.filter(
-        user=user, organization=organization, deleted_at__isnull=True
-    ).exists():
+    if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
+        assigned = get_assigned_account_ids(user)
+        if organization.account_id in assigned:
+            return
+        raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
+    # Enable/disable are SaaS-only
+    if lowered in {"tools:enable", "tools:disable"}:
+        raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
+    permissions = {perm.lower() for perm in resolve_effective_permission_keys(user, organization.id)}
+    if lowered in permissions or "tools:admin" in permissions:
         return
     raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
 
@@ -129,6 +136,13 @@ def enable_tool(organization, tool_key: str, actor):
     definition = get_tool_definition(tool_key)
     if not definition:
         raise CustomError(code=TOOL_NOT_FOUND, status_code=404, detail="Unknown tool key.")
+    existing = OrganizationEnabledTool.objects.filter(
+        organization=organization,
+        tool_key=tool_key,
+        disabled_at__isnull=True,
+    ).first()
+    if existing:
+        return existing
     enforce_tool_limit(organization)
     record = _with_linear_retry(
         lambda: enable_tool_for_organization(organization=organization, tool_key=tool_key, actor=actor),
@@ -141,6 +155,11 @@ def enable_tool(organization, tool_key: str, actor):
 
 
 def disable_tool(organization, tool_key: str, actor):
+    record = OrganizationEnabledTool.objects.filter(organization=organization, tool_key=tool_key).first()
+    if not record:
+        raise CustomError(code=TOOL_NOT_ENABLED, status_code=404, detail="Tool not enabled for organization.")
+    if record.disabled_at:
+        raise CustomError(code=TOOL_ALREADY_DISABLED, status_code=400, detail="Tool is already disabled.")
     record = _with_linear_retry(
         lambda: disable_tool_for_organization(organization=organization, tool_key=tool_key, actor=actor),
         attempts=3,
@@ -158,7 +177,20 @@ def validate_tool_configuration(payload: dict, *, organization):
         "toolKey": payload.get("toolKey") or payload.get("tool_key"),
         "configuration": payload.get("configuration") or {},
     }
-    validated = validate_tools_configuration([entry], organization=organization)
+    try:
+        validated = validate_tools_configuration([entry], organization=organization)
+    except ValidationError as exc:
+        message = str(exc)
+        lowered = message.lower()
+        if "collection" in lowered and "not exist" in lowered:
+            raise CustomError(code=KB_COLLECTION_NOT_FOUND, status_code=400, detail=message) from exc
+        if "uuid" in lowered:
+            raise CustomError(code=INVALID_UUID_FORMAT, status_code=400, detail=message) from exc
+        if "url" in lowered:
+            raise CustomError(code=INVALID_URL_FORMAT, status_code=400, detail=message) from exc
+        if "duplicate tool" in lowered:
+            raise CustomError(code=TOOL_DUPLICATE, status_code=400, detail=message) from exc
+        raise CustomError(code=INVALID_CONFIGURATION, status_code=400, detail=message) from exc
     if validated:
         cleaned = validated[0]
         if cleaned["toolKey"] == "kb_retriever":
@@ -167,7 +199,7 @@ def validate_tool_configuration(payload: dict, *, organization):
                 exists = Collection.objects.filter(uuid=collection_id, organization=organization).exists()
                 if not exists:
                     raise CustomError(
-                        code="KB_COLLECTION_NOT_FOUND",
+                        code=KB_COLLECTION_NOT_FOUND,
                         status_code=400,
                         detail="Referenced collection does not exist.",
                     )

@@ -6,9 +6,6 @@ from apps.agents.views import (
     OrganizationLLMAvailableView,
     OrganizationLLMDisableView,
     OrganizationLLMView,
-    OrganizationToolAvailableView,
-    OrganizationToolDisableView,
-    OrganizationToolView,
 )
 
 router = DefaultRouter()
@@ -30,20 +27,5 @@ urlpatterns = [
         "organizations/<uuid:organization_uuid>/llms/<str:model_key>/disable/",
         OrganizationLLMDisableView.as_view(),
         name="organization-llms-disable",
-    ),
-    path(
-        "organizations/<uuid:organization_uuid>/tools/",
-        OrganizationToolAvailableView.as_view(),
-        name="organization-tools-available",
-    ),
-    path(
-        "organizations/<uuid:organization_uuid>/tools/enabled/",
-        OrganizationToolView.as_view(),
-        name="organization-tools",
-    ),
-    path(
-        "organizations/<uuid:organization_uuid>/tools/<str:tool_key>/disable/",
-        OrganizationToolDisableView.as_view(),
-        name="organization-tools-disable",
     ),
 ]

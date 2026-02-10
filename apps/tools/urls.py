@@ -1,28 +1,25 @@
-from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
 from apps.tools.views import (
+    OrganizationToolDetailView,
     OrganizationToolDisableView,
     OrganizationToolEnableView,
-    OrganizationToolViewSet,
-    ToolDefinitionDetailView,
-    ToolDefinitionListView,
-    ToolSchemaView,
-    ToolValidationView,
-)
-
-router = DefaultRouter()
-router.register(
-    r"tools/organizations/(?P<organization_uuid>[^/]+)/enabled",
-    OrganizationToolViewSet,
-    basename="organization-tools",
+    OrganizationToolEnabledListView,
+    OrganizationToolListView,
 )
 
 urlpatterns = [
-    path("tools/", ToolDefinitionListView.as_view(), name="tool-list"),
-    path("tools/validate/", ToolValidationView.as_view(), name="tool-validate"),
-    path("tools/<str:tool_key>/schema/", ToolSchemaView.as_view(), name="tool-schema"),
-    path("tools/<str:tool_key>/", ToolDefinitionDetailView.as_view(), name="tool-detail"),
+    path("tools/organizations/<uuid:organization_uuid>/", OrganizationToolListView.as_view(), name="tool-list"),
+    path(
+        "tools/organizations/<uuid:organization_uuid>/<str:tool_key>/",
+        OrganizationToolDetailView.as_view(),
+        name="tool-detail",
+    ),
+    path(
+        "tools/organizations/<uuid:organization_uuid>/enabled/",
+        OrganizationToolEnabledListView.as_view(),
+        name="tool-enabled-list",
+    ),
     path(
         "tools/organizations/<uuid:organization_uuid>/<str:tool_key>/enable/",
         OrganizationToolEnableView.as_view(),
@@ -33,5 +30,4 @@ urlpatterns = [
         OrganizationToolDisableView.as_view(),
         name="organization-tools-disable",
     ),
-    path("", include(router.urls)),
 ]

@@ -28,6 +28,7 @@ from apps.common.exceptions import (
     LLM_NOT_PERMITTED,
     LLM_REQUIRED,
     SUBSCRIPTION_LIMIT_EXCEEDED,
+    TOOL_ALREADY_DISABLED,
     TOOL_NOT_ENABLED,
     TOOL_NOT_FOUND,
 )
@@ -265,12 +266,23 @@ def enable_tool_for_organization(*, organization, tool_key: str, actor=None) -> 
     record, _ = OrganizationEnabledTool.objects.get_or_create(
         organization=organization,
         tool_key=tool_key,
-        defaults={"enabled_by": actor},
+        defaults={
+            "enabled_by": actor,
+            "display_name": definition.display_name,
+            "category": definition.raw.get("category", ""),
+        },
     )
     if record.disabled_at:
         record.disabled_at = None
         record.enabled_by = actor
-        record.save(update_fields=["disabled_at", "enabled_by", "updated_at"])
+        record.display_name = definition.display_name
+        record.category = definition.raw.get("category", "")
+        record.save(update_fields=["disabled_at", "enabled_by", "display_name", "category", "updated_at"])
+    else:
+        if record.display_name != definition.display_name or record.category != (definition.raw.get("category", "")):
+            record.display_name = definition.display_name
+            record.category = definition.raw.get("category", "")
+            record.save(update_fields=["display_name", "category", "updated_at"])
     return record
 
 
@@ -278,9 +290,10 @@ def disable_tool_for_organization(*, organization, tool_key: str, actor=None) ->
     record = OrganizationEnabledTool.objects.filter(
         organization=organization,
         tool_key=tool_key,
-        disabled_at__isnull=True,
     ).first()
     if not record:
         raise CustomError(code=TOOL_NOT_ENABLED, status_code=404, detail="Tool not enabled for organization.")
+    if record.disabled_at:
+        raise CustomError(code=TOOL_ALREADY_DISABLED, status_code=400, detail="Tool is already disabled.")
     record.disable(actor=actor)
     return record

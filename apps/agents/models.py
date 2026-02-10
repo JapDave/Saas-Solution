@@ -237,6 +237,8 @@ class OrganizationEnabledTool(BaseModel):
         verbose_name=_("Organization"),
     )
     tool_key = models.CharField(_("Tool key"), max_length=100)
+    display_name = models.CharField(_("Display name"), max_length=200, default="")
+    category = models.CharField(_("Category"), max_length=50, default="")
     enabled_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -259,7 +261,6 @@ class OrganizationEnabledTool(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["organization", "tool_key"],
-                condition=Q(disabled_at__isnull=True),
                 name="uq_enabled_tool_per_org",
             )
         ]

@@ -4,6 +4,7 @@ import uuid
 from typing import Any, Iterable
 
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.utils.translation import gettext_lazy as _
 
 from apps.agents.definitions import (
@@ -13,6 +14,7 @@ from apps.agents.definitions import (
     get_llm_definition,
     get_tool_definition,
 )
+from apps.knowledge_base.models import Collection
 
 SYSTEM_PROMPT_MIN_WORDS = 1
 SYSTEM_PROMPT_MAX_WORDS = 10_000
@@ -67,6 +69,12 @@ def _validate_parameter(key: str, value: Any, rule: ParameterRule) -> Any:
                 uuid.UUID(value)
             except (TypeError, ValueError) as exc:
                 raise ValidationError({key: _("Must be a valid UUID string.")}) from exc
+        if rule.format == "url":
+            validator = URLValidator()
+            try:
+                validator(value)
+            except Exception as exc:
+                raise ValidationError({key: _("Must be a valid URL.")}) from exc
     elif expected == "boolean":
         if not isinstance(value, bool):
             raise ValidationError({key: _("Must be a boolean.")})
@@ -74,6 +82,13 @@ def _validate_parameter(key: str, value: Any, rule: ParameterRule) -> Any:
         if not isinstance(value, Iterable) or isinstance(value, (str, bytes)):
             raise ValidationError({key: _("Must be an array.")})
         value = list(value)
+        if rule.min_items is not None and len(value) < rule.min_items:
+            raise ValidationError({key: _("Must contain at least %(min)s items.") % {"min": rule.min_items}})
+        if rule.max_items is not None and len(value) > rule.max_items:
+            raise ValidationError({key: _("Must contain at most %(max)s items.") % {"max": rule.max_items}})
+        if rule.items is not None:
+            for item in value:
+                _validate_parameter(key, item, rule.items)
     elif expected == "object":
         if not isinstance(value, dict):
             raise ValidationError({key: _("Must be an object.")})
@@ -202,6 +217,13 @@ def validate_tools_configuration(value: Any, *, organization) -> list[dict]:
             if param_key in cleaned_config:
                 continue
             cleaned_config[param_key] = param_value
+
+        if tool_def.key == "kb_retriever":
+            collection_id = cleaned_config.get("collection_id")
+            if collection_id:
+                exists = Collection.objects.filter(uuid=collection_id, organization=organization).exists()
+                if not exists:
+                    raise ValidationError({"collection_id": _("Referenced collection does not exist.")})
 
         cleaned.append({
             "toolKey": tool_def.key,
