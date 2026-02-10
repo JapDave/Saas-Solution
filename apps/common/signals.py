@@ -102,7 +102,7 @@ def _resolve_actor(instance: models.Model, context, audit_log) -> Any | None:
         return context.user
     if audit_log and getattr(audit_log, "user", None):
         return audit_log.user
-    for attr in ("updated_by", "created_by", "user"):
+    for attr in ("updated_by", "created_by", "enabled_by", "disabled_by", "assigned_by", "user"):
         if hasattr(instance, attr):
             value = getattr(instance, attr, None)
             if value is not None:

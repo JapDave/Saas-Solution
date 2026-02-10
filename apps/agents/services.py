@@ -25,6 +25,7 @@ from apps.common.exceptions import (
     InsufficientPermissions,
     LLM_NOT_ENABLED,
     LLM_NOT_FOUND,
+    LLM_ALREADY_DISABLED,
     LLM_NOT_PERMITTED,
     LLM_REQUIRED,
     SUBSCRIPTION_LIMIT_EXCEEDED,
@@ -254,10 +255,11 @@ def disable_llm_for_organization(*, organization, model_key: str, actor=None) ->
     record = OrganizationEnabledLLM.objects.filter(
         organization=organization,
         model_key=model_key,
-        disabled_at__isnull=True,
     ).first()
     if not record:
         raise CustomError(code=LLM_NOT_ENABLED, status_code=404, detail="LLM not enabled for organization.")
+    if record.disabled_at:
+        raise CustomError(code=LLM_ALREADY_DISABLED, status_code=400, detail="LLM already disabled.")
     record.disable(actor=actor)
     return record
 

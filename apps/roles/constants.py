@@ -358,6 +358,7 @@ ROLE_PERMISSION_TEMPLATES = {
                 *CHANNEL_PERMISSION_KEYS,
                 *FLOW_PERMISSION_KEYS,
                 *INTEGRATION_PERMISSION_KEYS,
+                *LLM_PERMISSION_KEYS,
                 *KNOWLEDGE_BASE_PERMISSION_KEYS,
                 *TOOL_PERMISSION_KEYS,
             }

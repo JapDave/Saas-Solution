@@ -12,11 +12,25 @@ from apps.agents.services import (
     ensure_llm_allowed_for_subscription,
 )
 from apps.agents.validators import validate_llm_configuration
-from apps.common.exceptions import CustomError, INSUFFICIENT_PERMISSIONS, SUBSCRIPTION_LIMIT_EXCEEDED, LLM_NOT_FOUND
+from apps.common.exceptions import (
+    CustomError,
+    INSUFFICIENT_PERMISSIONS,
+    SUBSCRIPTION_LIMIT_EXCEEDED,
+    LLM_NOT_FOUND,
+    SUBSCRIPTION_NOT_FOUND,
+)
 from apps.agents.models import Agent
 from apps.subscriptions.services import get_subscription_configuration
 from apps.users.services import resolve_effective_permission_keys
-from apps.roles.constants import ROLE_SAAS_ADMINISTRATOR, ROLE_SAAS_ACCOUNT_MANAGER, ROLE_AGENT_MANAGER
+from apps.roles.constants import (
+    ROLE_SAAS_ADMINISTRATOR,
+    ROLE_SAAS_ACCOUNT_MANAGER,
+    ROLE_AGENT_MANAGER,
+    ROLE_ACCOUNT_ADMINISTRATOR,
+    ROLE_ACCOUNT_OWNER,
+    ROLE_ORGANIZATION_ADMINISTRATOR,
+    ROLE_ORGANIZATION_OWNER,
+)
 from apps.roles.utils import has_role
 from apps.common.models import AuditLog
 from apps.common.audit import get_audit_context, get_client_ip, get_user_agent
@@ -25,6 +39,8 @@ from apps.accounts.services import get_assigned_account_ids
 from apps.common.validators import user_has_active_membership
 from django.contrib.auth import get_user_model
 from django.conf import settings
+from apps.subscriptions.services import get_active_subscription
+from apps.accounts.models import Account
 
 LLM_MODULE_KEY = "LLM_MANAGEMENT"
 
@@ -75,11 +91,23 @@ def ensure_llm_permission(user, organization, permission_key: str):
             return
         return
     lowered_key = (permission_key or "").lower()
-    # Listing available LLMs is restricted to SaaS roles only.
-    if lowered_key == "llms:list":
-        raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
-    # Org role: Agent Manager may read enabled LLMs only
-    if lowered_key == "llms:read" and has_role(user, ROLE_AGENT_MANAGER, organization.uuid):
+    # Ownership-based access without role assignment.
+    if getattr(organization, "created_by_id", None) == getattr(user, "id", None):
+        return
+    if Account.objects.filter(id=organization.account_id, created_by_id=getattr(user, "id", None)).exists():
+        return
+    # Static org roles should grant access within their assigned organization.
+    if has_role(user, ROLE_ACCOUNT_OWNER, organization.uuid):
+        return
+    if has_role(user, ROLE_ACCOUNT_ADMINISTRATOR, organization.uuid):
+        return
+    if has_role(user, ROLE_ORGANIZATION_OWNER, organization.uuid):
+        return
+    if has_role(user, ROLE_ORGANIZATION_ADMINISTRATOR, organization.uuid):
+        return
+    # Org role: Agent Manager may access LLM endpoints within assigned org,
+    # even if the role's permission list is modified.
+    if has_role(user, ROLE_AGENT_MANAGER, organization.uuid):
         return
     # Any active org member can read enabled LLMs
     if lowered_key == "llms:read" and user_has_active_membership(user, organization):
@@ -88,6 +116,16 @@ def ensure_llm_permission(user, organization, permission_key: str):
     if permission_key.lower() in permissions or "llms:admin" in permissions:
         return
     raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
+
+
+def ensure_llm_subscription(organization):
+    subscription = get_active_subscription(organization, module_key=LLM_MODULE_KEY)
+    if not subscription:
+        raise CustomError(
+            code=SUBSCRIPTION_NOT_FOUND,
+            status_code=403,
+            detail="LLM subscription required for this organization.",
+        )
 
 
 def _system_user():

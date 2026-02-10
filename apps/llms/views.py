@@ -17,6 +17,7 @@ from apps.llms.services import (
     disable_llm,
     enable_llm,
     ensure_llm_permission,
+    ensure_llm_subscription,
     validate_configuration,
     agents_usage_by_model_keys,
 )
@@ -31,6 +32,7 @@ class OrganizationLLMDefinitionsView(APIView):
     @extend_schema(responses=LLMDefinitionSerializer(many=True))
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:list")
         inc_llm_list()
         inc_llm_schema()
@@ -82,6 +84,7 @@ class LLMValidationView(APIView):
         serializer = LLMValidationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         organization = get_object_or_404(Organization, uuid=serializer.validated_data["organization_uuid"])
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:read")
         try:
             validated = validate_configuration(serializer.validated_data, organization=organization)
@@ -105,12 +108,14 @@ class OrganizationLLMViewSet(viewsets.ReadOnlyModelViewSet):
         if getattr(self, "swagger_fake_view", False):
             return OrganizationEnabledLLM.objects.none()
         organization = self._organization()
+        ensure_llm_subscription(organization)
         ensure_llm_permission(self.request.user, organization, "llms:read")
         return OrganizationEnabledLLM.objects.filter(organization=organization, disabled_at__isnull=True)
 
     @extend_schema(responses=LLMDefinitionSerializer(many=True))
     def list(self, request, *args, **kwargs):
         organization = self._organization()
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:read")
         inc_llm_list()
         enabled = list(self.get_queryset())
@@ -145,6 +150,7 @@ class OrganizationLLMEnableView(APIView):
     @extend_schema(request=None, responses=LLMDefinitionSerializer)
     def post(self, request, organization_uuid: str, model_key: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:enable")
         record = enable_llm(organization, model_key, request.user)
         usage = agents_usage_by_model_keys(organization, [record.model_key]).get(record.model_key, 0)
@@ -167,6 +173,7 @@ class OrganizationLLMDisableView(APIView):
     @extend_schema(request=None, responses=LLMDefinitionSerializer)
     def post(self, request, organization_uuid: str, model_key: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:disable")
         record = disable_llm(organization, model_key, request.user)
         usage = agents_usage_by_model_keys(organization, [record.model_key]).get(record.model_key, 0)
