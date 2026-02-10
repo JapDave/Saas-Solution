@@ -96,6 +96,14 @@ def ensure_llm_permission(user, organization, permission_key: str):
         if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
             if organization.account_id in get_assigned_account_ids(user):
                 return
+        if has_role(user, ROLE_ACCOUNT_OWNER, organization.uuid):
+            return
+        if has_role(user, ROLE_ACCOUNT_ADMINISTRATOR, organization.uuid):
+            return
+        if has_role(user, ROLE_ORGANIZATION_OWNER, organization.uuid):
+            return
+        if has_role(user, ROLE_ORGANIZATION_ADMINISTRATOR, organization.uuid):
+            return
         permissions = {perm.lower() for perm in resolve_effective_permission_keys(user, organization.id)}
         if lowered_key in permissions or "llms:admin" in permissions:
             return
