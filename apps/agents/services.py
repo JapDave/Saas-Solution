@@ -240,14 +240,16 @@ def enable_llm_for_organization(*, organization, model_key: str, actor=None) -> 
         model_key=model_key,
         defaults={
             "model_provider": definition.provider,
+            "display_name": definition.display_name,
             "enabled_by": actor,
         },
     )
     if record.disabled_at:
         record.disabled_at = None
         record.model_provider = definition.provider
+        record.display_name = definition.display_name
         record.enabled_by = actor
-        record.save(update_fields=["disabled_at", "model_provider", "enabled_by", "updated_at"])
+        record.save(update_fields=["disabled_at", "model_provider", "display_name", "enabled_by", "updated_at"])
     return record
 
 

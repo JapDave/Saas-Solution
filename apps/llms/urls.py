@@ -1,19 +1,11 @@
-from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
 from apps.llms.views import (
     LLMValidationView,
     OrganizationLLMDisableView,
     OrganizationLLMEnableView,
-    OrganizationLLMViewSet,
     OrganizationLLMDefinitionsView,
-)
-
-router = DefaultRouter()
-router.register(
-    r"llms/organizations/(?P<organization_uuid>[^/]+)/enabled",
-    OrganizationLLMViewSet,
-    basename="organization-llms",
+    OrganizationLLMEnabledView,
 )
 
 urlpatterns = [
@@ -22,6 +14,11 @@ urlpatterns = [
         "llms/organizations/<uuid:organization_uuid>/",
         OrganizationLLMDefinitionsView.as_view(),
         name="organization-llms-available",
+    ),
+    path(
+        "llms/organizations/<uuid:organization_uuid>/enabled/",
+        OrganizationLLMEnabledView.as_view(),
+        name="organization-llms-list",
     ),
     path("llms/validate/", LLMValidationView.as_view(), name="llm-validate"),
     path(
@@ -34,5 +31,4 @@ urlpatterns = [
         OrganizationLLMDisableView.as_view(),
         name="organization-llms-disable",
     ),
-    path("", include(router.urls)),
 ]

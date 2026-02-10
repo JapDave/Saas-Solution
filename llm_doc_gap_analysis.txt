@@ -1,0 +1,33 @@
+LLM-MANAGEMENT Document Gap Analysis
+Date: 2026-02-10
+
+Scope: Business-Requirements/PRODUCT-MODULES/LLM-MANAGEMNT_NEW.md vs current implementation.
+
+Summary
+- Core CRUD/list/validate flows are implemented.
+- Remaining deviations exist from the document (permission model, subscription behavior).
+
+Gaps / Deviations
+1) Enabled LLMs list access (REQ-LLM-002 + Authorization)
+   - Document: "Organization members can retrieve enabled LLMs" and Agent Manager can view enabled LLMs.
+   - Implementation: /llms/organizations/{orgId}/enabled requires llms:read permission.
+     Agent Manager without llms:read is denied (per latest requirement change).
+   - Impact: Behavior is stricter than doc.
+
+2) Account/Org ownership access
+   - Document: Access model based on SaaS roles + org membership/roles.
+   - Implementation: Ownership-based access (account/org created_by) is not granted for llms:list/enable/disable,
+     but is also NOT granted for llms:read anymore unless user has llms:read permission.
+   - Impact: Owners without explicit permissions cannot read enabled LLMs, which may differ from org member rule.
+
+
+Notes / Intentional deviations
+- Per user request: Agent Manager access is permission-gated (llms:read) and does NOT bypass permissions.
+- Per user request: llms:list is SaaS-only even if user is Account/Org Owner/Admin.
+
+Covered Items (high level)
+- LLMDefinition data source is DB table seeded via initialize_llms.
+- List available LLMs, list enabled LLMs, enable/disable, validate implemented.
+- Hosted model subscription gating enforced.
+- Auto-disable hosted LLMs on subscription change implemented.
+- usedByAgents count implemented.

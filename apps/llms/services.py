@@ -15,9 +15,10 @@ from apps.agents.validators import validate_llm_configuration
 from apps.common.exceptions import (
     CustomError,
     INSUFFICIENT_PERMISSIONS,
-    SUBSCRIPTION_LIMIT_EXCEEDED,
+    MAX_LLMS_EXCEEDED,
     LLM_NOT_FOUND,
-    SUBSCRIPTION_NOT_FOUND,
+    SUBSCRIPTION_REQUIRED,
+    INVALID_CONFIGURATION,
 )
 from apps.agents.models import Agent
 from apps.subscriptions.services import get_subscription_configuration
@@ -25,7 +26,6 @@ from apps.users.services import resolve_effective_permission_keys
 from apps.roles.constants import (
     ROLE_SAAS_ADMINISTRATOR,
     ROLE_SAAS_ACCOUNT_MANAGER,
-    ROLE_AGENT_MANAGER,
     ROLE_ACCOUNT_ADMINISTRATOR,
     ROLE_ACCOUNT_OWNER,
     ROLE_ORGANIZATION_ADMINISTRATOR,
@@ -36,7 +36,6 @@ from apps.common.models import AuditLog
 from apps.common.audit import get_audit_context, get_client_ip, get_user_agent
 from apps.llms.telemetry import inc_llm_enabled, inc_llm_disabled
 from apps.accounts.services import get_assigned_account_ids
-from apps.common.validators import user_has_active_membership
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from apps.subscriptions.services import get_active_subscription
@@ -71,7 +70,7 @@ def enforce_llm_enable_limit(organization):
     count = OrganizationEnabledLLM.objects.filter(organization=organization, disabled_at__isnull=True).count()
     if count >= limits.max_enabled:
         raise CustomError(
-            code=SUBSCRIPTION_LIMIT_EXCEEDED,
+            code=MAX_LLMS_EXCEEDED,
             status_code=409,
             detail=f"{count}/{limits.max_enabled} enabled LLMs.",
         )
@@ -82,6 +81,25 @@ def ensure_llm_permission(user, organization, permission_key: str):
         raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Authentication required.")
     if user.is_superuser:
         return
+    lowered_key = (permission_key or "").lower()
+    # List/enable/disable are restricted to SaaS roles only.
+    if lowered_key in {"llms:list", "llms:enable", "llms:disable"}:
+        if has_role(user, ROLE_SAAS_ADMINISTRATOR):
+            return
+        if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
+            if organization.account_id in get_assigned_account_ids(user):
+                return
+        raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
+    if lowered_key == "llms:read":
+        if has_role(user, ROLE_SAAS_ADMINISTRATOR):
+            return
+        if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
+            if organization.account_id in get_assigned_account_ids(user):
+                return
+        permissions = {perm.lower() for perm in resolve_effective_permission_keys(user, organization.id)}
+        if lowered_key in permissions or "llms:admin" in permissions:
+            return
+        raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
     # System roles: SaaS Admin / SaaS Account Manager can do everything
     if has_role(user, ROLE_SAAS_ADMINISTRATOR):
         return
@@ -90,7 +108,6 @@ def ensure_llm_permission(user, organization, permission_key: str):
         if organization.account_id in get_assigned_account_ids(user):
             return
         return
-    lowered_key = (permission_key or "").lower()
     # Ownership-based access without role assignment.
     if getattr(organization, "created_by_id", None) == getattr(user, "id", None):
         return
@@ -105,13 +122,6 @@ def ensure_llm_permission(user, organization, permission_key: str):
         return
     if has_role(user, ROLE_ORGANIZATION_ADMINISTRATOR, organization.uuid):
         return
-    # Org role: Agent Manager may access LLM endpoints within assigned org,
-    # even if the role's permission list is modified.
-    if has_role(user, ROLE_AGENT_MANAGER, organization.uuid):
-        return
-    # Any active org member can read enabled LLMs
-    if lowered_key == "llms:read" and user_has_active_membership(user, organization):
-        return
     permissions = {perm.lower() for perm in resolve_effective_permission_keys(user, organization.id)}
     if permission_key.lower() in permissions or "llms:admin" in permissions:
         return
@@ -122,7 +132,7 @@ def ensure_llm_subscription(organization):
     subscription = get_active_subscription(organization, module_key=LLM_MODULE_KEY)
     if not subscription:
         raise CustomError(
-            code=SUBSCRIPTION_NOT_FOUND,
+            code=SUBSCRIPTION_REQUIRED,
             status_code=403,
             detail="LLM subscription required for this organization.",
         )
@@ -227,8 +237,11 @@ def validate_configuration(payload: dict, *, organization):
     definition = get_llm_definition(model_key)
     if not definition:
         raise CustomError(code=LLM_NOT_FOUND, status_code=404, detail="Unknown LLM key.")
-    validated = validate_llm_configuration(payload, organization=organization)
-    return validated
+    try:
+        validated = validate_llm_configuration(payload, organization=organization)
+        return validated
+    except Exception as exc:
+        raise CustomError(code=INVALID_CONFIGURATION, status_code=400, detail=str(exc)) from exc
 
 
 def agents_usage_by_model_keys(org, model_keys: list[str]) -> dict[str, int]:

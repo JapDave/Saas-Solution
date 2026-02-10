@@ -252,7 +252,7 @@ def test_account_owner_without_membership_can_access(db):
     client.force_authenticate(user=user)
     url = reverse("organization-llms-list", kwargs={"organization_uuid": org.uuid})
     response = client.get(url)
-    assert response.status_code == status.HTTP_200_OK
+    assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 @pytest.mark.django_db
@@ -268,7 +268,7 @@ def test_org_owner_without_membership_can_access(db):
     client.force_authenticate(user=user)
     url = reverse("organization-llms-list", kwargs={"organization_uuid": org.uuid})
     response = client.get(url)
-    assert response.status_code == status.HTTP_200_OK
+    assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 @pytest.mark.django_db
@@ -282,14 +282,14 @@ def test_custom_role_permissions_access(db):
         organization=org,
         name="LLM Custom Role",
         description="",
-        permissions=list(LLM_PERMISSION_KEYS),
+        permissions=["llms:read"],
         role_type=Role.RoleType.USER_CUSTOM,
         created_by=user,
     )
     RoleAssignment.objects.create(user=user, role=role, organization=org, assigned_by=user)
     client = APIClient()
     client.force_authenticate(user=user)
-    url = reverse("organization-llms-available", kwargs={"organization_uuid": org.uuid})
+    url = reverse("organization-llms-list", kwargs={"organization_uuid": org.uuid})
     response = client.get(url)
     assert response.status_code == status.HTTP_200_OK
 
@@ -314,7 +314,32 @@ def test_agent_manager_without_permissions_can_access(db):
     client.force_authenticate(user=user)
     url = reverse("organization-llms-list", kwargs={"organization_uuid": org.uuid})
     response = client.get(url)
-    assert response.status_code == status.HTTP_200_OK
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_account_owner_cannot_access_list_enable_disable(db):
+    org = OrganizationFactory()
+    user = UserFactory()
+    org.account.created_by = user
+    org.account.save(update_fields=["created_by", "updated_at"])
+    _seed_llm_definitions()
+    _ensure_llm_module(exposed_permissions=list(LLM_PERMISSION_KEYS))
+    _create_active_subscription(org, Module.objects.get(key="LLM_MANAGEMENT"))
+    client = APIClient()
+    client.force_authenticate(user=user)
+    list_url = reverse("organization-llms-available", kwargs={"organization_uuid": org.uuid})
+    enable_url = reverse(
+        "organization-llms-enable",
+        kwargs={"organization_uuid": org.uuid, "model_key": "gpt-4o-mini"},
+    )
+    disable_url = reverse(
+        "organization-llms-disable",
+        kwargs={"organization_uuid": org.uuid, "model_key": "gpt-4o-mini"},
+    )
+    assert client.get(list_url).status_code == status.HTTP_403_FORBIDDEN
+    assert client.post(enable_url).status_code == status.HTTP_403_FORBIDDEN
+    assert client.post(disable_url).status_code == status.HTTP_403_FORBIDDEN
 
 
 @pytest.mark.django_db

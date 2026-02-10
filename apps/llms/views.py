@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
-from rest_framework import status, viewsets
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -95,30 +95,18 @@ class LLMValidationView(APIView):
             raise
 
 
-class OrganizationLLMViewSet(viewsets.ReadOnlyModelViewSet):
+class OrganizationLLMEnabledView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = LLMDefinitionSerializer
-
-    def _organization(self):
-        if not hasattr(self, "_cached_org"):
-            self._cached_org = get_object_or_404(Organization, uuid=self.kwargs["organization_uuid"])
-        return self._cached_org
-
-    def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return OrganizationEnabledLLM.objects.none()
-        organization = self._organization()
-        ensure_llm_subscription(organization)
-        ensure_llm_permission(self.request.user, organization, "llms:read")
-        return OrganizationEnabledLLM.objects.filter(organization=organization, disabled_at__isnull=True)
 
     @extend_schema(responses=LLMDefinitionSerializer(many=True))
-    def list(self, request, *args, **kwargs):
-        organization = self._organization()
+    def get(self, request, organization_uuid: str):
+        organization = get_object_or_404(Organization, uuid=organization_uuid)
         ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:read")
         inc_llm_list()
-        enabled = list(self.get_queryset())
+        enabled = list(
+            OrganizationEnabledLLM.objects.filter(organization=organization, disabled_at__isnull=True)
+        )
         model_keys = [row.model_key for row in enabled]
         usage = agents_usage_by_model_keys(organization, model_keys)
         definitions = {d.key: d for d in list_llm_definitions()}
@@ -158,7 +146,7 @@ class OrganizationLLMEnableView(APIView):
         payload = {
             "modelKey": record.model_key,
             "modelProvider": record.model_provider,
-            "displayName": definition.display_name if definition else record.model_key,
+            "displayName": definition.display_name if definition else (record.display_name or record.model_key),
             "description": definition.description if definition else "",
             "modelConfiguration": definition.raw.get("modelConfiguration") if definition else {},
             "usedByAgents": usage,
@@ -184,7 +172,7 @@ class OrganizationLLMDisableView(APIView):
         payload = {
             "modelKey": record.model_key,
             "modelProvider": record.model_provider,
-            "displayName": definition.display_name if definition else record.model_key,
+            "displayName": definition.display_name if definition else (record.display_name or record.model_key),
             "description": definition.description if definition else "",
             "modelConfiguration": definition.raw.get("modelConfiguration") if definition else {},
             "usedByAgents": usage,
