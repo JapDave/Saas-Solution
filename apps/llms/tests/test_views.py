@@ -166,7 +166,7 @@ def test_enable_limit_enforced(llm_client):
     )
     response = client.post(second)
     assert response.status_code == status.HTTP_409_CONFLICT
-    assert response.json()["code"] == "SUBSCRIPTION_LIMIT_EXCEEDED"
+    assert response.json()["code"] == "MAX_LLMS_EXCEEDED"
 
 
 @pytest.mark.django_db
