@@ -31,7 +31,7 @@ class SessionJWTAuthentication(JWTAuthentication):
                 code=SESSION_EXPIRED,
             )
         try:
-            session = AuthSession.objects.active().get(user=user, access_jti=jti)
+            session = AuthSession.objects.active().get(user=user, token_jti=jti)
         except AuthSession.DoesNotExist:
             raise AuthenticationFailed(
                 {"code": SESSION_EXPIRED, "message": "Session not active or expired."},

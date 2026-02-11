@@ -33,6 +33,7 @@ def get_assigned_account_ids(user) -> Set[int]:
     - user.assigned_accounts (M2M or queryset)
     - user.managed_accounts (M2M or queryset)
     - user.accounts (M2M or queryset)
+    - user.user_preferences["assigned_account_ids"] (list of IDs)
 
     Fallback: empty set (no assignments).
     """
@@ -50,4 +51,12 @@ def get_assigned_account_ids(user) -> Set[int]:
                 return set(int(x) for x in _iter_ids(getattr(user, attr)))
             except Exception:
                 continue
+    # Preferences fallback (useful for demo/seed data)
+    try:
+        prefs = getattr(user, "user_preferences", None) or {}
+        if isinstance(prefs, dict):
+            values = prefs.get("assigned_account_ids") or []
+            return set(int(x) for x in values)
+    except Exception:
+        pass
     return set()

@@ -38,4 +38,3 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunPython(create_llm_module, delete_llm_module),
     ]
-

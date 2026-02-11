@@ -102,7 +102,7 @@ def _resolve_actor(instance: models.Model, context, audit_log) -> Any | None:
         return context.user
     if audit_log and getattr(audit_log, "user", None):
         return audit_log.user
-    for attr in ("updated_by", "created_by", "user"):
+    for attr in ("updated_by", "created_by", "enabled_by", "disabled_by", "assigned_by", "user"):
         if hasattr(instance, attr):
             value = getattr(instance, attr, None)
             if value is not None:
@@ -222,3 +222,67 @@ def register_audit_signals() -> None:
             weak=False,
             dispatch_uid=f"audit_post_delete_{model._meta.label_lower}",
         )
+
+
+def _invalidate_user_permission_cache_for_assignment(user_id: int | None, organization_id: int | None) -> None:
+    if not user_id:
+        return
+    try:
+        from apps.users.services import invalidate_user_permission_cache  # type: ignore
+        from apps.users.models import UserOrganization
+    except Exception:
+        return
+    if organization_id:
+        invalidate_user_permission_cache(user_id, organization_id)
+        return
+    # System roles apply across orgs; invalidate all org memberships
+    for org_id in UserOrganization.objects.filter(user_id=user_id).values_list("organization_id", flat=True):
+        invalidate_user_permission_cache(user_id, org_id)
+
+
+def _role_permissions_changed(sender, instance, **kwargs) -> None:
+    try:
+        from apps.roles.models import RoleAssignment
+    except Exception:
+        return
+    assignments = RoleAssignment.objects.filter(role_id=getattr(instance, "id", None))
+    for assignment in assignments:
+        _invalidate_user_permission_cache_for_assignment(assignment.user_id, assignment.organization_id)
+
+
+def _role_assignment_changed(sender, instance, **kwargs) -> None:
+    _invalidate_user_permission_cache_for_assignment(
+        getattr(instance, "user_id", None),
+        getattr(instance, "organization_id", None),
+    )
+
+
+def register_permission_cache_signals() -> None:
+    try:
+        from apps.roles.models import Role, RoleAssignment
+    except Exception:
+        return
+    post_save.connect(
+        _role_permissions_changed,
+        sender=Role,
+        weak=False,
+        dispatch_uid="permissions_role_post_save",
+    )
+    post_delete.connect(
+        _role_permissions_changed,
+        sender=Role,
+        weak=False,
+        dispatch_uid="permissions_role_post_delete",
+    )
+    post_save.connect(
+        _role_assignment_changed,
+        sender=RoleAssignment,
+        weak=False,
+        dispatch_uid="permissions_role_assignment_post_save",
+    )
+    post_delete.connect(
+        _role_assignment_changed,
+        sender=RoleAssignment,
+        weak=False,
+        dispatch_uid="permissions_role_assignment_post_delete",
+    )

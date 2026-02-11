@@ -355,7 +355,7 @@ AUTH_MAX_CONCURRENT_SESSIONS = int(_get_config("AUTH_MAX_CONCURRENT_SESSIONS", d
 AUTH_SESSION_INACTIVITY_MINUTES = int(_get_config("AUTH_SESSION_INACTIVITY_MINUTES", default="60") or 60)
 AUTH_PERMISSION_CACHE_TTL = int(_get_config("AUTH_PERMISSION_CACHE_TTL", default="300") or 300)
 AUTH_RATE_LIMIT_LOGIN = _get_config("AUTH_RATE_LIMIT_LOGIN", default="10/min")
-AUTH_RATE_LIMIT_REFRESH = _get_config("AUTH_RATE_LIMIT_REFRESH", default="30/min")
+AUTH_RATE_LIMIT_REFRESH = _get_config("AUTH_RATE_LIMIT_REFRESH", default="10/hour")
 AUTH_RATE_LIMIT_LOGOUT = _get_config("AUTH_RATE_LIMIT_LOGOUT", default="60/min")
 AUTH_RATE_LIMIT_CONTEXT_SWITCH = _get_config("AUTH_RATE_LIMIT_CONTEXT_SWITCH", default="30/min")
 AUTH_SESSION_DURATION_DEFAULT_HOURS = int(_get_config("AUTH_SESSION_DURATION_DEFAULT_HOURS", default="24") or 24)
@@ -482,7 +482,7 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.common.exception_handler.exception_handler",
     "DEFAULT_PAGINATION_CLASS": "apps.common.paginations.StandardPagination",
-    "DEFAULT_THROTTLE_CLASSES": ["apps.common.throttling.DynamicScopedRateThrottle"],
+    "DEFAULT_THROTTLE_CLASSES": [],
     "PAGE_SIZE": 10,
     # allow ?page_size=... in requests (used by the test)
     "PAGE_SIZE_QUERY_PARAM": "page_size",

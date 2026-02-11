@@ -19,6 +19,7 @@ python manage.py makemigrations --noinput || true
 # Apply migrations
 python manage.py migrate --noinput
 python manage.py initialize_roles
+python manage.py initialize_llms || true
 
 # Create superuser only if env is provided
 if [ -n "${DJANGO_SUPERUSER_EMAIL:-}" ]; then

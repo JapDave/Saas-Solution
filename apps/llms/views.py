@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
-from rest_framework import status, viewsets
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,6 +17,7 @@ from apps.llms.services import (
     disable_llm,
     enable_llm,
     ensure_llm_permission,
+    ensure_llm_subscription,
     validate_configuration,
     agents_usage_by_model_keys,
 )
@@ -31,14 +32,24 @@ class OrganizationLLMDefinitionsView(APIView):
     @extend_schema(responses=LLMDefinitionSerializer(many=True))
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:list")
         inc_llm_list()
         inc_llm_schema()
+
+        provider_filter = (request.query_params.get("provider") or "").strip().lower()
+        modality_filter = (request.query_params.get("modality") or "").strip().lower()
 
         definitions = list_llm_definitions()
         # filter hosted models by subscription allowance
         filtered_defs = []
         for definition in definitions:
+            if provider_filter and definition.provider.lower() != provider_filter:
+                continue
+            if modality_filter and modality_filter not in [
+                (m or "").strip().lower() for m in (definition.raw.get("supportedModalities") or [])
+            ]:
+                continue
             try:
                 ensure_llm_allowed_for_subscription(organization, definition.key)
             except Exception:
@@ -73,6 +84,7 @@ class LLMValidationView(APIView):
         serializer = LLMValidationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         organization = get_object_or_404(Organization, uuid=serializer.validated_data["organization_uuid"])
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:read")
         try:
             validated = validate_configuration(serializer.validated_data, organization=organization)
@@ -83,28 +95,18 @@ class LLMValidationView(APIView):
             raise
 
 
-class OrganizationLLMViewSet(viewsets.ReadOnlyModelViewSet):
+class OrganizationLLMEnabledView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = LLMDefinitionSerializer
-
-    def _organization(self):
-        if not hasattr(self, "_cached_org"):
-            self._cached_org = get_object_or_404(Organization, uuid=self.kwargs["organization_uuid"])
-        return self._cached_org
-
-    def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return OrganizationEnabledLLM.objects.none()
-        organization = self._organization()
-        ensure_llm_permission(self.request.user, organization, "llms:read")
-        return OrganizationEnabledLLM.objects.filter(organization=organization, disabled_at__isnull=True)
 
     @extend_schema(responses=LLMDefinitionSerializer(many=True))
-    def list(self, request, *args, **kwargs):
-        organization = self._organization()
+    def get(self, request, organization_uuid: str):
+        organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:read")
         inc_llm_list()
-        enabled = list(self.get_queryset())
+        enabled = list(
+            OrganizationEnabledLLM.objects.filter(organization=organization, disabled_at__isnull=True)
+        )
         model_keys = [row.model_key for row in enabled]
         usage = agents_usage_by_model_keys(organization, model_keys)
         definitions = {d.key: d for d in list_llm_definitions()}
@@ -136,6 +138,7 @@ class OrganizationLLMEnableView(APIView):
     @extend_schema(request=None, responses=LLMDefinitionSerializer)
     def post(self, request, organization_uuid: str, model_key: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:enable")
         record = enable_llm(organization, model_key, request.user)
         usage = agents_usage_by_model_keys(organization, [record.model_key]).get(record.model_key, 0)
@@ -143,7 +146,7 @@ class OrganizationLLMEnableView(APIView):
         payload = {
             "modelKey": record.model_key,
             "modelProvider": record.model_provider,
-            "displayName": definition.display_name if definition else record.model_key,
+            "displayName": definition.display_name if definition else (record.display_name or record.model_key),
             "description": definition.description if definition else "",
             "modelConfiguration": definition.raw.get("modelConfiguration") if definition else {},
             "usedByAgents": usage,
@@ -158,6 +161,7 @@ class OrganizationLLMDisableView(APIView):
     @extend_schema(request=None, responses=LLMDefinitionSerializer)
     def post(self, request, organization_uuid: str, model_key: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_llm_subscription(organization)
         ensure_llm_permission(request.user, organization, "llms:disable")
         record = disable_llm(organization, model_key, request.user)
         usage = agents_usage_by_model_keys(organization, [record.model_key]).get(record.model_key, 0)
@@ -168,7 +172,7 @@ class OrganizationLLMDisableView(APIView):
         payload = {
             "modelKey": record.model_key,
             "modelProvider": record.model_provider,
-            "displayName": definition.display_name if definition else record.model_key,
+            "displayName": definition.display_name if definition else (record.display_name or record.model_key),
             "description": definition.description if definition else "",
             "modelConfiguration": definition.raw.get("modelConfiguration") if definition else {},
             "usedByAgents": usage,
