@@ -9,3 +9,4 @@ class CommonConfig(AppConfig):
         from . import signals  # noqa: F401
 
         signals.register_audit_signals()
+        signals.register_permission_cache_signals()

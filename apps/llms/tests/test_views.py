@@ -318,6 +318,45 @@ def test_agent_manager_without_permissions_can_access(db):
 
 
 @pytest.mark.django_db
+def test_agent_manager_permission_removed_revokes_access(db):
+    org = OrganizationFactory()
+    user = UserFactory()
+    # ensure user is not owner/admin exception
+    other = UserFactory()
+    org.created_by = other
+    org.save(update_fields=["created_by", "updated_at"])
+    org.account.created_by = other
+    org.account.save(update_fields=["created_by", "updated_at"])
+    _seed_llm_definitions()
+    _ensure_llm_module(exposed_permissions=list(LLM_PERMISSION_KEYS))
+    _create_active_subscription(org, Module.objects.get(key="LLM_MANAGEMENT"))
+
+    role = Role.objects.create(
+        organization=org,
+        name=ROLE_AGENT_MANAGER,
+        description="Editable agent manager role with llms:read",
+        permissions=["llms:read"],
+        role_type=Role.RoleType.USER_CUSTOM,
+        created_by=user,
+    )
+    RoleAssignment.objects.create(user=user, role=role, organization=org, assigned_by=user)
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+    url = reverse("organization-llms-list", kwargs={"organization_uuid": org.uuid})
+    # initial access allowed
+    response = client.get(url)
+    assert response.status_code == status.HTTP_200_OK
+
+    # remove llms:read from role -> should revoke access immediately
+    role.permissions = []
+    role.save(update_fields=["permissions", "updated_at"])
+
+    response = client.get(url)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
 def test_account_owner_cannot_access_list_enable_disable(db):
     org = OrganizationFactory()
     user = UserFactory()
