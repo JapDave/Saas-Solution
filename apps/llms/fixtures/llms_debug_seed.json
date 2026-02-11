@@ -1,0 +1,44 @@
+{
+  "llms": [
+    {
+      "modelProvider": "OpenAI",
+      "modelKey": "gpt-4o-mini-debug",
+      "displayName": "GPT-4o Mini (Debug)",
+      "description": "Debug fixture for OpenAI small model.",
+      "supportedModalities": ["text", "image"],
+      "maxContextTokens": 128000,
+      "modelConfiguration": {
+        "temperature": {"type": "number", "default": 0.5, "required": false, "validation": {"min": 0, "max": 1}},
+        "maxTokens": {"type": "number", "default": 512, "required": false, "validation": {"min": 1, "max": 128000}},
+        "topP": {"type": "number", "default": 1, "required": false, "validation": {"min": 0, "max": 1}},
+        "stopSequences": {"type": "array", "default": [], "required": false, "validation": {"items": {"type": "string"}}}
+      }
+    },
+    {
+      "modelProvider": "Google",
+      "modelKey": "gemini-2.5-pro-debug",
+      "displayName": "Gemini 2.5 Pro (Debug)",
+      "description": "Debug fixture for Google multimodal.",
+      "supportedModalities": ["text", "image", "audio"],
+      "maxContextTokens": 2000000,
+      "modelConfiguration": {
+        "temperature": {"type": "number", "default": 0.3, "required": false, "validation": {"min": 0, "max": 1}},
+        "maxTokens": {"type": "number", "default": 1024, "required": false, "validation": {"min": 1, "max": 2000000}},
+        "topP": {"type": "number", "default": 0.9, "required": false, "validation": {"min": 0, "max": 1}},
+        "topK": {"type": "number", "default": 40, "required": false, "validation": {"min": 1, "max": 100}}
+      }
+    },
+    {
+      "modelProvider": "Hudhud Hosted",
+      "modelKey": "deepseek-r1-debug",
+      "displayName": "DeepSeek R1 (Debug)",
+      "description": "Debug hosted model to test subscription gating.",
+      "supportedModalities": ["text"],
+      "maxContextTokens": 64000,
+      "modelConfiguration": {
+        "temperature": {"type": "number", "default": 0.2, "required": false, "validation": {"min": 0, "max": 1}},
+        "maxTokens": {"type": "number", "default": 256, "required": false, "validation": {"min": 1, "max": 64000}}
+      }
+    }
+  ]
+}

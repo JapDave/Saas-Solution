@@ -188,6 +188,7 @@ class OrganizationEnabledLLM(BaseModel):
     )
     model_key = models.CharField(_("Model key"), max_length=100)
     model_provider = models.CharField(_("Model provider"), max_length=100)
+    display_name = models.CharField(_("Display name"), max_length=200, blank=True, default="")
     enabled_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
