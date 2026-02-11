@@ -79,6 +79,7 @@ class AuditLogMiddleware(MiddlewareMixin):
             audit_log = None
             logger.exception("Failed to create audit log entry.")
 
+        setattr(request, "_audit_log", audit_log)
         set_audit_context(
             audit_log=audit_log,
             user=user,
@@ -89,7 +90,7 @@ class AuditLogMiddleware(MiddlewareMixin):
 
     def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
         status_code = int(getattr(response, "status_code", 0))
-        current = get_audit_context().audit_log
+        current = get_audit_context().audit_log or getattr(request, "_audit_log", None)
 
         if current:
             try:
@@ -106,37 +107,12 @@ class AuditLogMiddleware(MiddlewareMixin):
                 current.save(update_fields=update_fields)
             except Exception:
                 logger.exception("Failed to finalize audit log entry.")
-        else:
-            method = request.method.upper()
-            view_name, app_label, model, action, object_id = self._resolve_request(request, method)
-            trace_id, span_id = get_trace_context()
-            user = request.user if getattr(request, "user", None) and request.user.is_authenticated else None
-            try:
-                AuditLog.objects.create(
-                    user=user,
-                    method=method,
-                    path=request.path,
-                    view=view_name[:255] if view_name else "",
-                    app_label=app_label[:63],
-                    model=model[:63],
-                    action=action[:31],
-                    object_id=str(object_id or "")[:63],
-                    status_code=status_code,
-                    success=200 <= status_code < 400,
-                    ip_addr=get_client_ip(request) or None,
-                    user_agent=get_user_agent(request) or None,
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    extra={},
-                )
-            except Exception:
-                logger.exception("Failed to create fallback audit log entry.")
 
         clear_audit_context()
         return response
 
     def process_exception(self, request: HttpRequest, exception: Exception) -> None:
-        clear_audit_context()
+        return
 
     def _resolve_request(
         self,

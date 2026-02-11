@@ -482,7 +482,7 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.common.exception_handler.exception_handler",
     "DEFAULT_PAGINATION_CLASS": "apps.common.paginations.StandardPagination",
-    "DEFAULT_THROTTLE_CLASSES": ["apps.common.throttling.DynamicScopedRateThrottle"],
+    "DEFAULT_THROTTLE_CLASSES": [],
     "PAGE_SIZE": 10,
     # allow ?page_size=... in requests (used by the test)
     "PAGE_SIZE_QUERY_PARAM": "page_size",

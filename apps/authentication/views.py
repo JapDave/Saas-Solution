@@ -23,25 +23,9 @@ from apps.authentication.serializers import (
     SessionTokenObtainPairSerializer,
     SessionTokenRefreshSerializer,
 )
-from apps.authentication.throttles import (
-    LoginRateThrottle,
-    LogoutRateThrottle,
-    PasswordResetRateThrottle,
-    RefreshRateThrottle,
-)
-from apps.common.exceptions import CustomError, CONTEXT_SWITCH_FORBIDDEN, SESSION_REVOKED, RATE_LIMIT_EXCEEDED, INVALID_CREDENTIALS
-from apps.authentication.models import AuthSession
-from apps.users.models import UserOrganization
+from apps.common.exceptions import CustomError, SESSION_REVOKED, RATE_LIMIT_EXCEEDED, INVALID_CREDENTIALS
 from rest_framework_simplejwt.tokens import RefreshToken
-from apps.authentication.rate_limit import (
-    check_login_rate_limit,
-    record_login_failure,
-    clear_login_failures,
-    check_refresh_rate_limit,
-    record_refresh_attempt,
-    check_password_reset_rate_limit,
-    record_password_reset_attempt,
-)
+from apps.common.throttling import RateLimiter
 from apps.authentication.serializers import _session_duration_hours as session_duration_hours  # type: ignore
 
 
@@ -52,6 +36,8 @@ def _apply_delay(kind: str = "REQUEST"):
     delay = random.uniform(0, 1)
     if delay > 0:
         time.sleep(delay)
+
+
 
 
 @extend_schema(
@@ -83,10 +69,17 @@ class SessionTokenObtainPairView(TokenObtainPairView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         ip = request.META.get("REMOTE_ADDR")
-        limit = getattr(settings, "AUTH_LOGIN_RATE_LIMIT_ATTEMPTS", 3) or 3
-        window = getattr(settings, "AUTH_LOGIN_RATE_LIMIT_WINDOW_MINUTES", 10) or 10
-
-        blocked, retry_after = check_login_rate_limit(email=email, ip=ip, limit=limit, window_minutes=window)
+        keys = []
+        if ip:
+            keys.append(f"auth:login:ip:{ip}")
+        if email:
+            keys.append(f"auth:login:email:{email.lower()}")
+        limiter = RateLimiter(
+            rate=None,
+            default_limit=getattr(settings, "AUTH_LOGIN_RATE_LIMIT_ATTEMPTS", 3) or 3,
+            default_window_minutes=getattr(settings, "AUTH_LOGIN_RATE_LIMIT_WINDOW_MINUTES", 10) or 10,
+        )
+        blocked, retry_after = limiter.check(keys)
         if blocked:
             return Response(
                 {"code": RATE_LIMIT_EXCEEDED, "message": "Too many failed login attempts. Try later."},
@@ -97,7 +90,7 @@ class SessionTokenObtainPairView(TokenObtainPairView):
             serializer = self.get_serializer(data=request.data, context=self.get_serializer_context())
             serializer.is_valid(raise_exception=True)
             response = Response(serializer.validated_data, status=status.HTTP_200_OK)
-            clear_login_failures(email=email, ip=ip)
+            limiter.clear(keys)
             # back-fill audit log user
             from apps.common.audit import get_audit_context
 
@@ -110,7 +103,7 @@ class SessionTokenObtainPairView(TokenObtainPairView):
         except Exception as exc:
             # On any auth failure, record it; re-raise.
             _apply_delay("LOGIN")
-            record_login_failure(email=email, ip=ip, limit=limit, window_minutes=window)
+            limiter.record(keys)
             raise
 
 
@@ -130,7 +123,7 @@ class SessionTokenObtainPairView(TokenObtainPairView):
 class SessionTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
     serializer_class = SessionTokenRefreshSerializer
-    throttle_classes = [RefreshRateThrottle]
+    throttle_classes = []
 
     def post(self, request, *args, **kwargs):
         ip = request.META.get("REMOTE_ADDR")
@@ -144,14 +137,24 @@ class SessionTokenRefreshView(TokenRefreshView):
             user_id = rt.get("user_id")
         except Exception:
             user_id = None
-        blocked, retry_after = check_refresh_rate_limit(ip=ip, user_id=user_id, limit=None, window_minutes=None)
+        keys = []
+        if ip:
+            keys.append(f"auth:refresh:ip:{ip}")
+        if user_id:
+            keys.append(f"auth:refresh:user:{user_id}")
+        limiter = RateLimiter(
+            rate=getattr(settings, "AUTH_RATE_LIMIT_REFRESH", None),
+            default_limit=10,
+            default_window_minutes=60,
+        )
+        blocked, retry_after = limiter.check(keys)
         if blocked:
             return Response(
                 {"code": RATE_LIMIT_EXCEEDED, "message": "Too many refresh attempts. Try later."},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
                 headers={"Retry-After": str(retry_after)},
             )
-        record_refresh_attempt(ip=ip, user_id=user_id, limit=None, window_minutes=None)
+        limiter.record(keys)
         try:
             return super().post(request, *args, **kwargs)
         except Exception:
@@ -170,10 +173,25 @@ class SessionTokenRefreshView(TokenRefreshView):
     ),
 )
 class SessionLogoutView(APIView):
-    throttle_classes = [LogoutRateThrottle]
+    throttle_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
+        ip = request.META.get("REMOTE_ADDR")
+        keys = [f"auth:logout:ip:{ip}"] if ip else []
+        limiter = RateLimiter(
+            rate=getattr(settings, "AUTH_RATE_LIMIT_LOGOUT", None),
+            default_limit=60,
+            default_window_minutes=1,
+        )
+        blocked, retry_after = limiter.check(keys)
+        if blocked:
+            return Response(
+                {"code": RATE_LIMIT_EXCEEDED, "message": "Too many logout attempts. Try later."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+                headers={"Retry-After": str(retry_after)},
+            )
+        limiter.record(keys)
         # Spec: logout by access token if present, otherwise accept refresh token fallback
         session = getattr(request, "auth_session", None)
         if session:
@@ -213,19 +231,29 @@ class SessionLogoutView(APIView):
 )
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [PasswordResetRateThrottle]
+    throttle_classes = []
 
     def post(self, request):
         email = (request.data.get("email") or "").lower()
         ip = request.META.get("REMOTE_ADDR")
-        blocked, retry_after = check_password_reset_rate_limit(email=email, ip=ip, limit=3, window_minutes=60)
+        keys = []
+        if ip:
+            keys.append(f"auth:pwreset:ip:{ip}")
+        if email:
+            keys.append(f"auth:pwreset:email:{email}")
+        limiter = RateLimiter(
+            rate=None,
+            default_limit=3,
+            default_window_minutes=60,
+        )
+        blocked, retry_after = limiter.check(keys)
         if blocked:
             return Response(
                 {"code": RATE_LIMIT_EXCEEDED, "message": "Too many reset requests. Try later."},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
                 headers={"Retry-After": str(retry_after)},
             )
-        record_password_reset_attempt(email=email, ip=ip, limit=3, window_minutes=60)
+        limiter.record(keys)
         serializer = PasswordResetRequestSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
@@ -251,9 +279,24 @@ class PasswordResetRequestView(APIView):
 )
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [PasswordResetRateThrottle]
+    throttle_classes = []
 
     def post(self, request):
+        ip = request.META.get("REMOTE_ADDR")
+        keys = [f"auth:pwreset:ip:{ip}"] if ip else []
+        limiter = RateLimiter(
+            rate=None,
+            default_limit=3,
+            default_window_minutes=60,
+        )
+        blocked, retry_after = limiter.check(keys)
+        if blocked:
+            return Response(
+                {"code": RATE_LIMIT_EXCEEDED, "message": "Too many reset attempts. Try later."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+                headers={"Retry-After": str(retry_after)},
+            )
+        limiter.record(keys)
         serializer = PasswordResetConfirmSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
