@@ -13,8 +13,7 @@ from django.conf import settings
 from apps.llms.models import LLMDefinition as LLMDefinitionModel
 
 
-LLM_DEFINITIONS_PATH = Path(settings.BASE_DIR) / "Business-Requirements" / "PRODUCT-MODULES" / "llms-list.json"
-TOOL_DEFINITIONS_PATH = Path(settings.BASE_DIR) / "Business-Requirements" / "PRODUCT-MODULES" / "tools-list.json"
+TOOL_DEFINITIONS_PATH = Path(settings.BASE_DIR) / "apps" / "tools" / "fixtures" / "tools-list.json"
 
 
 @dataclass(frozen=True)

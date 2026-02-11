@@ -9,7 +9,7 @@ from django.db import migrations, models
 
 def backfill_tool_display_fields(apps, schema_editor):
     OrganizationEnabledTool = apps.get_model("agents", "OrganizationEnabledTool")
-    definitions_path = Path(settings.BASE_DIR) / "Business-Requirements" / "PRODUCT-MODULES" / "tools-list.json"
+    definitions_path = Path(settings.BASE_DIR) / "apps" / "tools" / "fixtures" / "tools-list.json"
     tool_map = {}
     if definitions_path.exists():
         with definitions_path.open(encoding="utf-8") as handle:

@@ -1,0 +1,151 @@
+{
+    "tools": [
+        {
+            "toolKey": "kb_retriever",
+            "displayName": "Knowledge Base Retriever",
+            "description": "Retrieves relevant documents from organization's knowledge base",
+            "category": "knowledge",
+            "version": "1.0.0",
+            "configurationSchema": {
+                "collection_id": {
+                    "type": "uuid",
+                    "required": true,
+                    "description": "KB collection to search",
+                    "validation": {
+                        "format": "uuid"
+                    }
+                },
+                "maxResults": {
+                    "type": "number",
+                    "required": false,
+                    "default": 5,
+                    "description": "Number of results to return",
+                    "validation": {
+                        "min": 1,
+                        "max": 20
+                    }
+                },
+                "similarityThreshold": {
+                    "type": "number",
+                    "required": false,
+                    "default": 0.7,
+                    "description": "Minimum relevance score",
+                    "validation": {
+                        "min": 0.0,
+                        "max": 1.0
+                    }
+                }
+            }
+        },
+        {
+            "toolKey": "ocr_extractor",
+            "displayName": "OCR Extractor",
+            "description": "Extracts text from images",
+            "category": "image",
+            "version": "1.0.0",
+            "configurationSchema": {
+                "fileUrl": {
+                    "type": "string",
+                    "required": true,
+                    "description": "URL of the file to extract text from",
+                    "validation": {
+                        "format": "url"
+                    }
+                },
+                "supportedFileTypes": {
+                    "type": "array",
+                    "required": true,
+                    "description": "Types of the files to extract text from",
+                    "validation": {
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "pdf",
+                                "jpg",
+                                "png",
+                                "jpeg"
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 4
+                    }
+                },
+                "supportedLanguages": {
+                    "type": "array",
+                    "required": true,
+                    "description": "Languages of the text to extract",
+                    "validation": {
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "en",
+                                "ar"
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 2
+                    }
+                }
+            }
+        },
+        {
+            "toolKey": "handoff_to_human",
+            "displayName": "Handoff to Human",
+            "description": "Hands off the task to a human",
+            "category": "human",
+            "version": "1.0.0",
+            "configurationSchema": {
+                "reason": {
+                    "type": "string",
+                    "required": true,
+                    "description": "Reason for handing off the task to a human",
+                    "validation": {
+                        "format": "string"
+                    }
+                },
+                "humanAgentId": {
+                    "type": "uuid",
+                    "required": true,
+                    "description": "ID of the human agent to hand off the task to",
+                    "validation": {
+                        "format": "uuid"
+                    }
+                }
+            }
+        },
+        {
+            "toolKey": "image_analyzer",
+            "displayName": "Image Analyzer",
+            "description": "Analyzes an image",
+            "category": "image",
+            "version": "1.0.0",
+            "configurationSchema": {
+                "fileUrl": {
+                    "type": "string",
+                    "required": true,
+                    "description": "URL of the image file to analyze",
+                    "validation": {
+                        "format": "url"
+                    }
+                }
+            }
+        },
+        {
+            "toolKey": "calculator",
+            "displayName": "Calculator",
+            "description": "Calculates a mathematical expression",
+            "category": "math",
+            "version": "1.0.0",
+            "configurationSchema": {
+                "expression": {
+                    "type": "string",
+                    "required": true,
+                    "description": "Mathematical expression to calculate",
+                    "validation": {
+                        "format": "string"
+                    }
+                }
+            }
+        }
+    ]
+}
