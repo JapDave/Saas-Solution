@@ -11,14 +11,14 @@ from apps.tools.views import (
 urlpatterns = [
     path("tools/organizations/<uuid:organization_uuid>/", OrganizationToolListView.as_view(), name="tool-list"),
     path(
-        "tools/organizations/<uuid:organization_uuid>/<str:tool_key>/",
-        OrganizationToolDetailView.as_view(),
-        name="tool-detail",
-    ),
-    path(
         "tools/organizations/<uuid:organization_uuid>/enabled/",
         OrganizationToolEnabledListView.as_view(),
         name="tool-enabled-list",
+    ),
+    path(
+        "tools/organizations/<uuid:organization_uuid>/<str:tool_key>/",
+        OrganizationToolDetailView.as_view(),
+        name="tool-detail",
     ),
     path(
         "tools/organizations/<uuid:organization_uuid>/<str:tool_key>/enable/",

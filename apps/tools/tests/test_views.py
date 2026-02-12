@@ -12,6 +12,7 @@ from apps.roles.models import Role, RoleAssignment
 from apps.subscriptions.models import Subscription
 from apps.users.models import UserOrganization
 from apps.users.tests.factories import UserFactory
+from apps.common.exceptions import SUBSCRIPTION_REQUIRED
 
 
 @pytest.fixture
@@ -67,12 +68,54 @@ def tool_context(db):
     return organization, org_client, saas_client
 
 
+@pytest.fixture
+def tool_context_no_subscription(db):
+    organization = OrganizationFactory()
+    org_user = UserFactory()
+    UserOrganization.objects.create(
+        user=org_user,
+        organization=organization,
+        permission_keys=list(TOOL_PERMISSION_KEYS),
+        assigned_by=org_user,
+    )
+    org_client = APIClient()
+    org_client.force_authenticate(user=org_user)
+
+    saas_user = UserFactory()
+    role, _ = Role.objects.get_or_create(
+        name=ROLE_SAAS_ADMINISTRATOR,
+        organization=None,
+        defaults={
+            "role_type": Role.RoleType.SYSTEM,
+            "permissions": list(TOOL_PERMISSION_KEYS),
+            "created_by": saas_user,
+        },
+    )
+    RoleAssignment.objects.get_or_create(
+        user=saas_user,
+        role=role,
+        organization=None,
+        defaults={"assigned_by": saas_user},
+    )
+    saas_client = APIClient()
+    saas_client.force_authenticate(user=saas_user)
+    return organization, org_client, saas_client
+
+
 @pytest.mark.django_db
 def test_list_tools(tool_context):
     organization, client, _ = tool_context
     response = client.get(reverse("tool-list", kwargs={"organization_uuid": organization.uuid}))
     assert response.status_code == status.HTTP_200_OK
     assert response.json()
+
+
+@pytest.mark.django_db
+def test_enabled_tools_route_returns_list(tool_context):
+    organization, client, _ = tool_context
+    response = client.get(reverse("tool-enabled-list", kwargs={"organization_uuid": organization.uuid}))
+    assert response.status_code == status.HTTP_200_OK
+    assert isinstance(response.json(), list)
 
 
 @pytest.mark.django_db
@@ -102,3 +145,23 @@ def test_tool_limit(tool_context):
     response = client.post(second)
     assert response.status_code == status.HTTP_409_CONFLICT
     assert response.json()["code"] == "MAX_TOOLS_EXCEEDED"
+
+
+@pytest.mark.django_db
+def test_tools_require_active_subscription(tool_context_no_subscription):
+    organization, client, _ = tool_context_no_subscription
+    response = client.get(reverse("tool-list", kwargs={"organization_uuid": organization.uuid}))
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.json()["code"] == SUBSCRIPTION_REQUIRED
+
+
+@pytest.mark.django_db
+def test_tools_subscription_required_for_saas_admin(tool_context_no_subscription):
+    organization, _, saas_client = tool_context_no_subscription
+    enable_url = reverse(
+        "organization-tools-enable",
+        kwargs={"organization_uuid": organization.uuid, "tool_key": "calculator"},
+    )
+    response = saas_client.post(enable_url)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.json()["code"] == SUBSCRIPTION_REQUIRED

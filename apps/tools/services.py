@@ -17,13 +17,14 @@ from apps.common.exceptions import (
     INVALID_UUID_FORMAT,
     KB_COLLECTION_NOT_FOUND,
     MAX_TOOLS_EXCEEDED,
+    SUBSCRIPTION_REQUIRED,
     TOOL_ALREADY_DISABLED,
     TOOL_DUPLICATE,
     TOOL_NOT_FOUND,
     TOOL_NOT_ENABLED,
 )
 from apps.knowledge_base.models import Collection
-from apps.subscriptions.services import get_subscription_configuration
+from apps.subscriptions.services import get_subscription_configuration, get_active_subscription
 from apps.users.services import resolve_effective_permission_keys
 from apps.accounts.services import get_assigned_account_ids
 from apps.roles.constants import ROLE_SAAS_ADMINISTRATOR, ROLE_SAAS_ACCOUNT_MANAGER
@@ -69,6 +70,12 @@ def enforce_tool_limit(organization):
 def ensure_tool_permission(user, organization, permission_key: str):
     if not user or not getattr(user, "is_authenticated", False):
         raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Authentication required.")
+    if not get_active_subscription(organization, module_key=TOOLS_MODULE_KEY):
+        raise CustomError(
+            code=SUBSCRIPTION_REQUIRED,
+            status_code=403,
+            detail="Active tools subscription required.",
+        )
     if user.is_superuser:
         return
     lowered = permission_key.lower()
