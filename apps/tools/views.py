@@ -11,8 +11,8 @@ from apps.agents.definitions import get_tool_definition, list_tool_definitions
 from apps.agents.models import OrganizationEnabledTool
 from apps.organizations.models import Organization
 from apps.tools.serializers import OrganizationEnabledToolSerializer, ToolDefinitionSerializer
-from apps.tools.services import disable_tool, enable_tool, ensure_tool_permission
-from apps.tools.telemetry import inc_tool_list
+from apps.tools.services import disable_tool, enable_tool, ensure_tool_permission, validate_tool_configuration
+from apps.tools.telemetry import inc_tool_list, inc_tool_validation
 from apps.tools.usage import agents_usage_by_tool_keys
 
 
@@ -133,3 +133,28 @@ class OrganizationToolDisableView(APIView):
         data["usedByAgents"] = usage
         data["warning"] = warning
         return Response(data, status=status.HTTP_200_OK)
+
+
+class ToolValidateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        organization_uuid = request.data.get("organization_uuid") or request.data.get("organizationId")
+        if not organization_uuid:
+            return Response(
+                {"code": "ORGANIZATION_NOT_FOUND", "message": "organization_uuid is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        organization = get_object_or_404(Organization, uuid=organization_uuid)
+        ensure_tool_permission(request.user, organization, "tools:read")
+        payload = {
+            "toolKey": request.data.get("toolKey") or request.data.get("tool_key"),
+            "configuration": request.data.get("configuration") or {},
+        }
+        try:
+            validated = validate_tool_configuration(payload, organization=organization)
+        except Exception:
+            inc_tool_validation(False)
+            raise
+        inc_tool_validation(True)
+        return Response(validated, status=status.HTTP_200_OK)

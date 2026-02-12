@@ -6,6 +6,7 @@ from apps.tools.views import (
     OrganizationToolEnableView,
     OrganizationToolEnabledListView,
     OrganizationToolListView,
+    ToolValidateView,
 )
 
 urlpatterns = [
@@ -30,4 +31,5 @@ urlpatterns = [
         OrganizationToolDisableView.as_view(),
         name="organization-tools-disable",
     ),
+    path("tools/validate/", ToolValidateView.as_view(), name="tool-validate"),
 ]
