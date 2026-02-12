@@ -157,7 +157,7 @@ def exception_handler(exc: Exception, context: dict[str, Any]) -> Response | Non
     """
     response = drf_exception_handler(exc, context)
     if response is None:
-        return None
+        return Response({"code": "ERROR", "message": "Internal server error."}, status=500)
 
     # Already-coded payloads pass through unchanged
     if isinstance(response.data, Mapping) and "code" in response.data:

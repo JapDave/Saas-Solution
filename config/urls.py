@@ -37,3 +37,8 @@ urlpatterns = [
     path("api/", include("apps.tools.urls")),
     path("api/", include("apps.common.urls")),
 ]
+
+handler400 = "apps.common.error_views.json_bad_request"
+handler403 = "apps.common.error_views.json_permission_denied"
+handler404 = "apps.common.error_views.json_not_found"
+handler500 = "apps.common.error_views.json_server_error"
