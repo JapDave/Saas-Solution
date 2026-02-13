@@ -777,23 +777,9 @@ class TestREQTool002ListEnabledTools:
         email, _password = get_user_credentials("Account 1 Agent Manager")
         client = authenticated_client(email)
 
-        org = Organization.objects.filter(name="Test Organization Alpha3").first()
+        org = Organization.objects.filter(name="Test Organization Alpha1").first()
         assert org is not None
         ensure_tools_management_subscription(org)
-
-        user = User.objects.filter(email=email).first()
-        assert user is not None
-        UserOrganization.all_objects.update_or_create(
-            user=user,
-            organization=org,
-            defaults={
-                "assigned_by": user,
-                "permission_keys": ["tools:read"],
-                "deleted_at": None,
-                "is_active": True,
-            },
-        )
-        invalidate_user_permission_cache(user.id, org.id)
 
         OrganizationEnabledTool.objects.filter(
             organization=org,
