@@ -401,6 +401,7 @@ MIDDLEWARE = [
     "apps.common.middlewares.tracing.TracingMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "apps.common.middlewares.audit.AuditLogMiddleware",
+    "apps.common.middlewares.api_errors.ApiErrorResponseMiddleware",
 ]
 
 if ENABLE_APM:

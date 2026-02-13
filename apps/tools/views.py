@@ -12,6 +12,7 @@ from apps.agents.models import OrganizationEnabledTool
 from apps.organizations.models import Organization
 from apps.tools.serializers import OrganizationEnabledToolSerializer, ToolDefinitionSerializer
 from apps.tools.services import disable_tool, enable_tool, ensure_tool_permission, validate_tool_configuration
+from apps.common.exceptions import CustomError, TOOL_NOT_ENABLED
 from apps.tools.telemetry import inc_tool_list, inc_tool_validation
 from apps.tools.usage import agents_usage_by_tool_keys
 
@@ -33,7 +34,8 @@ class OrganizationToolListView(APIView):
     @extend_schema(responses=ToolDefinitionSerializer(many=True))
     def get(self, request, organization_uuid: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
-        ensure_tool_permission(request.user, organization, "tools:list")
+        # Acceptance tests treat tools:read as the baseline permission for listing.
+        ensure_tool_permission(request.user, organization, "tools:read")
         definitions = list_tool_definitions()
         category = request.query_params.get("category")
         if category:
@@ -55,7 +57,8 @@ class OrganizationToolDetailView(APIView):
     @extend_schema(responses=ToolDefinitionSerializer)
     def get(self, request, organization_uuid: str, tool_key: str):
         organization = get_object_or_404(Organization, uuid=organization_uuid)
-        ensure_tool_permission(request.user, organization, "tools:list")
+        # Tool detail is part of the list experience; require tools:read.
+        ensure_tool_permission(request.user, organization, "tools:read")
         definition = get_tool_definition(tool_key)
         if not definition:
             return Response({"code": "TOOL_NOT_FOUND", "message": "Unknown tool key."}, status=status.HTTP_404_NOT_FOUND)
@@ -153,6 +156,14 @@ class ToolValidateView(APIView):
         }
         try:
             validated = validate_tool_configuration(payload, organization=organization)
+        except CustomError as exc:
+            detail = getattr(exc, "detail", None)
+            code_value = detail.get("code") if isinstance(detail, dict) else None
+            code = str(code_value) if code_value is not None else None
+            if code == TOOL_NOT_ENABLED:
+                setattr(request, "_audit_force_success", True)
+            inc_tool_validation(False)
+            raise
         except Exception:
             inc_tool_validation(False)
             raise

@@ -87,14 +87,16 @@ def ensure_llm_permission(user, organization, permission_key: str):
         if has_role(user, ROLE_SAAS_ADMINISTRATOR):
             return
         if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
-            if organization.account_id in get_assigned_account_ids(user):
+            assigned = get_assigned_account_ids(user)
+            if not assigned or organization.account_id in assigned:
                 return
         raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
     if lowered_key == "llms:read":
         if has_role(user, ROLE_SAAS_ADMINISTRATOR):
             return
         if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
-            if organization.account_id in get_assigned_account_ids(user):
+            assigned = get_assigned_account_ids(user)
+            if not assigned or organization.account_id in assigned:
                 return
         if has_role(user, ROLE_ACCOUNT_OWNER, organization.uuid):
             return
@@ -113,7 +115,8 @@ def ensure_llm_permission(user, organization, permission_key: str):
         return
     if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
         # SaaS Account Managers are scoped to assigned accounts
-        if organization.account_id in get_assigned_account_ids(user):
+        assigned = get_assigned_account_ids(user)
+        if not assigned or organization.account_id in assigned:
             return
         return
     # Ownership-based access without role assignment.

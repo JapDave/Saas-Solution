@@ -28,6 +28,10 @@ class SessionListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = AuthSession.objects.filter(user=request.user).order_by("-created_at")
+        now = timezone.now()
+        qs = AuthSession.objects.filter(
+            user=request.user,
+            access_expires_at__gt=now,
+        ).order_by("-created_at")
         data = SessionSerializer(qs, many=True).data
         return Response(data)

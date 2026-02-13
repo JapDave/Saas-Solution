@@ -76,3 +76,16 @@ class AuthSession(BaseModel):
         self.access_expires_at = access_expires_at
         self.touch(commit=False)
         self.save(update_fields=["token_jti", "access_expires_at", "last_activity_at", "updated_at"])
+
+    def __getattribute__(self, name: str):
+        if name == "ip_address":
+            value = super().__getattribute__(name)
+            if isinstance(value, str) and ":" in value:
+                try:
+                    import ipaddress
+
+                    return ipaddress.IPv6Address(value).exploded
+                except Exception:
+                    return value
+            return value
+        return super().__getattribute__(name)

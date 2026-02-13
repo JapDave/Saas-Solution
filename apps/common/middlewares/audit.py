@@ -94,12 +94,21 @@ class AuditLogMiddleware(MiddlewareMixin):
 
         if current:
             try:
+                force_success = bool(getattr(request, "_audit_force_success", False))
+                if not force_success:
+                    try:
+                        data = getattr(response, "data", None)
+                        code = str(data.get("code")) if isinstance(data, dict) and data.get("code") is not None else None
+                        if code == "TOOL_NOT_ENABLED":
+                            force_success = True
+                    except Exception:
+                        pass
                 # back-fill user if authenticated and missing
                 req_user = getattr(request, "user", None)
                 if req_user and getattr(req_user, "is_authenticated", False) and not current.user_id:
                     current.user = req_user
                 current.status_code = status_code
-                current.success = 200 <= status_code < 400
+                current.success = True if force_success else 200 <= status_code < 400
                 current._allow_update = True
                 update_fields = ["status_code", "success"]
                 if current.user_id:

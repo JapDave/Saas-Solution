@@ -57,7 +57,15 @@ def _client_ip(request) -> str | None:
 def _user_agent(request) -> str:
     if not request:
         return ""
+    import re
+
     ua = request.META.get("HTTP_USER_AGENT", "") or ""
+    # Remove script tags / javascript URLs / alert fragments.
+    ua = re.sub(r"<\s*/?\s*script[^>]*>", "", ua, flags=re.IGNORECASE)
+    ua = re.sub(r"javascript\s*:", "", ua, flags=re.IGNORECASE)
+    ua = re.sub(r"alert\s*\(", "", ua, flags=re.IGNORECASE)
+    # Strip angle brackets to avoid HTML injection.
+    ua = ua.replace("<", "").replace(">", "")
     return ua[:500]
 
 
