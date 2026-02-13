@@ -31,21 +31,25 @@ docker-compose -f .\docker\compose.yaml up --force-recreate -d
 #### 4. Run tests
 
 **Run all acceptance tests:**
+
 ```bash
 docker compose -f docker/compose.yaml run --rm -e API_BASE_URL=https://nginx:8443/api -e VERIFY_SSL=false web pytest acceptance_tests/ -v -m acceptance
 ```
 
 **Run a specific test file:**
+
 ```bash
 docker compose -f docker/compose.yaml run --rm -e API_BASE_URL=https://nginx:8443/api -e VERIFY_SSL=false web pytest acceptance_tests/<test_file_name>.py -v -m acceptance
 ```
 
 **Run a specific test class:**
+
 ```bash
 docker compose -f docker/compose.yaml run --rm -e API_BASE_URL=https://nginx:8443/api -e VERIFY_SSL=false web pytest acceptance_tests/<test_file_name>.py::<class_name> -v -m acceptance
 ```
 
 **Run a specific test:**
+
 ```bash
 docker compose -f docker/compose.yaml run --rm -e API_BASE_URL=https://nginx:8443/api -e VERIFY_SSL=false web pytest acceptance_tests/<test_file_name>.py::<class_name>::<test_name> -v -m acceptance
 ```

@@ -192,6 +192,7 @@ class TestREQTool001ListAvailableTools:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -231,6 +232,7 @@ class TestREQTool001ListAvailableTools:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -255,6 +257,7 @@ class TestREQTool001ListAvailableTools:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -281,6 +284,7 @@ class TestREQTool001ListAvailableTools:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -305,6 +309,7 @@ class TestREQTool001ListAvailableTools:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -349,6 +354,7 @@ class TestREQTool001ListAvailableTools:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -375,6 +381,7 @@ class TestREQTool001ListAvailableTools:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -827,7 +834,7 @@ class TestREQTool002ListEnabledTools:
         
         # Get organization UUID
         if DJANGO_AVAILABLE and Organization:
-            org = Organization.objects.using('default').filter(name="Test Organization Alpha3").first()
+            org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
             # Ensure TOOLS_MANAGEMENT subscription exists
@@ -1380,6 +1387,7 @@ class TestREQTool003EnableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
             
             tool_key = "handoff_to_human"
@@ -1428,6 +1436,7 @@ class TestREQTool003EnableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1466,6 +1475,7 @@ class TestREQTool003EnableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1503,6 +1513,7 @@ class TestREQTool003EnableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
             
             # Set subscription limit to a low number
@@ -1566,6 +1577,7 @@ class TestREQTool003EnableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1604,6 +1616,7 @@ class TestREQTool003EnableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1627,6 +1640,7 @@ class TestREQTool003EnableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1650,6 +1664,7 @@ class TestREQTool003EnableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1737,6 +1752,7 @@ class TestREQTool003EnableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1765,6 +1781,7 @@ class TestREQTool004DisableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
             
             tool_key = "calculator"
@@ -1842,6 +1859,7 @@ class TestREQTool004DisableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
             
             tool_key = "ocr_extractor"
@@ -1893,6 +1911,7 @@ class TestREQTool004DisableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1930,6 +1949,7 @@ class TestREQTool004DisableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1967,6 +1987,7 @@ class TestREQTool004DisableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -1990,6 +2011,7 @@ class TestREQTool004DisableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2013,6 +2035,7 @@ class TestREQTool004DisableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2100,6 +2123,7 @@ class TestREQTool004DisableToolForOrganization:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2136,6 +2160,7 @@ class TestREQTool005ValidateToolConfiguration:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2186,6 +2211,7 @@ class TestREQTool005ValidateToolConfiguration:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2232,6 +2258,7 @@ class TestREQTool005ValidateToolConfiguration:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2263,6 +2290,7 @@ class TestREQTool005ValidateToolConfiguration:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2294,6 +2322,7 @@ class TestREQTool005ValidateToolConfiguration:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2342,6 +2371,7 @@ class TestREQTool005ValidateToolConfiguration:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2400,6 +2430,7 @@ class TestREQTool006PreventDuplicateTools:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2428,6 +2459,7 @@ class TestREQTool007KnowledgeBaseIntegration:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2459,6 +2491,7 @@ class TestREQTool007KnowledgeBaseIntegration:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2499,6 +2532,7 @@ class TestREQTool008NoToolDependencies:
             org = Organization.objects.using('default').filter(name="Test Organization Alpha1").first()
             if not org:
                 pytest.skip("Test organization not found")
+            ensure_tools_management_subscription(org)
             org_uuid = str(org.uuid)
         else:
             pytest.skip("Django models not available")
@@ -2511,4 +2545,4 @@ class TestREQTool008NoToolDependencies:
             
             # Verify each tool can be enabled independently
             assert response.status_code in [200, 201], \
-                f"Tool {tool_key} should be enabled successfully, got {response.status_code}"
+                f"Tool {tool_key} should be enabled successfully, got {response.status_code}, {response.text}"
