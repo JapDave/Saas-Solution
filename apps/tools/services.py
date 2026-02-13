@@ -180,8 +180,24 @@ def disable_tool(organization, tool_key: str, actor):
 def validate_tool_configuration(payload: dict, *, organization):
     """Validate a single tool configuration."""
 
+    tool_key = payload.get("toolKey") or payload.get("tool_key")
+    if not tool_key or not isinstance(tool_key, str):
+        raise CustomError(code=INVALID_CONFIGURATION, status_code=400, detail="toolKey is required.")
+
+    definition = get_tool_definition(tool_key)
+    if not definition:
+        raise CustomError(code=TOOL_NOT_FOUND, status_code=404, detail="Unknown tool key.")
+
+    enabled = OrganizationEnabledTool.objects.filter(
+        organization=organization,
+        tool_key=tool_key,
+        disabled_at__isnull=True,
+    ).exists()
+    if not enabled:
+        raise CustomError(code=TOOL_NOT_ENABLED, status_code=404, detail="Tool not enabled for organization.")
+
     entry = {
-        "toolKey": payload.get("toolKey") or payload.get("tool_key"),
+        "toolKey": tool_key,
         "configuration": payload.get("configuration") or {},
     }
     try:
@@ -189,6 +205,8 @@ def validate_tool_configuration(payload: dict, *, organization):
     except ValidationError as exc:
         message = str(exc)
         lowered = message.lower()
+        if "not enabled" in lowered:
+            raise CustomError(code=TOOL_NOT_ENABLED, status_code=404, detail=message) from exc
         if "collection" in lowered and "not exist" in lowered:
             raise CustomError(code=KB_COLLECTION_NOT_FOUND, status_code=400, detail=message) from exc
         if "uuid" in lowered:
