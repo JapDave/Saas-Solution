@@ -25,6 +25,7 @@ def _tool_payload(definition, *, used_by_agents: int = 0):
         "category": definition.raw.get("category", ""),
         "configurationSchema": definition.raw.get("configurationSchema") or {},
         "usedByAgents": used_by_agents,
+        "agentUsageCount": used_by_agents,
     }
 
 

@@ -1,177 +1,107 @@
 from __future__ import annotations
 
-from typing import Any
-
-from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 
-from apps.agents.models import (
-    Agent,
-    AgentVersion,
-    OrganizationEnabledLLM,
-    OrganizationEnabledTool,
-)
-from apps.agents.services import save_agent_version
+from apps.agents.models import Agent, AgentVersion, OrganizationEnabledLLM, OrganizationEnabledTool
 from apps.agents.validators import (
-    validate_llm_configuration,
+    validate_agent_description,
+    validate_agent_name,
     validate_system_prompts,
-    validate_tools_configuration,
 )
-from apps.organizations.models import Organization
-
-
-class OrganizationSlugRelatedField(serializers.SlugRelatedField):
-    def to_internal_value(self, data):
-        try:
-            return super().to_internal_value(data)
-        except serializers.ValidationError as exc:
-            raise serializers.ValidationError({"organization": exc.detail})
 
 
 class AgentReadSerializer(serializers.ModelSerializer):
-    organization_uuid = serializers.UUIDField(source="organization.uuid", read_only=True)
-    current_version_uuid = serializers.UUIDField(source="current_version.uuid", read_only=True)
-    current_version_number = serializers.IntegerField(source="current_version.version_number", read_only=True)
+    id = serializers.UUIDField(source="uuid", read_only=True)
+    organizationId = serializers.UUIDField(source="organization.uuid", read_only=True)
+    currentVersionId = serializers.UUIDField(source="current_version.uuid", read_only=True, allow_null=True)
+    createdBy = serializers.UUIDField(source="created_by.uuid", read_only=True, allow_null=True)
+    updatedBy = serializers.UUIDField(source="updated_by.uuid", read_only=True, allow_null=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+    updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
+    deletedAt = serializers.DateTimeField(source="deleted_at", read_only=True, allow_null=True)
 
     class Meta:
         model = Agent
         fields = [
-            "uuid",
-            "organization_uuid",
+            "id",
+            "organizationId",
             "name",
             "description",
-            "system_prompts",
-            "llm_configuration",
-            "tools_configuration",
+            "currentVersionId",
             "state",
-            "current_version_uuid",
-            "current_version_number",
-            "created_at",
-            "updated_at",
+            "createdBy",
+            "updatedBy",
+            "createdAt",
+            "updatedAt",
+            "deletedAt",
         ]
 
 
-class AgentWriteSerializer(serializers.ModelSerializer):
-    organization = OrganizationSlugRelatedField(
-        slug_field="uuid",
-        queryset=Organization.objects.all(),
-        required=True,
-    )
+class AgentCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=250)
+    description = serializers.CharField(required=False, allow_blank=True, max_length=250)
 
-    class Meta:
-        model = Agent
-        fields = [
-            "uuid",
-            "organization",
-            "name",
-            "description",
-            "system_prompts",
-            "llm_configuration",
-            "tools_configuration",
-            "state",
-        ]
-        read_only_fields = ["state", "uuid"]
+    def validate_name(self, value):
+        return validate_agent_name(value)
 
-    def _organization(self, attrs):
-        organization = attrs.get("organization") or getattr(self.instance, "organization", None)
-        if not organization:
-            raise serializers.ValidationError({"organization": "organization is required."})
-        return organization
+    def validate_description(self, value):
+        return validate_agent_description(value)
 
-    def validate(self, attrs):
-        organization = self._organization(attrs)
 
-        if "system_prompts" in attrs or not self.instance:
-            system_prompts = attrs.get("system_prompts") or getattr(self.instance, "system_prompts", "")
-            if not system_prompts:
-                raise serializers.ValidationError({"system_prompts": "systemPrompts is required."})
-            validate_system_prompts(system_prompts)
+class AgentPatchSerializer(serializers.Serializer):
+    name = serializers.CharField(required=False, allow_blank=False, max_length=250)
+    description = serializers.CharField(required=False, allow_blank=True, max_length=250)
+    currentVersionId = serializers.UUIDField(required=False, source="current_version_id")
+    state = serializers.ChoiceField(required=False, choices=Agent.AgentState.choices)
 
-        if "llm_configuration" in attrs or not self.instance:
-            llm_config = attrs.get("llm_configuration") or getattr(self.instance, "llm_configuration", {})
-            attrs["llm_configuration"] = validate_llm_configuration(llm_config, organization=organization)
+    def validate_name(self, value):
+        return validate_agent_name(value)
 
-        if "tools_configuration" in attrs or not self.instance:
-            tools_config = attrs.get("tools_configuration") or getattr(self.instance, "tools_configuration", [])
-            attrs["tools_configuration"] = validate_tools_configuration(tools_config, organization=organization)
-
-        name = attrs.get("name")
-        if name:
-            attrs["name"] = name.strip()
-        description = attrs.get("description")
-        if description is not None:
-            attrs["description"] = description.strip()
-        return attrs
-
-    def create(self, validated_data):
-        request = self.context.get("request")
-        user = getattr(request, "user", None)
-        validated_data["created_by"] = user
-        validated_data["updated_by"] = user
-        agent = super().create(validated_data)
-        if user:
-            save_agent_version(agent, actor=user)
-        return agent
-
-    def update(self, instance, validated_data):
-        validated_data["updated_by"] = getattr(self.context.get("request"), "user", None)
-        return super().update(instance, validated_data)
+    def validate_description(self, value):
+        return validate_agent_description(value)
 
 
 class AgentVersionSerializer(serializers.ModelSerializer):
-    agent_uuid = serializers.UUIDField(source="agent.uuid", read_only=True)
-    created_by_email = serializers.EmailField(source="created_by.email", read_only=True)
+    id = serializers.UUIDField(source="uuid", read_only=True)
+    agentId = serializers.UUIDField(source="agent.uuid", read_only=True)
+    versionNumber = serializers.IntegerField(source="version_number", read_only=True)
+    systemPrompts = serializers.CharField(source="system_prompts", read_only=True)
+    llmConfiguration = serializers.JSONField(source="llm_configuration", read_only=True)
+    toolsConfiguration = serializers.JSONField(source="tools_configuration", read_only=True)
+    createdBy = serializers.UUIDField(source="created_by.uuid", read_only=True, allow_null=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model = AgentVersion
         fields = [
-            "uuid",
-            "agent_uuid",
-            "version_number",
+            "id",
+            "agentId",
+            "versionNumber",
             "name",
             "description",
-            "system_prompts",
-            "llm_configuration",
-            "tools_configuration",
-            "created_by_email",
-            "created_at",
+            "systemPrompts",
+            "llmConfiguration",
+            "toolsConfiguration",
+            "createdBy",
+            "createdAt",
         ]
 
 
 class AgentVersionCreateSerializer(serializers.Serializer):
-    name = serializers.CharField(required=False, allow_blank=False, max_length=250)
+    name = serializers.CharField(max_length=250)
     description = serializers.CharField(required=False, allow_blank=True, max_length=250)
-    system_prompts = serializers.CharField(required=False)
-    llm_configuration = serializers.JSONField(required=False)
-    tools_configuration = serializers.JSONField(required=False)
+    systemPrompts = serializers.CharField(source="system_prompts")
+    llmConfiguration = serializers.JSONField(source="llm_configuration")
+    toolsConfiguration = serializers.JSONField(required=False, source="tools_configuration")
 
-    def validate(self, attrs):
-        agent: Agent = self.context["agent"]
+    def validate_name(self, value):
+        return validate_agent_name(value)
 
-        if "name" in attrs:
-            attrs["name"] = attrs["name"].strip()
+    def validate_description(self, value):
+        return validate_agent_description(value)
 
-        if "system_prompts" in attrs:
-            validate_system_prompts(attrs["system_prompts"])
-
-        if "llm_configuration" in attrs:
-            attrs["llm_configuration"] = validate_llm_configuration(
-                attrs["llm_configuration"], organization=agent.organization
-            )
-
-        if "tools_configuration" in attrs:
-            attrs["tools_configuration"] = validate_tools_configuration(
-                attrs["tools_configuration"], organization=agent.organization
-            )
-        return attrs
-
-
-class VersionSwitchSerializer(serializers.Serializer):
-    version_uuid = serializers.UUIDField()
-
-
-class CloneAgentSerializer(serializers.Serializer):
-    organization_uuid = serializers.UUIDField(required=False)
+    def validate_systemPrompts(self, value):
+        return validate_system_prompts(value)
 
 
 class LLMEnableSerializer(serializers.Serializer):

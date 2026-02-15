@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import Iterable, Optional, Set
 
 from django.db import transaction
@@ -15,25 +16,33 @@ from apps.agents.models import (
     OrganizationEnabledTool,
 )
 from apps.agents.validators import (
+    validate_agent_description,
+    validate_agent_name,
     validate_llm_configuration,
     validate_system_prompts,
     validate_tools_configuration,
 )
 from apps.accounts.services import get_assigned_account_ids
+from apps.agents.telemetry import inc_subscription_check_failures
 from apps.common.exceptions import (
+    AGENT_NAME_NOT_UNIQUE,
     CustomError,
     InsufficientPermissions,
+    INVALID_AGENT_DATA,
+    INVALID_LLM_CONFIGURATION,
+    INVALID_TOOL_CONFIGURATION,
     LLM_NOT_ENABLED,
     LLM_NOT_FOUND,
     LLM_ALREADY_DISABLED,
     LLM_NOT_PERMITTED,
     LLM_REQUIRED,
     SUBSCRIPTION_LIMIT_EXCEEDED,
+    SUBSCRIPTION_REQUIRED,
     TOOL_ALREADY_DISABLED,
     TOOL_NOT_ENABLED,
     TOOL_NOT_FOUND,
 )
-from apps.subscriptions.services import get_subscription_configuration
+from apps.subscriptions.services import get_active_subscription, get_subscription_configuration
 from apps.users.services import (
     get_user_accessible_account_ids,
     get_user_accessible_organization_ids,
@@ -91,6 +100,33 @@ def enforce_agent_creation_limit(organization):
         )
 
 
+def ensure_agent_name_unique(*, organization, name: str, exclude_agent: Agent | None = None):
+    qs = Agent.all_objects.filter(
+        organization=organization,
+        name=name,
+        deleted_at__isnull=True,
+    )
+    if exclude_agent is not None:
+        qs = qs.exclude(pk=exclude_agent.pk)
+    if qs.exists():
+        raise CustomError(
+            code=AGENT_NAME_NOT_UNIQUE,
+            status_code=409,
+            detail="Agent name already exists in organization.",
+        )
+
+
+def ensure_agent_subscription(organization):
+    subscription = get_active_subscription(organization, module_key=AGENTS_MODULE_KEY)
+    if not subscription:
+        inc_subscription_check_failures()
+        raise CustomError(
+            code=SUBSCRIPTION_REQUIRED,
+            status_code=403,
+            detail="Active AGENTS_MANAGEMENT subscription required.",
+        )
+
+
 def ensure_llm_allowed_for_subscription(organization, model_key: str):
     definition = get_llm_definition(model_key)
     if not definition or not definition.requires_hosted_subscription:
@@ -113,30 +149,135 @@ def next_version_number(agent: Agent) -> int:
     return latest + 1
 
 
-@transaction.atomic
-def save_agent_version(agent: Agent, *, actor) -> AgentVersion:
-    if not agent.system_prompts:
-        raise CustomError(code=LLM_REQUIRED, status_code=400, detail="systemPrompts must be provided before saving.")
-    validate_system_prompts(agent.system_prompts)
-    sanitized_llm = validate_llm_configuration(agent.llm_configuration or {}, organization=agent.organization)
-    sanitized_tools = validate_tools_configuration(agent.tools_configuration or [], organization=agent.organization)
+def _with_linear_retry(func, *, attempts: int = 3, base_delay: float = 0.5):
+    last_exc = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return func()
+        except Exception as exc:  # noqa: PERF203
+            last_exc = exc
+            if attempt >= attempts:
+                break
+            time.sleep(base_delay * attempt)
+    if last_exc:
+        raise last_exc
+    return None
 
-    version = AgentVersion.objects.create(
-        agent=agent,
-        version_number=next_version_number(agent),
-        name=agent.name,
-        description=agent.description,
-        system_prompts=agent.system_prompts,
-        llm_configuration=sanitized_llm,
-        tools_configuration=sanitized_tools,
-        created_by=actor,
+
+def _normalize_tools(tools: Iterable[dict]) -> list[dict]:
+    normalized = []
+    for entry in tools or []:
+        if not isinstance(entry, dict):
+            continue
+        key = entry.get("toolKey") or entry.get("tool_key")
+        config = entry.get("configuration") or {}
+        normalized.append({"toolKey": key, "configuration": config})
+    return sorted(normalized, key=lambda item: item.get("toolKey") or "")
+
+
+@transaction.atomic
+def save_agent_version(
+    agent: Agent,
+    *,
+    actor,
+    name: str | None = None,
+    description: str | None = None,
+    system_prompts: str | None = None,
+    llm_configuration: dict | None = None,
+    tools_configuration: list | None = None,
+) -> tuple[AgentVersion, bool]:
+    candidate_name = validate_agent_name(name if name is not None else agent.name)
+    candidate_description = validate_agent_description(
+        description if description is not None else agent.description
     )
+
+    if system_prompts is None:
+        system_prompts = agent.system_prompts
+    if not system_prompts:
+        raise CustomError(code=INVALID_AGENT_DATA, status_code=400, detail="systemPrompts is required.")
+    try:
+        validate_system_prompts(system_prompts)
+    except Exception as exc:
+        raise CustomError(code=INVALID_AGENT_DATA, status_code=400, detail=str(exc)) from exc
+
+    if llm_configuration is None:
+        llm_configuration = agent.llm_configuration
+    if not llm_configuration:
+        raise CustomError(code=LLM_REQUIRED, status_code=400, detail="Agent must have exactly one LLM configured.")
+
+    try:
+        sanitized_llm = validate_llm_configuration(
+            llm_configuration or {},
+            organization=agent.organization,
+            raise_custom_error=True,
+        )
+    except CustomError:
+        raise
+    except Exception as exc:
+        raise CustomError(code=INVALID_LLM_CONFIGURATION, status_code=400, detail=str(exc)) from exc
+
+    if tools_configuration is None:
+        tools_configuration = agent.tools_configuration
+    try:
+        sanitized_tools = validate_tools_configuration(
+            tools_configuration or [],
+            organization=agent.organization,
+            raise_custom_error=True,
+        )
+    except CustomError:
+        raise
+    except Exception as exc:
+        raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail=str(exc)) from exc
+
+    latest = agent.versions.order_by("-version_number").first()
+    if latest:
+        same = (
+            latest.name == candidate_name
+            and latest.description == candidate_description
+            and latest.system_prompts == system_prompts
+            and latest.llm_configuration == sanitized_llm
+            and _normalize_tools(latest.tools_configuration) == _normalize_tools(sanitized_tools)
+        )
+        if same:
+            if agent.current_version_id != latest.id:
+                agent.current_version = latest
+                agent.updated_by = actor
+                agent.save(update_fields=["current_version", "updated_by", "updated_at"])
+            return latest, False
+
+    def _create_version():
+        version = AgentVersion.objects.create(
+            agent=agent,
+            version_number=next_version_number(agent),
+            name=candidate_name,
+            description=candidate_description,
+            system_prompts=system_prompts,
+            llm_configuration=sanitized_llm,
+            tools_configuration=sanitized_tools,
+            created_by=actor,
+        )
+        return version
+
+    version = _with_linear_retry(_create_version, attempts=3, base_delay=0.5)
+
+    agent.name = candidate_name
+    agent.description = candidate_description
+    agent.system_prompts = system_prompts
     agent.llm_configuration = sanitized_llm
     agent.tools_configuration = sanitized_tools
     agent.current_version = version
     agent.updated_by = actor
-    agent.save(update_fields=["llm_configuration", "tools_configuration", "current_version", "updated_by", "updated_at"])
-    return version
+    agent.save(update_fields=[
+        "name",
+        "description",
+        "system_prompts",
+        "llm_configuration",
+        "tools_configuration",
+        "current_version",
+        "updated_by",
+        "updated_at",
+    ])
+    return version, True
 
 
 def clone_agent(agent: Agent, *, created_by) -> Agent:
@@ -150,11 +291,12 @@ def clone_agent(agent: Agent, *, created_by) -> Agent:
     source_version = agent.current_version or agent.versions.order_by("-version_number").first()
     llm_configuration = source_version.llm_configuration if source_version else agent.llm_configuration
     tools_configuration = source_version.tools_configuration if source_version else agent.tools_configuration
+    system_prompts = source_version.system_prompts if source_version else agent.system_prompts
     new_agent = Agent.objects.create(
         organization=agent.organization,
         name=candidate,
         description=agent.description,
-        system_prompts=source_version.system_prompts if source_version else agent.system_prompts,
+        system_prompts=system_prompts,
         llm_configuration=llm_configuration,
         tools_configuration=tools_configuration,
         state=Agent.AgentState.DRAFT,
@@ -162,7 +304,15 @@ def clone_agent(agent: Agent, *, created_by) -> Agent:
         updated_by=created_by,
     )
     if llm_configuration:
-        save_agent_version(new_agent, actor=created_by)
+        save_agent_version(
+            new_agent,
+            actor=created_by,
+            name=new_agent.name,
+            description=new_agent.description,
+            system_prompts=system_prompts,
+            llm_configuration=llm_configuration,
+            tools_configuration=tools_configuration,
+        )
     return new_agent
 
 
@@ -189,7 +339,7 @@ def filter_agents_for_user(queryset, user):
     if user.is_staff:
         assigned = get_assigned_account_ids(user)
         if not assigned:
-            return queryset.none()
+            return queryset
         return queryset.filter(organization__account_id__in=assigned)
 
     account_ids = get_user_accessible_account_ids(user)
@@ -218,7 +368,7 @@ def user_has_agent_permission(user, organization, permission_key: str) -> bool:
         return True
     if user.is_staff:
         assigned = get_assigned_account_ids(user)
-        return organization.account_id in assigned
+        return not assigned or organization.account_id in assigned
     if user.id in _org_owner_ids(organization):
         return True
     perms = _permission_keys(user, organization)

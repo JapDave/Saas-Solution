@@ -9,10 +9,12 @@ def agents_usage_by_tool_keys(org, tool_keys: list[str]) -> dict[str, int]:
     if not tool_keys:
         return {}
     usage = defaultdict(int)
-    qs = Agent.objects.filter(organization=org, deleted_at__isnull=True).values_list("tools_configuration", flat=True)
-    for cfg in qs:
-        if not cfg:
+    qs = Agent.objects.filter(organization=org, deleted_at__isnull=True).select_related("current_version")
+    for agent in qs:
+        version = agent.current_version
+        if not version:
             continue
+        cfg = version.tools_configuration or []
         for entry in cfg:
             try:
                 key = entry.get("toolKey") or entry.get("tool_key")

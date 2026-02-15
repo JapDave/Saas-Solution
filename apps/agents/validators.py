@@ -7,6 +7,15 @@ from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.utils.translation import gettext_lazy as _
 
+from apps.common.exceptions import (
+    CustomError,
+    DUPLICATE_TOOL,
+    INVALID_LLM_CONFIGURATION,
+    INVALID_TOOL_CONFIGURATION,
+    LLM_NOT_ENABLED,
+    LLM_REQUIRED,
+    TOOL_NOT_ENABLED,
+)
 from apps.agents.definitions import (
     list_llm_definitions,
     list_tool_definitions,
@@ -19,6 +28,38 @@ from apps.knowledge_base.models import Collection
 SYSTEM_PROMPT_MIN_WORDS = 1
 SYSTEM_PROMPT_MAX_WORDS = 10_000
 
+_NAME_SPECIALS = set("!*()-#?@/^~.:\u00d8\u0152\u00ef\u00b7\u00bc%&'=+$,[]~")
+_DESCRIPTION_SPECIALS = set("!*()-#?@/^~.:\u00d8\u0152\u00ef\u00b7\u00bc%&'=+$,[]~")
+_SYSTEM_PROMPT_SPECIALS = set("!*()-#?@/^~.:\u00d8\u0152\u00ef\u00b7\u00bc%&'=+$,[]~{}")
+
+
+def _validate_allowed_characters(value: str, *, allowed_specials: set[str], field_label: str) -> None:
+    for ch in value:
+        if ch.isalnum() or ch.isspace() or ch in allowed_specials:
+            continue
+        raise ValidationError({field_label: _(f"{field_label} contains invalid character: {ch}")})
+
+
+def validate_agent_name(value: str) -> str:
+    if value is None:
+        raise ValidationError({"name": _("Name is required.")})
+    cleaned = value.strip()
+    if not cleaned:
+        raise ValidationError({"name": _("Name is required.")})
+    if len(cleaned) > 250:
+        raise ValidationError({"name": _("Name must be 250 characters or fewer.")})
+    _validate_allowed_characters(cleaned, allowed_specials=_NAME_SPECIALS, field_label="name")
+    return cleaned
+
+
+def validate_agent_description(value: str | None) -> str:
+    cleaned = (value or "").strip()
+    if len(cleaned) > 250:
+        raise ValidationError({"description": _("Description must be 250 characters or fewer.")})
+    if cleaned:
+        _validate_allowed_characters(cleaned, allowed_specials=_DESCRIPTION_SPECIALS, field_label="description")
+    return cleaned
+
 
 def _word_count(value: str) -> int:
     tokens = [chunk for chunk in (value or "").strip().split() if chunk]
@@ -28,12 +69,15 @@ def _word_count(value: str) -> int:
 def validate_system_prompts(value: str) -> str:
     """Ensure the system prompt stays within the documented word limits."""
 
+    if value is None:
+        raise ValidationError({"systemPrompts": _("systemPrompts is required.")})
     words = _word_count(value)
     if words < SYSTEM_PROMPT_MIN_WORDS or words > SYSTEM_PROMPT_MAX_WORDS:
         raise ValidationError(
             _("systemPrompts must contain between %(min)d and %(max)d words."),
             params={"min": SYSTEM_PROMPT_MIN_WORDS, "max": SYSTEM_PROMPT_MAX_WORDS},
         )
+    _validate_allowed_characters(value, allowed_specials=_SYSTEM_PROMPT_SPECIALS, field_label="systemPrompts")
     return value
 
 
@@ -129,10 +173,12 @@ def _ensure_enabled_tool(organization, tool_key: str):
     ).first()
 
 
-def validate_llm_configuration(value: Any, *, organization) -> dict:
+def validate_llm_configuration(value: Any, *, organization, raise_custom_error: bool = False) -> dict:
     """Validate agent LLM configuration payload."""
 
     if not isinstance(value, dict):
+        if raise_custom_error:
+            raise CustomError(code=INVALID_LLM_CONFIGURATION, status_code=400, detail="llmConfiguration must be an object.")
         raise ValidationError(_("llmConfiguration must be an object."))
 
     model_key = value.get("modelKey") or value.get("model_key")
@@ -140,28 +186,54 @@ def validate_llm_configuration(value: Any, *, organization) -> dict:
     configuration = value.get("configuration")
 
     if not model_key or not isinstance(model_key, str):
+        if raise_custom_error:
+            raise CustomError(code=LLM_REQUIRED, status_code=400, detail="modelKey is required.")
         raise ValidationError({"modelKey": _("modelKey is required.")})
     definition = get_llm_definition(model_key)
     if not definition:
+        if raise_custom_error:
+            raise CustomError(code=INVALID_LLM_CONFIGURATION, status_code=400, detail=f"Unknown LLM key {model_key}.")
         raise ValidationError({"modelKey": _("Unknown LLM key %(key)s.") % {"key": model_key}})
     if provider and provider != definition.provider:
+        if raise_custom_error:
+            raise CustomError(
+                code=INVALID_LLM_CONFIGURATION,
+                status_code=400,
+                detail=f"modelProvider must be {definition.provider}.",
+            )
         raise ValidationError({"modelProvider": _("modelProvider must be %(expected)s.") % {"expected": definition.provider}})
     if configuration is None or not isinstance(configuration, dict):
+        if raise_custom_error:
+            raise CustomError(code=INVALID_LLM_CONFIGURATION, status_code=400, detail="configuration must be an object.")
         raise ValidationError({"configuration": _("configuration must be an object.")})
 
     if not _ensure_enabled_llm(organization, model_key):
+        if raise_custom_error:
+            raise CustomError(code=LLM_NOT_ENABLED, status_code=400, detail=f"LLM {model_key} is not enabled for this organization.")
         raise ValidationError({"modelKey": _("LLM %(key)s is not enabled for this organization.") % {"key": model_key}})
 
     allowed_fields = set(definition.parameters.keys())
-    _reject_unknown_fields(configuration, allowed_fields, "LLM configuration")
+    try:
+        _reject_unknown_fields(configuration, allowed_fields, "LLM configuration")
+    except ValidationError as exc:
+        if raise_custom_error:
+            raise CustomError(code=INVALID_LLM_CONFIGURATION, status_code=400, detail=str(exc)) from exc
+        raise
 
     cleaned_config = {}
     for param_key, rule in definition.parameters.items():
         if param_key not in configuration:
             if rule.required:
+                if raise_custom_error:
+                    raise CustomError(code=INVALID_LLM_CONFIGURATION, status_code=400, detail=f"{param_key} is required.")
                 raise ValidationError({param_key: _("This parameter is required.")})
             continue
-        cleaned_config[param_key] = _validate_parameter(param_key, configuration[param_key], rule)
+        try:
+            cleaned_config[param_key] = _validate_parameter(param_key, configuration[param_key], rule)
+        except ValidationError as exc:
+            if raise_custom_error:
+                raise CustomError(code=INVALID_LLM_CONFIGURATION, status_code=400, detail=str(exc)) from exc
+            raise
 
     # Allow additional optional parameters but still coerce if a rule exists
     for param_key, raw_value in configuration.items():
@@ -176,42 +248,76 @@ def validate_llm_configuration(value: Any, *, organization) -> dict:
     }
 
 
-def validate_tools_configuration(value: Any, *, organization) -> list[dict]:
+def validate_tools_configuration(value: Any, *, organization, raise_custom_error: bool = False) -> list[dict]:
     if value in (None, []):
         return []
     if not isinstance(value, Iterable) or isinstance(value, (str, bytes)):
+        if raise_custom_error:
+            raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail="toolsConfiguration must be an array.")
         raise ValidationError(_("toolsConfiguration must be an array."))
 
     seen_keys: set[str] = set()
     cleaned: list[dict] = []
     for entry in value:
         if not isinstance(entry, dict):
+            if raise_custom_error:
+                raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail="Each tool entry must be an object.")
             raise ValidationError(_("Each tool entry must be an object."))
         tool_key = entry.get("toolKey") or entry.get("tool_key")
         configuration = entry.get("configuration") or {}
         if not tool_key or not isinstance(tool_key, str):
+            if raise_custom_error:
+                raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail="toolKey is required for each tool.")
             raise ValidationError({"toolKey": _("toolKey is required for each tool.")})
         if tool_key in seen_keys:
+            if raise_custom_error:
+                raise CustomError(code=DUPLICATE_TOOL, status_code=400, detail=f"Duplicate tool {tool_key} not allowed.")
             raise ValidationError({"toolKey": _("Duplicate tool %(key)s not allowed.") % {"key": tool_key}})
         seen_keys.add(tool_key)
 
         tool_def = get_tool_definition(tool_key)
         if not tool_def:
+            if raise_custom_error:
+                raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail=f"Unknown tool key {tool_key}.")
             raise ValidationError({"toolKey": _("Unknown tool key %(key)s.") % {"key": tool_key}})
         if not isinstance(configuration, dict):
+            if raise_custom_error:
+                raise CustomError(
+                    code=INVALID_TOOL_CONFIGURATION,
+                    status_code=400,
+                    detail=f"configuration must be an object for tool {tool_key}.",
+                )
             raise ValidationError({"configuration": _("configuration must be an object for tool %(key)s.") % {"key": tool_key}})
         if not _ensure_enabled_tool(organization, tool_key):
+            if raise_custom_error:
+                raise CustomError(code=TOOL_NOT_ENABLED, status_code=400, detail=f"Tool {tool_key} is not enabled for this organization.")
             raise ValidationError({"toolKey": _("Tool %(key)s is not enabled for this organization.") % {"key": tool_key}})
         allowed_fields = set(tool_def.parameters.keys())
-        _reject_unknown_fields(configuration, allowed_fields, f"tool {tool_key}")
+        try:
+            _reject_unknown_fields(configuration, allowed_fields, f"tool {tool_key}")
+        except ValidationError as exc:
+            if raise_custom_error:
+                raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail=str(exc)) from exc
+            raise
 
         cleaned_config = {}
         for param_key, rule in tool_def.parameters.items():
             if param_key not in configuration:
                 if rule.required:
+                    if raise_custom_error:
+                        raise CustomError(
+                            code=INVALID_TOOL_CONFIGURATION,
+                            status_code=400,
+                            detail=f"{param_key} is required for {tool_key}.",
+                        )
                     raise ValidationError({param_key: _("This parameter is required for %(tool)s.") % {"tool": tool_key}})
                 continue
-            cleaned_config[param_key] = _validate_parameter(param_key, configuration[param_key], rule)
+            try:
+                cleaned_config[param_key] = _validate_parameter(param_key, configuration[param_key], rule)
+            except ValidationError as exc:
+                if raise_custom_error:
+                    raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail=str(exc)) from exc
+                raise
 
         for param_key, param_value in configuration.items():
             if param_key in cleaned_config:
@@ -223,6 +329,8 @@ def validate_tools_configuration(value: Any, *, organization) -> list[dict]:
             if collection_id:
                 exists = Collection.objects.filter(uuid=collection_id, organization=organization).exists()
                 if not exists:
+                    if raise_custom_error:
+                        raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail="Referenced collection does not exist.")
                     raise ValidationError({"collection_id": _("Referenced collection does not exist.")})
 
         cleaned.append({

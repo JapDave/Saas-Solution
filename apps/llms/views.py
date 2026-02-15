@@ -70,6 +70,7 @@ class OrganizationLLMDefinitionsView(APIView):
                     "supportedModalities": definition.raw.get("supportedModalities", []),
                     "modelConfiguration": definition.raw.get("modelConfiguration") or {},
                     "usedByAgents": usage.get(definition.key, 0),
+                    "agentUsageCount": usage.get(definition.key, 0),
                 }
             )
         serializer = LLMDefinitionSerializer(payload, many=True)
@@ -126,6 +127,7 @@ class OrganizationLLMEnabledView(APIView):
                     "supportedModalities": definition.raw.get("supportedModalities", []),
                     "modelConfiguration": definition.raw.get("modelConfiguration") or {},
                     "usedByAgents": usage.get(definition.key, 0),
+                    "agentUsageCount": usage.get(definition.key, 0),
                 }
             )
         serializer = LLMDefinitionSerializer(payload, many=True)

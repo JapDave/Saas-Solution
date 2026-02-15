@@ -261,17 +261,18 @@ def agents_usage_by_model_keys(org, model_keys: list[str]) -> dict[str, int]:
     """
     if not model_keys:
         return {}
-    qs = (
-        Agent.objects.filter(
-            organization=org,
-            llm_configuration__modelKey__in=model_keys,
-            deleted_at__isnull=True,
-        )
-        .values_list("llm_configuration__modelKey", flat=True)
-    )
     usage: dict[str, int] = {}
-    for key in qs:
-        usage[key] = usage.get(key, 0) + 1
+    agents = (
+        Agent.objects.filter(organization=org, deleted_at__isnull=True)
+        .select_related("current_version")
+    )
+    for agent in agents:
+        version = agent.current_version
+        if not version:
+            continue
+        model_key = (version.llm_configuration or {}).get("modelKey")
+        if model_key in model_keys:
+            usage[model_key] = usage.get(model_key, 0) + 1
     return usage
 
 
