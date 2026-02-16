@@ -183,6 +183,78 @@ TEST_USERS = [
         "memberships": ["Test Organization Alpha1"],
     },
     {
+        "email": "account1.user.manager@test.com",
+        "password": "Test123!",
+        "full_name": "Account 1 User Manager",
+        "account_name": "Test Account Alpha",
+        "roles": {
+            "organizations": {
+                "Test Organization Alpha1": ["User Manager"],
+            },
+        },
+        "memberships": ["Test Organization Alpha1"],
+    },
+    {
+        "email": "account1.user.viewer@test.com",
+        "password": "Test123!",
+        "full_name": "Account 1 User Viewer",
+        "account_name": "Test Account Alpha",
+        "roles": {
+            "organizations": {
+                "Test Organization Alpha1": ["User Viewer"],
+            },
+        },
+        "memberships": ["Test Organization Alpha1"],
+    },
+    {
+        "email": "account1.user.admin@test.com",
+        "password": "Test123!",
+        "full_name": "Account 1 User Admin",
+        "account_name": "Test Account Alpha",
+        "roles": {
+            "organizations": {
+                "Test Organization Alpha1": ["User Admin"],
+            },
+        },
+        "memberships": ["Test Organization Alpha1"],
+    },
+    {
+        "email": "account1.team.manager@test.com",
+        "password": "Test123!",
+        "full_name": "Account 1 Team Manager",
+        "account_name": "Test Account Alpha",
+        "roles": {
+            "organizations": {
+                "Test Organization Alpha2": ["Team Manager"],
+            },
+        },
+        "memberships": ["Test Organization Alpha2"],
+    },
+    {
+        "email": "account1.team.viewer@test.com",
+        "password": "Test123!",
+        "full_name": "Account 1 Team Viewer",
+        "account_name": "Test Account Alpha",
+        "roles": {
+            "organizations": {
+                "Test Organization Alpha2": ["Team Viewer"],
+            },
+        },
+        "memberships": ["Test Organization Alpha2"],
+    },
+    {
+        "email": "account1.team.admin@test.com",
+        "password": "Test123!",
+        "full_name": "Account 1 Team Admin",
+        "account_name": "Test Account Alpha",
+        "roles": {
+            "organizations": {
+                "Test Organization Alpha2": ["Team Admin"],
+            },
+        },
+        "memberships": ["Test Organization Alpha2"],
+    },
+    {
         "email": "account1.user1@test.com",
         "password": "Test123!",
         "full_name": "Account 1 User 1",
@@ -355,15 +427,17 @@ NON_ADMIN_PERMISSIONS = [
 ]
 ROLES_PERMISSIONS = {
     ROLE_ACCOUNT_OWNER: [
-        "account:read",
-        "account:update",
-        "account:transfer-owner",
-        "organization:create",
-        "organization:read",
-        "organization:update",
-        "organization:delete",
-        "organization:deactivate",
-        "organization:list",
+        "accounts:read",
+        "accounts:update",
+        "accounts:transfer-owner",
+        "organizations:create",
+        "organizations:read",
+        "organizations:update",
+        "organizations:delete",
+        "accounts:assign-owner",
+        "organizations:deactivate",
+        "organizations:assign-owner",
+        "organizations:list",
         "account_user:create",
         "account_user:read",
         "account_user:update",
@@ -372,14 +446,15 @@ ROLES_PERMISSIONS = {
         "account_user:deactivate",
     ] + NON_ADMIN_PERMISSIONS,
     ROLE_ACCOUNT_ADMINISTRATOR: [
-        "account:read",
-        "account:update",
-        "organization:create",
-        "organization:read",
-        "organization:update",
-        "organization:delete",
-        "organization:deactivate",
-        "organization:list",
+        "accounts:read",
+        "accounts:update",
+        "organizations:create",
+        "organizations:read",
+        "organizations:update",
+        "organizations:delete",
+        "organizations:deactivate",
+        "organizations:assign-owner",
+        "organizations:list",
         "account_user:create",
         "account_user:read",
         "account_user:update",
@@ -388,28 +463,29 @@ ROLES_PERMISSIONS = {
         "account_user:deactivate",
     ] + NON_ADMIN_PERMISSIONS,
     ROLE_ORGANIZATION_OWNER: [
-        "organization:read",
-        "organization:update",
-        "organization:list",
-        "organization:transfer-owner",
+        "organizations:read",
+        "organizations:update",
+        "organizations:list",
+        "organizations:transfer-owner",
     ] + NON_ADMIN_PERMISSIONS,
     ROLE_ORGANIZATION_ADMINISTRATOR: [
-        "organization:read",
-        "organization:update",
-        "organization:list",
+        "organizations:read",
+        "organizations:update",
+        "organizations:list",
     ] + NON_ADMIN_PERMISSIONS,
     ROLE_SAAS_ACCOUNT_MANAGER: [
-        "account:read",
-        "account:update",
-        "account:list",
-        "account:deactivate",
-        "organization:create",
-        "organization:read",
-        "organization:update",
-        "organization:delete",
-        "organization:deactivate",
-        "organization:list",
-        "organization:transfer-owner",
+        "accounts:read",
+        "accounts:update",
+        "accounts:list",
+        "accounts:deactivate",
+        "organizations:create",
+        "organizations:read",
+        "organizations:update",
+        "organizations:delete",
+        "organizations:deactivate",
+        "organizations:list",
+        "organizations:transfer-owner",
+        "organizations:assign-owner",
         "account_user:create",
         "account_user:read",
         "account_user:update",
@@ -430,20 +506,20 @@ ROLES_PERMISSIONS = {
         "tools:admin",
     ] + NON_ADMIN_PERMISSIONS,
     ROLE_SAAS_ADMINISTRATOR: [
-        "account:create",
-        "account:read",
-        "account:update",
-        "account:delete",
-        "account:list",
-        "account:deactivate",
-        "account:transfer-owner",
-        "organization:create",
-        "organization:read",
-        "organization:update",
-        "organization:delete",
-        "organization:deactivate",
-        "organization:list",
-        "organization:transfer-owner",
+        "accounts:create",
+        "accounts:read",
+        "accounts:update",
+        "accounts:delete",
+        "accounts:list",
+        "accounts:deactivate",
+        "accounts:transfer-owner",
+        "organizations:create",
+        "organizations:read",
+        "organizations:update",
+        "organizations:delete",
+        "organizations:deactivate",
+        "organizations:list",
+        "organizations:transfer-owner",
         "account_user:create",
         "account_user:read",
         "account_user:update",
@@ -477,8 +553,24 @@ ROLES_PERMISSIONS = {
             "kb:collections:delete", "kb:collections:archive", "kb:collections:restore",
             "kb:resources:create", "kb:resources:delete", "kb:resources:move",
             "kb:resources:copy", "tools:read"
-        ]
+        ],
+    # Predefined user management roles
+    "User Manager": ["user:create", "user:read", "user:update", "user:list"],
+    "User Viewer": ["user:read", "user:list"],
+    "User Admin": ["user:create", "user:read", "user:update", "user:list", "user:manage_membership"],
+    # Predefined team management roles
+    "Team Manager": ["teams:create", "teams:read", "teams:update", "teams:manage_members"],
+    "Team Viewer": ["teams:read", "teams:list"],
+    "Team Admin": [
+        "teams:create", "teams:read", "teams:update", "teams:delete",
+        "teams:deactivate", "teams:manage_members",
+    ],
 }
+
+# Predefined user management role names (for seeding, same as keys in ROLES_PERMISSIONS above)
+PREDEFINED_USER_ROLE_NAMES = ["User Manager", "User Viewer", "User Admin"]
+# Predefined team management role names
+PREDEFINED_TEAM_ROLE_NAMES = ["Team Manager", "Team Viewer", "Team Admin"]
 
 
 def get_user_credentials(full_name: str) -> tuple[str, str]:
@@ -1068,8 +1160,8 @@ def create_static_data(superuser: User):
             "subscribable": False,
             "configurable_attributes": None,
             "exposed_permissions": [
-                "account:create", "account:read", "account:update", "account:delete",
-                "account:list", "account:deactivate", "account:transfer_owner"
+                "accounts:create", "accounts:read", "accounts:update", "accounts:delete",
+                "accounts:list", "accounts:deactivate", "accounts:transfer_owner"
             ]
         },
         {
@@ -1080,9 +1172,9 @@ def create_static_data(superuser: User):
             "subscribable": False,
             "configurable_attributes": None,
             "exposed_permissions": [
-                "organization:create", "organization:read", "organization:update",
-                "organization:delete", "organization:list", "organization:deactivate",
-                "organization:assign_owner", "organization:transfer_owner"
+                "organizations:create", "organizations:read", "organizations:update",
+                "organizations:delete", "organizations:list", "organizations:deactivate",
+                "organizations:assign_owner", "organizations:transfer_owner"
             ]
         },
         {
@@ -1643,9 +1735,14 @@ def seed_test_data(superuser_id: Optional[int] = None, measure_timing: bool = Fa
         print("SEED 3: ORGANIZATIONS CREATED")
     
     # Create subscriptions for organizations that need them
+    # Default limits are set high so normal tests (create team, add members) do not hit subscription limits.
+    # Edge-case tests that assert limit enforcement override these in the test and restore in finally.
     subs_start = time.time()
     if Subscription and Module and organization_map:
-        # Get a default module (use first available module)
+        DEFAULT_MAX_TEAMS = 500
+        DEFAULT_MAX_TEAM_MEMBERS = 500
+        DEFAULT_MAX_USERS_PER_ORG = 500
+        DEFAULT_MAX_ORGS_PER_USER = 500
         for module in Module.objects.using('default').filter(key__in=["USER_MANAGEMENT", "TEAMS_MANAGEMENT", "ROLE_AND_PERMISSION_MANAGEMENT", "FILES_MANAGEMENT"]):
             now = timezone.now()
             for org_data in TEST_ORGANIZATIONS:
@@ -1655,8 +1752,13 @@ def seed_test_data(superuser_id: Optional[int] = None, measure_timing: bool = Fa
                         configuration = {"session_duration_hours": 24, "max_concurrent_sessions": 5}
                         if org_data.get("max_concurrent_sessions"):
                             configuration["max_concurrent_sessions"] = org_data["max_concurrent_sessions"]
-                        
-                        Subscription.objects.using('default').get_or_create(
+                        if module.key == "TEAMS_MANAGEMENT":
+                            configuration["max_teams"] = DEFAULT_MAX_TEAMS
+                            configuration["max_team_members"] = DEFAULT_MAX_TEAM_MEMBERS
+                        if module.key == "USER_MANAGEMENT":
+                            configuration["max_users_per_org"] = DEFAULT_MAX_USERS_PER_ORG
+                            configuration["max_orgs_per_user"] = DEFAULT_MAX_ORGS_PER_USER
+                        sub, created = Subscription.objects.using('default').get_or_create(
                             organization=org,
                             module=module,
                             defaults={
@@ -1667,6 +1769,27 @@ def seed_test_data(superuser_id: Optional[int] = None, measure_timing: bool = Fa
                                 "trial_end_date": now - timedelta(days=15),
                             }
                         )
+                        if not created:
+                            # Ensure existing subscriptions have high limits so tests do not fail on re-runs
+                            cfg = sub.configuration or {}
+                            updated = False
+                            if module.key == "TEAMS_MANAGEMENT":
+                                if cfg.get("max_teams") is None or int(cfg.get("max_teams", 0)) < DEFAULT_MAX_TEAMS:
+                                    cfg["max_teams"] = DEFAULT_MAX_TEAMS
+                                    updated = True
+                                if cfg.get("max_team_members") is None or int(cfg.get("max_team_members", 0)) < DEFAULT_MAX_TEAM_MEMBERS:
+                                    cfg["max_team_members"] = DEFAULT_MAX_TEAM_MEMBERS
+                                    updated = True
+                            if module.key == "USER_MANAGEMENT":
+                                if cfg.get("max_users_per_org") is None or int(cfg.get("max_users_per_org", 0)) < DEFAULT_MAX_USERS_PER_ORG:
+                                    cfg["max_users_per_org"] = DEFAULT_MAX_USERS_PER_ORG
+                                    updated = True
+                                if cfg.get("max_orgs_per_user") is None or int(cfg.get("max_orgs_per_user", 0)) < DEFAULT_MAX_ORGS_PER_USER:
+                                    cfg["max_orgs_per_user"] = DEFAULT_MAX_ORGS_PER_USER
+                                    updated = True
+                            if updated:
+                                sub.configuration = cfg
+                                sub.save()
     
     subs_start = log_seed_timing("Subscriptions creation", subs_start)
     
@@ -1692,21 +1815,33 @@ def seed_test_data(superuser_id: Optional[int] = None, measure_timing: bool = Fa
                 )
                 role_map[("account", role_name)] = role
         
-        # Organization-level roles (system roles, assigned with organization in RoleAssignment)
-        for role_name in [ROLE_ORGANIZATION_OWNER, ROLE_ORGANIZATION_ADMINISTRATOR]:
-            if role_name:
-                role, _ = Role.objects.using('default').get_or_create(
-                    organization=None,
-                    name=role_name,
-                    defaults={
-                        "role_type": Role.RoleType.SYSTEM,
-                        "is_active": True,
-                        "created_by": superuser,
-                        "permissions": ROLES_PERMISSIONS.get(role_name, []),
-                    }
-                )
-                role_map[("org", role_name)] = role
-    
+
+
+        # Predefined org-scoped roles: Organization Owner, Organization Administrator, Predefined role:Agent Manager, User/Team predefined roles (attached to each organization)
+        org_scoped_role_names = [ROLE_AGENT_MANAGER, ROLE_ORGANIZATION_OWNER, ROLE_ORGANIZATION_ADMINISTRATOR] + PREDEFINED_USER_ROLE_NAMES + PREDEFINED_TEAM_ROLE_NAMES
+        if organization_map:
+            for org_name, org in organization_map.items():
+                for role_name in org_scoped_role_names:
+                    if not role_name:
+                        continue
+                    perms = ROLES_PERMISSIONS.get(role_name, [])
+                    role_type = (
+                        Role.RoleType.SYSTEM
+                        if role_name in [ROLE_ORGANIZATION_OWNER, ROLE_ORGANIZATION_ADMINISTRATOR]
+                        else Role.RoleType.PREDEFINED_CUSTOM
+                    )
+                    role, _ = Role.objects.using('default').get_or_create(
+                        organization=org,
+                        name=role_name,
+                        defaults={
+                            "role_type": role_type,
+                            "is_active": True,
+                            "created_by": superuser,
+                            "permissions": perms,
+                        }
+                    )
+                    role_map[(org_name, role_name)] = role
+
     roles_start = log_seed_timing("Roles creation", roles_start)
     
     if VERBOSE:
@@ -1827,31 +1962,19 @@ def seed_test_data(superuser_id: Optional[int] = None, measure_timing: bool = Fa
                         membership.assigned_by = superuser
                         membership.save()
                     
-                    # Assign organization-level roles
+                    # Assign organization-level roles (system org roles by ("org", name), org-scoped by (org_name, name))
                     if RoleAssignment and org_name in org_roles:
                         for role_name in org_roles[org_name]:
-                            role = role_map.get(("org", role_name))
-                            if not role:
-                                # Ensure org-scoped predefined roles (e.g., Agent Manager) exist.
-                                role_defaults = {
-                                    "role_type": Role.RoleType.PREDEFINED_CUSTOM if role_name == ROLE_AGENT_MANAGER else Role.RoleType.USER,
-                                    "is_active": True,
-                                    "created_by": superuser,
-                                    "permissions": ROLES_PERMISSIONS.get(role_name, []),
-                                }
-                                role, _ = Role.objects.using('default').get_or_create(
+                            role = role_map.get(("org", role_name)) or role_map.get((org_name, role_name))
+                            if role:
+                                RoleAssignment.objects.using('default').get_or_create(
+                                    user=user,
                                     organization=org,
-                                    name=role_name,
-                                    defaults=role_defaults,
+                                    role=role,
+                                    defaults={
+                                        "assigned_by": superuser,
+                                    }
                                 )
-                            RoleAssignment.objects.using('default').get_or_create(
-                                user=user,
-                                organization=org,
-                                role=role,
-                                defaults={
-                                    "assigned_by": superuser,
-                                }
-                            )
     
     users_start = log_seed_timing("Users and role assignments creation", users_start)
     
