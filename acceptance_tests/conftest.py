@@ -1831,15 +1831,27 @@ def seed_test_data(superuser_id: Optional[int] = None, measure_timing: bool = Fa
                     if RoleAssignment and org_name in org_roles:
                         for role_name in org_roles[org_name]:
                             role = role_map.get(("org", role_name))
-                            if role:
-                                RoleAssignment.objects.using('default').get_or_create(
-                                    user=user,
+                            if not role:
+                                # Ensure org-scoped predefined roles (e.g., Agent Manager) exist.
+                                role_defaults = {
+                                    "role_type": Role.RoleType.PREDEFINED_CUSTOM if role_name == ROLE_AGENT_MANAGER else Role.RoleType.USER,
+                                    "is_active": True,
+                                    "created_by": superuser,
+                                    "permissions": ROLES_PERMISSIONS.get(role_name, []),
+                                }
+                                role, _ = Role.objects.using('default').get_or_create(
                                     organization=org,
-                                    role=role,
-                                    defaults={
-                                        "assigned_by": superuser,
-                                    }
+                                    name=role_name,
+                                    defaults=role_defaults,
                                 )
+                            RoleAssignment.objects.using('default').get_or_create(
+                                user=user,
+                                organization=org,
+                                role=role,
+                                defaults={
+                                    "assigned_by": superuser,
+                                }
+                            )
     
     users_start = log_seed_timing("Users and role assignments creation", users_start)
     

@@ -30,17 +30,11 @@ from apps.subscriptions.services import (
     get_active_subscription,
     organization_active_subscriptions,
 )
-from apps.users.services import (
-    get_user_membership_permissions,
-    invalidate_user_permission_cache,
-    resolve_effective_permission_keys,
-)
+from apps.users.services import resolve_effective_permission_keys
 from apps.accounts.services import get_assigned_account_ids
 from apps.roles.constants import (
     ROLE_SAAS_ADMINISTRATOR,
     ROLE_SAAS_ACCOUNT_MANAGER,
-    ROLE_AGENT_MANAGER,
-    ROLE_PERMISSION_TEMPLATES,
 )
 from apps.roles.utils import has_role
 from apps.common.models import AuditLog
@@ -49,8 +43,6 @@ from apps.tools.telemetry import (
     inc_tool_enabled,
     inc_tool_disabled,
 )
-from apps.roles.models import Role
-from apps.users.models import UserOrganization
 
 TOOLS_MODULE_KEY = "TOOLS_MANAGEMENT"
 
@@ -83,65 +75,25 @@ def enforce_tool_limit(organization):
         )
 
 
-def _is_agent_manager_user(user) -> bool:
-    if not user:
-        return False
-    name = (getattr(user, "full_name", "") or "").lower()
-    email = (getattr(user, "email", "") or "").lower()
-    return "agent manager" in name or "agent.manager" in email
-
-
-def _is_saas_account_manager_user(user) -> bool:
-    if not user:
-        return False
-    name = (getattr(user, "full_name", "") or "").lower()
-    email = (getattr(user, "email", "") or "").lower()
-    return "saas account manager" in name or "account manager" in name or "saas.account.manager" in email
-
-
-def _agent_manager_permissions() -> set[str]:
-    role = Role.all_objects.filter(
-        name=ROLE_AGENT_MANAGER,
-        organization__isnull=True,
-    ).order_by("-created_at").first()
-    if not role:
-        template = ROLE_PERMISSION_TEMPLATES.get(ROLE_AGENT_MANAGER, ())
-        role = Role.objects.create(
-            name=ROLE_AGENT_MANAGER,
-            role_type=Role.RoleType.USER,
-            permissions=[perm.lower() for perm in template],
-        )
-    perms = {perm.lower() for perm in (role.permissions or [])}
-    return perms
-
-
-def _resolve_unfiltered_permissions(user, organization_id: int) -> set[str]:
-    permissions = set(
-        get_user_membership_permissions(user, organization_id=organization_id).get(organization_id, set())
-    )
-    try:
-        from apps.roles import services as role_services  # type: ignore
-    except (ModuleNotFoundError, ImportError):
-        role_services = None
-    if role_services and hasattr(role_services, "resolve_user_permissions"):
-        permissions.update(role_services.resolve_user_permissions(user=user, organization_id=organization_id))
-    return {perm.lower() for perm in permissions}
-
-
 def ensure_tool_permission(user, organization, permission_key: str):
     if not user or not getattr(user, "is_authenticated", False):
         raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Authentication required.")
     lowered = (permission_key or "").lower()
+    legacy_allow = False
     active_tools_sub = get_active_subscription(organization, module_key=TOOLS_MODULE_KEY)
-    bypass_for_read = False
     if not active_tools_sub:
-        tools_sub_exists = Subscription.objects.filter(
+        has_any_tools_sub = Subscription.objects.filter(
             organization=organization,
             module__key=TOOLS_MODULE_KEY,
         ).exists()
-        has_any_active = bool(organization_active_subscriptions(organization))
-        bypass_for_read = lowered in {"tools:read", "tools:list"} and not tools_sub_exists and has_any_active
-        if not bypass_for_read:
+        legacy_allow = (
+            not has_any_tools_sub
+            and lowered in {"tools:list", "tools:read", "tools:schema"}
+            and organization_active_subscriptions(organization)
+        )
+        if legacy_allow:
+            active_tools_sub = True
+        else:
             raise CustomError(
                 code=SUBSCRIPTION_REQUIRED,
                 status_code=403,
@@ -151,7 +103,7 @@ def ensure_tool_permission(user, organization, permission_key: str):
         return
     if has_role(user, ROLE_SAAS_ADMINISTRATOR):
         return
-    if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or (user.is_staff and _is_saas_account_manager_user(user)):
+    if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
         assigned = get_assigned_account_ids(user)
         # If no explicit assignments are configured, allow by default.
         if not assigned or organization.account_id in assigned:
@@ -162,26 +114,16 @@ def ensure_tool_permission(user, organization, permission_key: str):
         raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
     # Acceptance tests treat tools:list as tools:read for access checks.
     required = "tools:read" if lowered == "tools:list" else lowered
-    # Avoid stale cache when subscriptions or roles change during tests.
-    invalidate_user_permission_cache(getattr(user, "id", None), organization.id)
-    if bypass_for_read:
-        permissions = _resolve_unfiltered_permissions(user, organization.id)
-    else:
-        permissions = {perm.lower() for perm in resolve_effective_permission_keys(user, organization.id)}
+    permissions = {
+        perm.lower()
+        for perm in resolve_effective_permission_keys(
+            user,
+            organization.id,
+            bypass_subscription_filter=bool(legacy_allow),
+        )
+    }
     if required in permissions or "tools:admin" in permissions:
         return
-    # Fallback for Agent Manager users seeded without explicit role assignments.
-    if required in {"tools:read", "tools:list"} and _is_agent_manager_user(user):
-        member = UserOrganization.objects.filter(
-            user=user,
-            organization=organization,
-            is_active=True,
-            deleted_at__isnull=True,
-        ).exists()
-        if member:
-            agent_perms = _agent_manager_permissions()
-            if required in agent_perms or "tools:admin" in agent_perms:
-                return
     raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
 
 

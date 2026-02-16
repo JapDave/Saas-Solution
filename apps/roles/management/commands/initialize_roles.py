@@ -8,7 +8,6 @@ from django.db import transaction
 from apps.roles.constants import (
     ROLE_ACCOUNT_ADMINISTRATOR,
     ROLE_ACCOUNT_OWNER,
-    ROLE_AGENT_MANAGER,
     ROLE_CHANNEL_ADMIN,
     ROLE_ORGANIZATION_ADMINISTRATOR,
     ROLE_ORGANIZATION_OWNER,
@@ -65,11 +64,6 @@ class Command(BaseCommand):
             "name": ROLE_ORGANIZATION_ADMINISTRATOR,
             "role_type": Role.RoleType.USER,
             "description": "Organization template for day-to-day administration duties.",
-        },
-        {
-            "name": ROLE_AGENT_MANAGER,
-            "role_type": Role.RoleType.USER,
-            "description": "Organization template granting full agent lifecycle permissions.",
         },
         {
             "name": ROLE_CHANNEL_ADMIN,

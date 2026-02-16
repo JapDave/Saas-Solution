@@ -185,7 +185,12 @@ def ensure_user_can_manage_user(request_user, target, *, require_permission: Opt
     raise InsufficientPermissions()
 
 
-def resolve_effective_permission_keys(user, organization_id: int) -> Set[str]:
+def resolve_effective_permission_keys(
+    user,
+    organization_id: int,
+    *,
+    bypass_subscription_filter: bool = False,
+) -> Set[str]:
     """Resolve permission keys for a user within an organization.
 
     This is a forward-compatible entry point so that a future role module can
@@ -195,40 +200,41 @@ def resolve_effective_permission_keys(user, organization_id: int) -> Set[str]:
         get_user_membership_permissions(user, organization_id=organization_id).get(organization_id, set())
     )
 
-    user_id = getattr(user, "id", None)
-    cache_key = _permission_cache_key(user_id, organization_id) if user_id else None
-    if cache_key:
-        cached_permissions = cache.get(cache_key)
-        if cached_permissions is not None:
-            return set(cached_permissions)
-
     try:
         from apps.roles import services as role_services  # type: ignore
     except (ModuleNotFoundError, ImportError):
         role_services = None
+
+    user_id = getattr(user, "id", None)
+    cache_key = _permission_cache_key(user_id, organization_id) if user_id else None
+    if cache_key and not bypass_subscription_filter:
+        cached_permissions = cache.get(cache_key)
+        if cached_permissions is not None:
+            return set(cached_permissions)
     if role_services and hasattr(role_services, "resolve_user_permissions"):
         additional = role_services.resolve_user_permissions(user=user, organization_id=organization_id)
         if additional:
             permissions.update(additional)
 
-    # Subscription-based permission filtering
-    now = timezone.now()
-    active_subs = Subscription.objects.filter(
-        organization_id=organization_id,
-        status__in=[Subscription.Status.ACTIVE, Subscription.Status.TRIAL],
-        start_date__lte=now,
-    ).exclude(end_date__lt=now)
-    allowed_perms: Set[str] = set()
-    for sub in active_subs.select_related("module"):
-        allowed_perms.update({p.strip().lower() for p in (sub.module.exposed_permissions or []) if p})
+    if not bypass_subscription_filter:
+        # Subscription-based permission filtering
+        now = timezone.now()
+        active_subs = Subscription.objects.filter(
+            organization_id=organization_id,
+            status__in=[Subscription.Status.ACTIVE, Subscription.Status.TRIAL],
+            start_date__lte=now,
+        ).exclude(end_date__lt=now)
+        allowed_perms: Set[str] = set()
+        for sub in active_subs.select_related("module"):
+            allowed_perms.update({p.strip().lower() for p in (sub.module.exposed_permissions or []) if p})
 
-    if allowed_perms:
-        permissions = {perm.lower() for perm in permissions if perm.lower() in allowed_perms}
-    else:
-        permissions = set()
+        if allowed_perms:
+            permissions = {perm.lower() for perm in permissions if perm.lower() in allowed_perms}
+        else:
+            permissions = set()
 
     sorted_permissions = sorted(permissions)
-    if cache_key:
+    if cache_key and not bypass_subscription_filter:
         cache.set(cache_key, sorted_permissions, _PERMISSION_CACHE_TIMEOUT)
     return set(sorted_permissions)
 
