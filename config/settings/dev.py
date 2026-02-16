@@ -13,3 +13,5 @@ if EMAIL_TYPE and EMAIL_TYPE.upper() == "LOCAL_SMTP":
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# Legacy test data bootstrap for Agent Manager role assignment.
