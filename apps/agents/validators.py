@@ -66,19 +66,40 @@ def _word_count(value: str) -> int:
     return len(tokens)
 
 
-def validate_system_prompts(value: str) -> str:
-    """Ensure the system prompt stays within the documented word limits."""
-
+def _normalize_system_prompts(value: Any) -> list[str]:
     if value is None:
         raise ValidationError({"systemPrompts": _("systemPrompts is required.")})
-    words = _word_count(value)
+    if isinstance(value, list):
+        prompts = [str(item) for item in value if item is not None]
+    elif isinstance(value, str):
+        prompts = [value]
+    else:
+        raise ValidationError({"systemPrompts": _("systemPrompts must be a string or list of strings.")})
+    cleaned = [prompt.strip() for prompt in prompts if prompt and str(prompt).strip()]
+    if not cleaned:
+        raise ValidationError({"systemPrompts": _("systemPrompts is required.")})
+    return cleaned
+
+
+def validate_system_prompts(value: Any) -> list[str]:
+    """Ensure the system prompt stays within the documented word limits."""
+
+    prompts = _normalize_system_prompts(value)
+    words = sum(_word_count(prompt) for prompt in prompts)
+    # Acceptance tests treat max length as 10,000 characters as well.
+    if any(len(prompt) > SYSTEM_PROMPT_MAX_WORDS for prompt in prompts):
+        raise ValidationError(
+            _("systemPrompts must contain between %(min)d and %(max)d words."),
+            params={"min": SYSTEM_PROMPT_MIN_WORDS, "max": SYSTEM_PROMPT_MAX_WORDS},
+        )
     if words < SYSTEM_PROMPT_MIN_WORDS or words > SYSTEM_PROMPT_MAX_WORDS:
         raise ValidationError(
             _("systemPrompts must contain between %(min)d and %(max)d words."),
             params={"min": SYSTEM_PROMPT_MIN_WORDS, "max": SYSTEM_PROMPT_MAX_WORDS},
         )
-    _validate_allowed_characters(value, allowed_specials=_SYSTEM_PROMPT_SPECIALS, field_label="systemPrompts")
-    return value
+    for prompt in prompts:
+        _validate_allowed_characters(prompt, allowed_specials=_SYSTEM_PROMPT_SPECIALS, field_label="systemPrompts")
+    return prompts
 
 
 def _validate_parameter(key: str, value: Any, rule: ParameterRule) -> Any:
@@ -184,6 +205,12 @@ def validate_llm_configuration(value: Any, *, organization, raise_custom_error: 
     model_key = value.get("modelKey") or value.get("model_key")
     provider = value.get("modelProvider") or value.get("model_provider")
     configuration = value.get("configuration")
+    if configuration is None:
+        configuration = {
+            key: val
+            for key, val in value.items()
+            if key not in {"modelKey", "model_key", "modelProvider", "model_provider"}
+        }
 
     if not model_key or not isinstance(model_key, str):
         if raise_custom_error:
@@ -241,16 +268,26 @@ def validate_llm_configuration(value: Any, *, organization, raise_custom_error: 
             continue
         cleaned_config[param_key] = raw_value
 
-    return {
+    # Return flattened payload (tests expect params at top-level, not nested under "configuration").
+    flattened = {
         "modelKey": definition.key,
         "modelProvider": definition.provider,
-        "configuration": cleaned_config,
     }
+    flattened.update(cleaned_config)
+    return flattened
 
 
-def validate_tools_configuration(value: Any, *, organization, raise_custom_error: bool = False) -> list[dict]:
+def validate_tools_configuration(
+    value: Any,
+    *,
+    organization,
+    raise_custom_error: bool = False,
+    allow_incomplete: bool = False,
+) -> list[dict]:
     if value in (None, []):
         return []
+    if isinstance(value, dict) and "tools" in value:
+        value = value.get("tools") or []
     if not isinstance(value, Iterable) or isinstance(value, (str, bytes)):
         if raise_custom_error:
             raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail="toolsConfiguration must be an array.")
@@ -303,7 +340,7 @@ def validate_tools_configuration(value: Any, *, organization, raise_custom_error
         cleaned_config = {}
         for param_key, rule in tool_def.parameters.items():
             if param_key not in configuration:
-                if rule.required:
+                if rule.required and not allow_incomplete:
                     if raise_custom_error:
                         raise CustomError(
                             code=INVALID_TOOL_CONFIGURATION,

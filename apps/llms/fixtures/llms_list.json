@@ -218,6 +218,114 @@
         },
         {
             "modelProvider": "OpenAI",
+            "modelKey": "gpt-4",
+            "displayName": "GPT-4",
+            "description": "GPT-4 is a strong general-purpose model.",
+            "supportedModalities": [
+                "text",
+                "image"
+            ],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {
+                    "type": "number",
+                    "default": 0.5,
+                    "required": false,
+                    "description": "The temperature of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "maxTokens": {
+                    "type": "number",
+                    "default": 1000,
+                    "required": false,
+                    "description": "The maximum number of tokens to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 128000
+                    }
+                },
+                "topP": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The top p of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "frequencyPenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The frequency penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "presencePenalty": {
+                    "type": "number",
+                    "default": 0,
+                    "required": false,
+                    "description": "The presence penalty of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "stopSequences": {
+                    "type": "array",
+                    "default": [],
+                    "required": false,
+                    "description": "The stop sequences of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "numberOfGenerations": {
+                    "type": "number",
+                    "default": 1,
+                    "required": false,
+                    "description": "The number of generations to generate.",
+                    "validation": {
+                        "min": 1,
+                        "max": 10
+                    }
+                },
+                "supportedResponseFormats": {
+                    "type": "array",
+                    "default": [
+                        "text",
+                        "json"
+                    ],
+                    "required": false,
+                    "description": "The supported response formats of the model.",
+                    "validation": {
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "seed": {
+                    "type": "number",
+                    "default": 42,
+                    "required": false,
+                    "description": "The seed of the model.",
+                    "validation": {
+                        "min": 0,
+                        "max": 1000000
+                    }
+                }
+            }
+        },
+        {
+            "modelProvider": "OpenAI",
             "modelKey": "gpt-5",
             "displayName": "GPT-5",
             "description": "GPT-5 is the next generation of OpenAI's flagship language model with breakthrough capabilities.",

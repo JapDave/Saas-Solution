@@ -23,6 +23,11 @@ class AgentQuerySet(models.QuerySet):
         org_id = getattr(organization, "id", organization)
         return self.filter(organization_id=org_id)
 
+    @property
+    def all_objects(self):
+        # Support Agent.objects.using(...).all_objects in acceptance tests.
+        return self.model.all_objects.using(self.db)
+
 
 class AgentManager(models.Manager.from_queryset(AgentQuerySet)):
     def get_queryset(self):
@@ -46,7 +51,7 @@ class Agent(BaseModel):
     )
     name = models.CharField(_("Name"), max_length=250)
     description = models.CharField(_("Description"), max_length=250, blank=True, default="")
-    system_prompts = models.TextField(_("System Prompts"), blank=True, default="")
+    system_prompts = models.JSONField(_("System Prompts"), blank=True, default=list)
     llm_configuration = models.JSONField(_("LLM configuration"), default=dict, blank=True)
     tools_configuration = models.JSONField(_("Tools configuration"), default=list, blank=True)
     current_version = models.ForeignKey(
@@ -103,7 +108,7 @@ class Agent(BaseModel):
         if self.llm_configuration:
             validate_llm_configuration(self.llm_configuration, organization=self.organization)
         if self.tools_configuration:
-            validate_tools_configuration(self.tools_configuration, organization=self.organization)
+            validate_tools_configuration(self.tools_configuration, organization=self.organization, allow_incomplete=True)
         if len((self.description or "")) > 250:
             raise ValidationError({"description": _("Description must be 250 characters or fewer.")})
         if self.name and len(self.name.strip()) > 250:
@@ -138,7 +143,7 @@ class AgentVersion(BaseModel):
     version_number = models.PositiveIntegerField(_("Version number"))
     name = models.CharField(_("Name"), max_length=250)
     description = models.CharField(_("Description"), max_length=250, blank=True, default="")
-    system_prompts = models.TextField(_("System Prompts"))
+    system_prompts = models.JSONField(_("System Prompts"), default=list)
     llm_configuration = models.JSONField(_("LLM configuration"))
     tools_configuration = models.JSONField(_("Tools configuration"), default=list, blank=True)
     created_by = models.ForeignKey(
@@ -163,7 +168,7 @@ class AgentVersion(BaseModel):
         super().clean()
         validate_system_prompts(self.system_prompts)
         validate_llm_configuration(self.llm_configuration, organization=self.agent.organization)
-        validate_tools_configuration(self.tools_configuration, organization=self.agent.organization)
+        validate_tools_configuration(self.tools_configuration, organization=self.agent.organization, allow_incomplete=True)
 
     def __str__(self):
         return f"Agent {self.agent_id} v{self.version_number}"

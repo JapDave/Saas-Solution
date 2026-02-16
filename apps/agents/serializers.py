@@ -65,7 +65,7 @@ class AgentVersionSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source="uuid", read_only=True)
     agentId = serializers.UUIDField(source="agent.uuid", read_only=True)
     versionNumber = serializers.IntegerField(source="version_number", read_only=True)
-    systemPrompts = serializers.CharField(source="system_prompts", read_only=True)
+    systemPrompts = serializers.JSONField(source="system_prompts", read_only=True)
     llmConfiguration = serializers.JSONField(source="llm_configuration", read_only=True)
     toolsConfiguration = serializers.JSONField(source="tools_configuration", read_only=True)
     createdBy = serializers.UUIDField(source="created_by.uuid", read_only=True, allow_null=True)
@@ -88,9 +88,9 @@ class AgentVersionSerializer(serializers.ModelSerializer):
 
 
 class AgentVersionCreateSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=250)
+    name = serializers.CharField(max_length=250, required=False, allow_blank=False)
     description = serializers.CharField(required=False, allow_blank=True, max_length=250)
-    systemPrompts = serializers.CharField(source="system_prompts")
+    systemPrompts = serializers.JSONField(source="system_prompts")
     llmConfiguration = serializers.JSONField(source="llm_configuration")
     toolsConfiguration = serializers.JSONField(required=False, source="tools_configuration")
 

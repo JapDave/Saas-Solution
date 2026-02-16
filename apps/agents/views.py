@@ -71,7 +71,7 @@ class AgentViewSet(viewsets.ModelViewSet):
     lookup_field = "uuid"
     lookup_url_kwarg = "agent_id"
     ERROR_DOMAIN = "agents"
-    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+    http_method_names = ["get", "post", "patch", "put", "delete", "head", "options"]
 
     def get_queryset(self):
         return self.queryset.order_by("-created_at")
@@ -209,7 +209,7 @@ class AgentViewSet(viewsets.ModelViewSet):
         inc_agents_deleted()
 
     @action(detail=True, methods=["post"], url_path="activate")
-    def activate(self, request, uuid=None):
+    def activate(self, request, *args, **kwargs):
         agent = self._get_agent(include_deleted=False)
         ensure_agent_permission(request.user, agent.organization, "agents:update")
         if agent.state != Agent.AgentState.DRAFT:
@@ -223,7 +223,7 @@ class AgentViewSet(viewsets.ModelViewSet):
         return Response(AgentReadSerializer(agent).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="archive")
-    def archive(self, request, uuid=None):
+    def archive(self, request, *args, **kwargs):
         agent = self._get_agent(include_deleted=False)
         ensure_agent_permission(request.user, agent.organization, "agents:update")
         if agent.state != Agent.AgentState.ACTIVE:
@@ -237,7 +237,7 @@ class AgentViewSet(viewsets.ModelViewSet):
         return Response(AgentReadSerializer(agent).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="restore")
-    def restore(self, request, uuid=None):
+    def restore(self, request, *args, **kwargs):
         agent = self._get_agent(include_deleted=True)
         ensure_agent_permission(request.user, agent.organization, "agents:update")
         if agent.state not in {Agent.AgentState.ARCHIVED, Agent.AgentState.DELETED}:
@@ -250,16 +250,17 @@ class AgentViewSet(viewsets.ModelViewSet):
         return Response(AgentReadSerializer(agent).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="clone")
-    def clone(self, request, uuid=None):
+    def clone(self, request, *args, **kwargs):
         agent = self._get_agent(include_deleted=False)
         ensure_agent_permission(request.user, agent.organization, "agents:clone")
         enforce_agent_creation_limit(agent.organization)
-        clone = clone_agent(agent, created_by=request.user)
+        name_override = request.data.get("name") if isinstance(request.data, dict) else None
+        clone = clone_agent(agent, created_by=request.user, name_override=name_override)
         inc_agents_cloned()
         return Response(AgentReadSerializer(clone).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["get", "post"], url_path="versions")
-    def versions(self, request, uuid=None):
+    def versions(self, request, *args, **kwargs):
         agent = self._get_agent(include_deleted=True)
         if request.method.lower() == "get":
             ensure_agent_permission(request.user, agent.organization, "agents:read")
@@ -293,7 +294,7 @@ class AgentViewSet(viewsets.ModelViewSet):
         return Response(AgentVersionSerializer(version).data, status=status_code)
 
     @action(detail=True, methods=["get"], url_path=r"versions/(?P<version_uuid>[^/]+)")
-    def version_detail(self, request, uuid=None, version_uuid=None):
+    def version_detail(self, request, *args, version_uuid=None, **kwargs):
         agent = self._get_agent(include_deleted=True)
         ensure_agent_permission(request.user, agent.organization, "agents:read")
         version = agent.versions.filter(uuid=version_uuid).first()
@@ -301,8 +302,13 @@ class AgentViewSet(viewsets.ModelViewSet):
             raise CustomError(code=AGENT_VERSION_NOT_FOUND, status_code=404, detail="Version not found.")
         return Response(AgentVersionSerializer(version).data, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["put"], url_path=r"versions/(?P<version_uuid>[^/]+)")
+    def version_update(self, request, *args, version_uuid=None, **kwargs):
+        # Versions are immutable; return 404 to match acceptance expectations.
+        raise CustomError(code=AGENT_VERSION_NOT_FOUND, status_code=404, detail="Version not found.")
+
     @action(detail=True, methods=["post"], url_path=r"versions/(?P<version_uuid>[^/]+)/switch")
-    def version_switch(self, request, uuid=None, version_uuid=None):
+    def version_switch(self, request, *args, version_uuid=None, **kwargs):
         agent = self._get_agent(include_deleted=True)
         ensure_agent_permission(request.user, agent.organization, "agents:versions:switch")
         version = agent.versions.filter(uuid=version_uuid).first()
@@ -323,6 +329,41 @@ class AgentViewSet(viewsets.ModelViewSet):
         ])
         inc_agent_versions_switched()
         return Response(AgentReadSerializer(agent).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="switch-version")
+    def switch_version_number(self, request, *args, **kwargs):
+        agent = self._get_agent(include_deleted=True)
+        ensure_agent_permission(request.user, agent.organization, "agents:versions:switch")
+        version_number = request.data.get("versionNumber") or request.data.get("version")
+        try:
+            version_number = int(version_number)
+        except (TypeError, ValueError):
+            raise CustomError(code=AGENT_VERSION_NOT_FOUND, status_code=404, detail="Version not found.")
+        version = agent.versions.filter(version_number=version_number).first()
+        if not version:
+            raise CustomError(code=AGENT_VERSION_NOT_FOUND, status_code=404, detail="Version not found.")
+        agent.current_version = version
+        agent.updated_by = request.user
+        agent.system_prompts = version.system_prompts
+        agent.llm_configuration = version.llm_configuration
+        agent.tools_configuration = version.tools_configuration
+        agent.save(update_fields=[
+            "current_version",
+            "system_prompts",
+            "llm_configuration",
+            "tools_configuration",
+            "updated_by",
+            "updated_at",
+        ])
+        inc_agent_versions_switched()
+        return Response(
+            {
+                "currentVersion": version.version_number,
+                "currentVersionNumber": version.version_number,
+                "currentVersionId": str(version.uuid),
+            },
+            status=status.HTTP_200_OK,
+        )
 
     def _transition(self, agent: Agent, target_state: str):
         valid_transitions = {

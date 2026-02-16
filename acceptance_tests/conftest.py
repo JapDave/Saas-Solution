@@ -1289,9 +1289,28 @@ def create_static_data(superuser: User):
         },
         {
             "modelProvider": "OpenAI",
-            "modelKey": "gpt-4.1",
-            "displayName": "GPT-4.1",
-            "description": "GPT-4.1 is an advanced language model with enhanced reasoning capabilities.",
+            "modelKey": "gpt-4",
+            "displayName": "GPT-4",
+            "description": "GPT-4 is a strong general-purpose model.",
+            "supportedModalities": ["text", "image"],
+            "maxContextTokens": 128000,
+            "modelConfiguration": {
+                "temperature": {"type": "number", "default": 0.5, "required": False, "description": "The temperature of the model.", "validation": {"min": 0, "max": 1}},
+                "maxTokens": {"type": "number", "default": 1000, "required": False, "description": "The maximum number of tokens to generate.", "validation": {"min": 1, "max": 128000}},
+                "topP": {"type": "number", "default": 1, "required": False, "description": "The top p of the model.", "validation": {"min": 0, "max": 1}},
+                "frequencyPenalty": {"type": "number", "default": 0, "required": False, "description": "The frequency penalty of the model.", "validation": {"min": 0, "max": 1}},
+                "presencePenalty": {"type": "number", "default": 0, "required": False, "description": "The presence penalty of the model.", "validation": {"min": 0, "max": 1}},
+                "stopSequences": {"type": "array", "default": [], "required": False, "description": "The stop sequences of the model.", "validation": {"items": {"type": "string"}}},
+                "numberOfGenerations": {"type": "number", "default": 1, "required": False, "description": "The number of generations to generate.", "validation": {"min": 1, "max": 10}},
+                "supportedResponseFormats": {"type": "array", "default": ["text", "json"], "required": False, "description": "The supported response formats of the model.", "validation": {"items": {"type": "string"}}},
+                "seed": {"type": "number", "default": 42, "required": False, "description": "The seed of the model.", "validation": {"min": 0, "max": 1000000}}
+            }
+        },
+        {
+            "modelProvider": "OpenAI",
+            "modelKey": "gpt-4",
+            "displayName": "GPT-4",
+            "description": "GPT-4 is a strong general-purpose model.",
             "supportedModalities": ["text", "image"],
             "maxContextTokens": 128000,
             "modelConfiguration": {

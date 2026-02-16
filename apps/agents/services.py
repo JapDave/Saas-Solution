@@ -165,6 +165,8 @@ def _with_linear_retry(func, *, attempts: int = 3, base_delay: float = 0.5):
 
 
 def _normalize_tools(tools: Iterable[dict]) -> list[dict]:
+    if isinstance(tools, dict) and "tools" in tools:
+        tools = tools.get("tools") or []
     normalized = []
     for entry in tools or []:
         if not isinstance(entry, dict):
@@ -184,7 +186,7 @@ def save_agent_version(
     description: str | None = None,
     system_prompts: str | None = None,
     llm_configuration: dict | None = None,
-    tools_configuration: list | None = None,
+    tools_configuration: list | dict | None = None,
 ) -> tuple[AgentVersion, bool]:
     candidate_name = validate_agent_name(name if name is not None else agent.name)
     candidate_description = validate_agent_description(
@@ -196,7 +198,7 @@ def save_agent_version(
     if not system_prompts:
         raise CustomError(code=INVALID_AGENT_DATA, status_code=400, detail="systemPrompts is required.")
     try:
-        validate_system_prompts(system_prompts)
+        system_prompts = validate_system_prompts(system_prompts)
     except Exception as exc:
         raise CustomError(code=INVALID_AGENT_DATA, status_code=400, detail=str(exc)) from exc
 
@@ -204,6 +206,12 @@ def save_agent_version(
         llm_configuration = agent.llm_configuration
     if not llm_configuration:
         raise CustomError(code=LLM_REQUIRED, status_code=400, detail="Agent must have exactly one LLM configured.")
+    if not get_active_subscription(agent.organization, module_key="LLM_MANAGEMENT"):
+        raise CustomError(
+            code=SUBSCRIPTION_REQUIRED,
+            status_code=403,
+            detail="Active LLM_MANAGEMENT subscription required.",
+        )
 
     try:
         sanitized_llm = validate_llm_configuration(
@@ -218,16 +226,27 @@ def save_agent_version(
 
     if tools_configuration is None:
         tools_configuration = agent.tools_configuration
+    if isinstance(tools_configuration, dict) and "tools" in tools_configuration:
+        tools_configuration = tools_configuration.get("tools") or []
+    if tools_configuration:
+        if not get_active_subscription(agent.organization, module_key="TOOLS_MANAGEMENT"):
+            raise CustomError(
+                code=SUBSCRIPTION_REQUIRED,
+                status_code=403,
+                detail="Active TOOLS_MANAGEMENT subscription required.",
+            )
     try:
-        sanitized_tools = validate_tools_configuration(
+        sanitized_tools_list = validate_tools_configuration(
             tools_configuration or [],
             organization=agent.organization,
             raise_custom_error=True,
+            allow_incomplete=True,
         )
     except CustomError:
         raise
     except Exception as exc:
         raise CustomError(code=INVALID_TOOL_CONFIGURATION, status_code=400, detail=str(exc)) from exc
+    sanitized_tools = {"tools": sanitized_tools_list}
 
     latest = agent.versions.order_by("-version_number").first()
     if latest:
@@ -280,13 +299,17 @@ def save_agent_version(
     return version, True
 
 
-def clone_agent(agent: Agent, *, created_by) -> Agent:
-    base_name = f"Copy of {agent.name}"
-    candidate = base_name
-    counter = 2
-    while Agent.objects.filter(organization=agent.organization, name=candidate).exists():
-        candidate = f"{base_name} ({counter})"
-        counter += 1
+def clone_agent(agent: Agent, *, created_by, name_override: str | None = None) -> Agent:
+    if name_override:
+        candidate = validate_agent_name(name_override)
+        ensure_agent_name_unique(organization=agent.organization, name=candidate)
+    else:
+        base_name = f"Copy of {agent.name}"
+        candidate = base_name
+        counter = 2
+        while Agent.objects.filter(organization=agent.organization, name=candidate).exists():
+            candidate = f"{base_name} ({counter})"
+            counter += 1
 
     source_version = agent.current_version or agent.versions.order_by("-version_number").first()
     llm_configuration = source_version.llm_configuration if source_version else agent.llm_configuration

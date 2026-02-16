@@ -418,15 +418,15 @@ class Command(BaseCommand):
             name="Customer Support Agent",
             defaults={
                 "description": "Primary agent used for regression tests.",
-                "system_prompts": "You are HudHud's tier-1 support agent. Be concise and friendly.",
+                "system_prompts": ["You are HudHud's tier-1 support agent. Be concise and friendly."],
                 "llm_configuration": {},
-                "tools_configuration": [],
+                "tools_configuration": {"tools": []},
                 "created_by": agent_manager,
                 "updated_by": agent_manager,
             },
         )
         agent.description = "Primary agent used for regression tests."
-        agent.system_prompts = "You are HudHud's tier-1 support agent. Be concise and friendly."
+        agent.system_prompts = ["You are HudHud's tier-1 support agent. Be concise and friendly."]
 
         llm_payload = {
             "modelKey": "gpt-4o-mini",
@@ -444,7 +444,7 @@ class Command(BaseCommand):
             }
         ]
         agent.llm_configuration = validate_llm_configuration(llm_payload, organization=acme_org)
-        agent.tools_configuration = validate_tools_configuration(tools_payload, organization=acme_org)
+        agent.tools_configuration = {"tools": validate_tools_configuration(tools_payload, organization=acme_org)}
         agent.updated_by = agent_manager
         agent.save()
 
@@ -456,7 +456,7 @@ class Command(BaseCommand):
             name="Sales Research Agent",
             defaults={
                 "description": "Draft agent without saved versions.",
-                "system_prompts": "Assist sales with research tasks.",
+                "system_prompts": ["Assist sales with research tasks."],
                 "llm_configuration": validate_llm_configuration(
                     {
                         "modelKey": "gemini-2.5-pro",
@@ -465,7 +465,7 @@ class Command(BaseCommand):
                     },
                     organization=acme_org,
                 ),
-                "tools_configuration": validate_tools_configuration([], organization=acme_org),
+                "tools_configuration": {"tools": validate_tools_configuration([], organization=acme_org)},
                 "created_by": agent_manager,
                 "updated_by": agent_manager,
             },

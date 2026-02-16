@@ -15,6 +15,8 @@ def agents_usage_by_tool_keys(org, tool_keys: list[str]) -> dict[str, int]:
         if not version:
             continue
         cfg = version.tools_configuration or []
+        if isinstance(cfg, dict) and "tools" in cfg:
+            cfg = cfg.get("tools") or []
         for entry in cfg:
             try:
                 key = entry.get("toolKey") or entry.get("tool_key")

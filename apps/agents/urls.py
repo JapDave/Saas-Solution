@@ -10,8 +10,9 @@ agent_archive = AgentViewSet.as_view({"post": "archive"})
 agent_restore = AgentViewSet.as_view({"post": "restore"})
 agent_clone = AgentViewSet.as_view({"post": "clone"})
 agent_versions = AgentViewSet.as_view({"get": "versions", "post": "versions"})
-agent_version_detail = AgentViewSet.as_view({"get": "version_detail"})
+agent_version_detail = AgentViewSet.as_view({"get": "version_detail", "put": "version_update"})
 agent_version_switch = AgentViewSet.as_view({"post": "version_switch"})
+agent_version_switch_number = AgentViewSet.as_view({"post": "switch_version_number"})
 
 
 urlpatterns = [
@@ -55,5 +56,10 @@ urlpatterns = [
         "agents/organizations/<uuid:organization_id>/<uuid:agent_id>/versions/<uuid:version_uuid>/switch/",
         agent_version_switch,
         name="agents-version-switch",
+    ),
+    path(
+        "agents/organizations/<uuid:organization_id>/<uuid:agent_id>/switch-version/",
+        agent_version_switch_number,
+        name="agents-version-switch-number",
     ),
 ]
