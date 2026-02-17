@@ -105,8 +105,7 @@ def ensure_tool_permission(user, organization, permission_key: str):
         return
     if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER):
         assigned = get_assigned_account_ids(user)
-        # If no explicit assignments are configured, allow by default.
-        if not assigned or organization.account_id in assigned:
+        if assigned and organization.account_id in assigned:
             return
         raise CustomError(code=INSUFFICIENT_PERMISSIONS, status_code=403, detail="Insufficient permissions.")
     # Enable/disable are SaaS-only

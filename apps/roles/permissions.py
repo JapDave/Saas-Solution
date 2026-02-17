@@ -160,7 +160,11 @@ class AccountPermission(BasePermission):
 
         action = getattr(view, "action", None)
         if action == "list":
-            decision = has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False)
+            if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False):
+                assigned = get_assigned_account_ids(user)
+                decision = bool(assigned)
+            else:
+                decision = False
             _log_decision(
                 request,
                 decision=decision,
@@ -210,7 +214,8 @@ class AccountPermission(BasePermission):
             return True
 
         if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False):
-            decision = request.method in SAFE_METHODS
+            assigned = get_assigned_account_ids(user)
+            decision = bool(assigned) and getattr(obj, "id", None) in assigned and request.method in SAFE_METHODS
             _log_decision(
                 request,
                 decision=decision,
@@ -278,7 +283,8 @@ class OrganizationPermission(BasePermission):
                 return False
 
             if has_role(user, ROLE_SAAS_ACCOUNT_MANAGER) or getattr(user, "is_staff", False):
-                decision = account_id in get_assigned_account_ids(user)
+                assigned = get_assigned_account_ids(user)
+                decision = bool(assigned) and account_id in assigned
                 _log_decision(
                     request,
                     decision=decision,

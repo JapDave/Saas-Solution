@@ -362,7 +362,7 @@ def filter_agents_for_user(queryset, user):
     if user.is_staff:
         assigned = get_assigned_account_ids(user)
         if not assigned:
-            return queryset
+            return queryset.none()
         return queryset.filter(organization__account_id__in=assigned)
 
     account_ids = get_user_accessible_account_ids(user)
@@ -391,7 +391,7 @@ def user_has_agent_permission(user, organization, permission_key: str) -> bool:
         return True
     if user.is_staff:
         assigned = get_assigned_account_ids(user)
-        return not assigned or organization.account_id in assigned
+        return bool(assigned) and organization.account_id in assigned
     if user.id in _org_owner_ids(organization):
         return True
     perms = _permission_keys(user, organization)
