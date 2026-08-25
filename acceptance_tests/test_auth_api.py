@@ -143,7 +143,7 @@ def extract_password_reset_token(email_content: str) -> Tuple[str, str]:
     Extract uid and token from password reset email content.
     
     The email should contain a URL like:
-    https://hudhud.local/api/auth/password-reset/confirm/?uid=NjAz&token=d3gwbx-02c897b7ce5bff521ac96d9be2a491cd
+    https://saas-platform.local/api/auth/password-reset/confirm/?uid=NjAz&token=d3gwbx-02c897b7ce5bff521ac96d9be2a491cd
     
     Args:
         email_content: Text or HTML content of the email

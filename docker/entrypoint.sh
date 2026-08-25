@@ -50,8 +50,8 @@ fi
 python manage.py collectstatic --noinput || true
 
 # Build gunicorn command with TLS
-CERT_FILE="${CERT_FILE:-certs/hudhud.local.pem}"
-KEY_FILE="${KEY_FILE:-certs/hudhud.local-key.pem}"
+CERT_FILE="${CERT_FILE:-certs/saas-platform.local.pem}"
+KEY_FILE="${KEY_FILE:-certs/saas-platform.local-key.pem}"
 GUNICORN_PORT="${GUNICORN_PORT:-8000}"
 GUNICORN_TLS_PORT="${GUNICORN_TLS_PORT:-9443}"
 GUNICORN_WORKERS="${GUNICORN_WORKERS:-3}"
@@ -77,7 +77,7 @@ case "${APM_PROVIDER}" in
   "OTEL")
     # Map APM_* variables to standard OTEL_* envs if not already set
     export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-${APM_SERVICE_NAME:-platform}}"
-    export OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-service.namespace=${APM_SERVICE_NAMESPACE:-hudhud},deployment.environment=${APM_ENVIRONMENT:-local}}"
+    export OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-service.namespace=${APM_SERVICE_NAMESPACE:-saas-platform},deployment.environment=${APM_ENVIRONMENT:-local}}"
     export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-${APM_OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}}"
     export OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-${APM_OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}}"
     export OTEL_EXPORTER_OTLP_INSECURE="${OTEL_EXPORTER_OTLP_INSECURE:-${APM_OTEL_EXPORTER_OTLP_INSECURE:-true}}"

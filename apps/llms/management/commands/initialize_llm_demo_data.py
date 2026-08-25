@@ -54,7 +54,7 @@ class Command(BaseCommand):
 
         # 2) Create demo users
         admin_user, _ = User.objects.get_or_create(
-            email="demo-admin@hudhud.local",
+            email="demo-admin@saas-platform.local",
             defaults={"full_name": "Demo SaaS Admin"},
         )
         admin_user.set_password(password)
@@ -62,7 +62,7 @@ class Command(BaseCommand):
         admin_user.save()
 
         manager_user, _ = User.objects.get_or_create(
-            email="demo-manager@hudhud.local",
+            email="demo-manager@saas-platform.local",
             defaults={"full_name": "Demo Agent Manager"},
         )
         manager_user.set_password(password)
@@ -70,7 +70,7 @@ class Command(BaseCommand):
         manager_user.save()
 
         member_user, _ = User.objects.get_or_create(
-            email="demo-user@hudhud.local",
+            email="demo-user@saas-platform.local",
             defaults={"full_name": "Demo Member"},
         )
         member_user.set_password(password)
@@ -78,7 +78,7 @@ class Command(BaseCommand):
         member_user.save()
 
         saas_manager_user, _ = User.objects.get_or_create(
-            email="demo-saas-manager@hudhud.local",
+            email="demo-saas-manager@saas-platform.local",
             defaults={"full_name": "Demo SaaS Account Manager"},
         )
         saas_manager_user.set_password(password)
@@ -86,7 +86,7 @@ class Command(BaseCommand):
         saas_manager_user.save()
 
         account_owner_user, _ = User.objects.get_or_create(
-            email="demo-account-owner@hudhud.local",
+            email="demo-account-owner@saas-platform.local",
             defaults={"full_name": "Demo Account Owner"},
         )
         account_owner_user.set_password(password)
@@ -94,7 +94,7 @@ class Command(BaseCommand):
         account_owner_user.save()
 
         account_admin_user, _ = User.objects.get_or_create(
-            email="demo-account-admin@hudhud.local",
+            email="demo-account-admin@saas-platform.local",
             defaults={"full_name": "Demo Account Admin"},
         )
         account_admin_user.set_password(password)
@@ -102,7 +102,7 @@ class Command(BaseCommand):
         account_admin_user.save()
 
         org_owner_user, _ = User.objects.get_or_create(
-            email="demo-org-owner@hudhud.local",
+            email="demo-org-owner@saas-platform.local",
             defaults={"full_name": "Demo Org Owner"},
         )
         org_owner_user.set_password(password)
@@ -110,7 +110,7 @@ class Command(BaseCommand):
         org_owner_user.save()
 
         org_admin_user, _ = User.objects.get_or_create(
-            email="demo-org-admin@hudhud.local",
+            email="demo-org-admin@saas-platform.local",
             defaults={"full_name": "Demo Org Admin"},
         )
         org_admin_user.set_password(password)
@@ -118,7 +118,7 @@ class Command(BaseCommand):
         org_admin_user.save()
 
         custom_role_user, _ = User.objects.get_or_create(
-            email="demo-custom-role@hudhud.local",
+            email="demo-custom-role@saas-platform.local",
             defaults={"full_name": "Demo Custom Role"},
         )
         custom_role_user.set_password(password)
@@ -212,8 +212,8 @@ class Command(BaseCommand):
 
         # 6) Products and Modules
         product, _ = Product.objects.get_or_create(
-            key="HUDHUD_PLATFORM",
-            defaults={"name": "Hudhud Platform", "description": "Demo product"},
+            key="SAAS_PLATFORM",
+            defaults={"name": "SaaS Platform", "description": "Demo product"},
         )
         llm_module, _ = Module.objects.get_or_create(
             key="LLM_MANAGEMENT",

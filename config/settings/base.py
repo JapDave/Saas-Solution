@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
-BASE_DIR = Path(__file__).resolve().parents[2]  # …/hudhud_backend
+BASE_DIR = Path(__file__).resolve().parents[2]  # Project root
 load_dotenv(BASE_DIR / ".env")
 
 # -------------------------------------------------------------------
@@ -206,7 +206,7 @@ APM_PROVIDER = (_get_config("APM_PROVIDER") or "").upper() if ENABLE_APM else ""
 APM_SERVICE_NAME = _get_config("APM_SERVICE_NAME", default="platform")
 APM_ENVIRONMENT = _get_config("APM_ENVIRONMENT", default="staging")
 APM_VERSION = _get_config("APM_VERSION", default=None)
-APM_SERVICE_NAMESPACE = _get_config("APM_SERVICE_NAMESPACE", default="hudhud")
+APM_SERVICE_NAMESPACE = _get_config("APM_SERVICE_NAMESPACE", default="saas-platform")
 ENABLE_OTEL_LOGS_EXPORTER = _truthy(_get_config("ENABLE_OTEL_LOGS_EXPORTER", default="False"))
 
 if ENABLE_APM:
@@ -496,7 +496,7 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Huhud Rest Api Backend",
+    "TITLE": "Saas Rest Api Backend",
     "DESCRIPTION": "Accounts/Orgs/Users/Teams/Subscriptions",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
@@ -583,7 +583,7 @@ EMAIL_PORT = int(_get_config("EMAIL_PORT", default="1025") or 1025)
 EMAIL_HOST_USER = _get_config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = _get_config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = _truthy(_get_config("EMAIL_USE_TLS", default="False"))
-DEFAULT_FROM_EMAIL = _get_config("DEFAULT_FROM_EMAIL", default="no-reply@hudhud.local")
+DEFAULT_FROM_EMAIL = _get_config("DEFAULT_FROM_EMAIL", default="no-reply@saas-platform.local")
 
 # -------------------------------------------------------------------
 # CORS / Security

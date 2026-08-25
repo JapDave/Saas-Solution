@@ -29,7 +29,7 @@
       }
     },
     {
-      "modelProvider": "Hudhud Hosted",
+      "modelProvider": "SaaS Platform Hosted",
       "modelKey": "deepseek-r1-debug",
       "displayName": "DeepSeek R1 (Debug)",
       "description": "Debug hosted model to test subscription gating.",

@@ -15,9 +15,9 @@ from apps.common.models import BaseModel
 def _email_has_allowed_system_domain(email: str) -> bool:
     allowed = {
         d.strip().lower()
-        for d in getattr(settings, "SYSTEM_EMAIL_DOMAINS", "hudhud.ai").split(",")
+        for d in getattr(settings, "SYSTEM_EMAIL_DOMAINS", "saas-platform.ai").split(",")
         if d.strip()
-    } or {"hudhud.ai"}
+    } or {"saas-platform.ai"}
     return bool(email and "@" in email and email.split("@", 1)[1].lower() in allowed)
 
 

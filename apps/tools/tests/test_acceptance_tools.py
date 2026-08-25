@@ -31,8 +31,8 @@ from apps.users.services import invalidate_user_permission_cache
 pytestmark = pytest.mark.django_db
 
 TEST_USERS = {
-    "Super Admin": {"email": "admin@hudhud.ai", "password": "admin123"},
-    "SaaS Account Manager": {"email": "saas.account.manager@hudhud.ai", "password": "Manager123!"},
+    "Super Admin": {"email": "admin@saas-platform.ai", "password": "admin123"},
+    "SaaS Account Manager": {"email": "saas.account.manager@saas-platform.ai", "password": "Manager123!"},
     "Account 1 Agent Manager": {"email": "account1.agent.manager@test.com", "password": "Test123!"},
     "Account 1 Admin": {"email": "account1.admin@test.com", "password": "Test123!"},
     "Account 1 Owner": {"email": "account1.owner@test.com", "password": "Test123!"},

@@ -1,6 +1,6 @@
-﻿# Roles & Permissions Module Documentation
+# Roles & Permissions Module Documentation
 
-This document provides a comprehensive guide to the roles and permissions system used in the Hudhud Backend. It covers the core concepts, setup, and usage patterns for controlling access to API endpoints.
+This document provides a comprehensive guide to the roles and permissions system used in the SaaS Platform Backend. It covers the core concepts, setup, and usage patterns for controlling access to API endpoints.
 
 ## 1. Core Concepts
 

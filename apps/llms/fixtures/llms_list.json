@@ -877,10 +877,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "deepseek-v3-0324",
             "displayName": "DeepSeek V3 0324",
-            "description": "DeepSeek V3 0324 is a large-scale model with advanced capabilities hosted by Hudhud.",
+            "description": "DeepSeek V3 0324 is a large-scale model with advanced capabilities hosted by SaaS Platform.",
             "supportedModalities": [
                 "text"
             ],
@@ -974,10 +974,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "deepseek-r1",
             "displayName": "DeepSeek R1",
-            "description": "DeepSeek R1 is a large, powerful, and accurate model hosted by Hudhud.",
+            "description": "DeepSeek R1 is a large, powerful, and accurate model hosted by SaaS Platform.",
             "supportedModalities": [
                 "text",
                 "image"
@@ -1082,10 +1082,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-8b",
             "displayName": "Qwen3 8B",
-            "description": "Qwen3 8B is a medium-sized efficient model hosted by Hudhud.",
+            "description": "Qwen3 8B is a medium-sized efficient model hosted by SaaS Platform.",
             "supportedModalities": [
                 "text"
             ],
@@ -1169,10 +1169,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-14b",
             "displayName": "Qwen3 14B",
-            "description": "Qwen3 14B is a balanced model with good performance hosted by Hudhud.",
+            "description": "Qwen3 14B is a balanced model with good performance hosted by SaaS Platform.",
             "supportedModalities": [
                 "text"
             ],
@@ -1256,10 +1256,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-32b",
             "displayName": "Qwen3 32B",
-            "description": "Qwen3 32B is a large model with strong capabilities hosted by Hudhud.",
+            "description": "Qwen3 32B is a large model with strong capabilities hosted by SaaS Platform.",
             "supportedModalities": [
                 "text"
             ],
@@ -1343,10 +1343,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-vl-8b",
             "displayName": "Qwen3 VL 8B",
-            "description": "Qwen3 VL 8B is a vision-language model with multimodal capabilities hosted by Hudhud.",
+            "description": "Qwen3 VL 8B is a vision-language model with multimodal capabilities hosted by SaaS Platform.",
             "supportedModalities": [
                 "text",
                 "image"
@@ -1431,10 +1431,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-vl-32b",
             "displayName": "Qwen3 VL 32B",
-            "description": "Qwen3 VL 32B is a large vision-language model with advanced multimodal capabilities hosted by Hudhud.",
+            "description": "Qwen3 VL 32B is a large vision-language model with advanced multimodal capabilities hosted by SaaS Platform.",
             "supportedModalities": [
                 "text",
                 "image"
@@ -1519,10 +1519,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "gemma3-4b",
             "displayName": "Gemma3 4B",
-            "description": "Gemma3 4B is a small, efficient model hosted by Hudhud.",
+            "description": "Gemma3 4B is a small, efficient model hosted by SaaS Platform.",
             "supportedModalities": [
                 "text"
             ],
@@ -1606,10 +1606,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "gemma3-12b",
             "displayName": "Gemma3 12B",
-            "description": "Gemma3 12B is a medium-sized balanced model hosted by Hudhud.",
+            "description": "Gemma3 12B is a medium-sized balanced model hosted by SaaS Platform.",
             "supportedModalities": [
                 "text"
             ],
@@ -1693,10 +1693,10 @@
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "gemma3-27b",
             "displayName": "Gemma3 27B",
-            "description": "Gemma3 27B is a large model with strong capabilities hosted by Hudhud.",
+            "description": "Gemma3 27B is a large model with strong capabilities hosted by SaaS Platform.",
             "supportedModalities": [
                 "text"
             ],

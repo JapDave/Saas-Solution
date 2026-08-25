@@ -6,7 +6,7 @@ from time import perf_counter
 from opentelemetry import trace, metrics
 from opentelemetry.trace import Status, StatusCode
 
-meter = metrics.get_meter("hudhud.web")
+meter = metrics.get_meter("saas-platform.web")
 request_counter = meter.create_counter("http.server.request.count", description="Total HTTP requests")
 duration_hist = meter.create_histogram(
     "http.server.request.duration.ms", description="Request duration in milliseconds"
@@ -18,7 +18,7 @@ class TracingMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        tracer = trace.get_tracer("hudhud.web")
+        tracer = trace.get_tracer("saas-platform.web")
         start = perf_counter()
         # Use start_as_current_span to set this span as the active span context
         # This ensures DjangoInstrumentor's database spans are created as children

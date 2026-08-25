@@ -277,7 +277,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
             send_mail(
                 subject="Password reset",
                 message=f"Use this link to reset your password: {reset_link}",
-                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@hudhud.local"),
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@saas-platform.local"),
                 recipient_list=[user.email],
                 fail_silently=True,
             )

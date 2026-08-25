@@ -159,7 +159,7 @@ class TestREQLLM001ListAvailableLLMs:
         assert isinstance(data, list), "Response should be a list"
 
     def test_1_3_list_excludes_hosted_models_without_subscription(self, authenticated_client, http_client):
-        """Test Scenario 1.3: Organization without hosted subscription excludes Hudhud Hosted models"""
+        """Test Scenario 1.3: Organization without hosted subscription excludes SaaS Platform Hosted models"""
         email, password = get_user_credentials("Super Admin")
         client = authenticated_client(email, password)
         
@@ -183,16 +183,16 @@ class TestREQLLM001ListAvailableLLMs:
         
         data = response.json()
         assert isinstance(data, list), "Response should be a list"
-        # Verify no Hudhud Hosted models are included
+        # Verify no SaaS Platform Hosted models are included
         for llm in data:
             provider = llm.get("modelProvider") or llm.get("model_provider", "")
-            assert not provider.lower().startswith("hudhud"), \
-                f"Hudhud Hosted models should be excluded: {provider}"
+            assert not provider.lower().startswith("saas platform"), \
+                f"SaaS Platform Hosted models should be excluded: {provider}"
         # Compare with expected from database: without hosted subscription only non-hosted LLMs
         if DJANGO_AVAILABLE and LLMDefinition:
             expected_definitions = list(
                 LLMDefinition.objects.using("default").exclude(
-                    model_provider__istartswith="hudhud"
+                    model_provider__istartswith="saas platform"
                 ).order_by("model_key")
             )
             expected_keys = {d.model_key for d in expected_definitions}
@@ -218,7 +218,7 @@ class TestREQLLM001ListAvailableLLMs:
                     )
 
     def test_1_4_list_includes_hosted_models_with_subscription(self, authenticated_client, http_client):
-        """Test Scenario 1.4: Organization with hosted subscription includes Hudhud Hosted models"""
+        """Test Scenario 1.4: Organization with hosted subscription includes SaaS Platform Hosted models"""
         email, password = get_user_credentials("Super Admin")
         client = authenticated_client(email, password)
         
@@ -257,7 +257,7 @@ class TestREQLLM001ListAvailableLLMs:
             all_defs = list(LLMDefinition.objects.using("default").all())
             expected_definitions = [
                 d for d in all_defs
-                if not (d.model_provider or "").lower().startswith("hudhud") or d.model_key in allowed_hosted
+                if not (d.model_provider or "").lower().startswith("saas platform") or d.model_key in allowed_hosted
             ]
             expected_keys = {d.model_key for d in expected_definitions}
             expected_by_key = {d.model_key: d for d in expected_definitions}
@@ -732,7 +732,7 @@ class TestREQLLM003EnableLLMForOrganization:
         else:
             pytest.skip("Django models not available")
         
-        model_key = "deepseek-r1"  # Hudhud Hosted model
+        model_key = "deepseek-r1"  # SaaS Platform Hosted model
         
         # Make request
         before_request = timezone.now()
@@ -1675,7 +1675,7 @@ class TestREQLLM006SubscriptionBasedAccessControl:
         else:
             pytest.skip("Django models not available")
         
-        model_key = "deepseek-r1"  # Hudhud Hosted model
+        model_key = "deepseek-r1"  # SaaS Platform Hosted model
         
         # Make request
         before_request = timezone.now()
@@ -1723,7 +1723,7 @@ class TestREQLLM006SubscriptionBasedAccessControl:
         else:
             pytest.skip("Django models not available")
         
-        model_key = "deepseek-r1"  # Hudhud Hosted model
+        model_key = "deepseek-r1"  # SaaS Platform Hosted model
         
         # Ensure LLM is not already enabled
         if DJANGO_AVAILABLE and OrganizationEnabledLLM:

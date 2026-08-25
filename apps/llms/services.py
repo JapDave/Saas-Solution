@@ -219,7 +219,7 @@ def enable_llm(organization, model_key: str, actor):
     definition = get_llm_definition(model_key)
     if not definition:
         raise CustomError(code=LLM_NOT_FOUND, status_code=404, detail="Unknown LLM key.")
-    # Hosted/hudhud provider guard
+    # SaaS Platform hosted-provider guard
     ensure_llm_allowed_for_subscription(organization, model_key)
     enforce_llm_enable_limit(organization)
     record = _with_linear_retry(

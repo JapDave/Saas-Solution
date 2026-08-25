@@ -102,7 +102,7 @@ def _load_llm_definitions() -> Dict[str, LLMDefinition]:
         config = entry.get("model_configuration") or {}
         parameters = {name: _build_parameter_rule(field) for name, field in config.items()}
         provider = entry.get("model_provider", "")
-        requires_hosted = provider.lower().startswith("hudhud")
+        requires_hosted = provider.lower().startswith("saas platform")
         raw = {
             "modelKey": entry["model_key"],
             "modelProvider": provider,

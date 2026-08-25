@@ -14,7 +14,7 @@ class Role(BaseModel):
 
     class RoleType(models.TextChoices):
         SYSTEM = "system", _("System")
-        USER = "user", _("User")  # Maintained by Hudhud, but customizable
+        USER = "user", _("User")  # Maintained by SaaS Platform, but customizable
         PREDEFINED_CUSTOM = "predefined_custom", _("Predefined Custom")
         USER_CUSTOM = "user_custom", _("User Custom")
 

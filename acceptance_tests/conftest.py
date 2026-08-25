@@ -330,7 +330,7 @@ TEST_USERS = [
     },
     # SAAS Account Manager
     {
-        "email": "saas.account.manager@hudhud.ai",
+        "email": "saas.account.manager@saas-platform.ai",
         "password": "Manager123!",
         "full_name": "SaaS Account Manager",
         "account_name": None,  # Not tied to a specific account
@@ -590,7 +590,7 @@ def get_user_credentials(full_name: str) -> tuple[str, str]:
         ValueError: If user with given full_name is not found in TEST_USERS
     """
     if full_name == "Super Admin":
-        return "admin@hudhud.ai", "admin123"
+        return "admin@saas-platform.ai", "admin123"
     for user in TEST_USERS:
         if user.get("full_name") == full_name:
             return user["email"], user["password"]
@@ -822,7 +822,7 @@ def admin_client(authenticated_client, api_base_url: str):
     Requires ADMIN_EMAIL and ADMIN_PASSWORD environment variables,
     or uses defaults for test environment.
     """
-    admin_email = os.getenv("ADMIN_EMAIL", "admin@hudhud.ai")
+    admin_email = os.getenv("ADMIN_EMAIL", "admin@saas-platform.ai")
     admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
     
     return authenticated_client(admin_email, admin_password)
@@ -836,7 +836,7 @@ def manager_client(authenticated_client, api_base_url: str):
     Uses the SAAS Account Manager from TEST_USERS.
     Can be overridden with MANAGER_EMAIL and MANAGER_PASSWORD environment variables.
     """
-    manager_email = os.getenv("MANAGER_EMAIL", "saas.account.manager@hudhud.ai")
+    manager_email = os.getenv("MANAGER_EMAIL", "saas.account.manager@saas-platform.ai")
     manager_password = os.getenv("MANAGER_PASSWORD", "Manager123!")
     
     return authenticated_client(manager_email, manager_password)
@@ -1430,10 +1430,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "deepseek-v3-0324",
             "displayName": "DeepSeek V3 0324",
-            "description": "DeepSeek V3 0324 is a large-scale model with advanced capabilities hosted by Hudhud.",
+            "description": "DeepSeek V3 0324 is a large-scale model with advanced capabilities hosted by SaaS Platform.",
             "supportedModalities": ["text"],
             "maxContextTokens": 128000,
             "modelConfiguration": {
@@ -1448,10 +1448,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "deepseek-r1",
             "displayName": "DeepSeek R1",
-            "description": "DeepSeek R1 is a large, powerful, and accurate model hosted by Hudhud.",
+            "description": "DeepSeek R1 is a large, powerful, and accurate model hosted by SaaS Platform.",
             "supportedModalities": ["text", "image"],
             "maxContextTokens": 1000000,
             "modelConfiguration": {
@@ -1467,10 +1467,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-8b",
             "displayName": "Qwen3 8B",
-            "description": "Qwen3 8B is a medium-sized efficient model hosted by Hudhud.",
+            "description": "Qwen3 8B is a medium-sized efficient model hosted by SaaS Platform.",
             "supportedModalities": ["text"],
             "maxContextTokens": 128000,
             "modelConfiguration": {
@@ -1484,10 +1484,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-14b",
             "displayName": "Qwen3 14B",
-            "description": "Qwen3 14B is a balanced model with good performance hosted by Hudhud.",
+            "description": "Qwen3 14B is a balanced model with good performance hosted by SaaS Platform.",
             "supportedModalities": ["text"],
             "maxContextTokens": 128000,
             "modelConfiguration": {
@@ -1501,10 +1501,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-32b",
             "displayName": "Qwen3 32B",
-            "description": "Qwen3 32B is a large model with strong capabilities hosted by Hudhud.",
+            "description": "Qwen3 32B is a large model with strong capabilities hosted by SaaS Platform.",
             "supportedModalities": ["text"],
             "maxContextTokens": 128000,
             "modelConfiguration": {
@@ -1518,10 +1518,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-vl-8b",
             "displayName": "Qwen3 VL 8B",
-            "description": "Qwen3 VL 8B is a vision-language model with multimodal capabilities hosted by Hudhud.",
+            "description": "Qwen3 VL 8B is a vision-language model with multimodal capabilities hosted by SaaS Platform.",
             "supportedModalities": ["text", "image"],
             "maxContextTokens": 128000,
             "modelConfiguration": {
@@ -1535,10 +1535,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "qwen3-vl-32b",
             "displayName": "Qwen3 VL 32B",
-            "description": "Qwen3 VL 32B is a large vision-language model with advanced multimodal capabilities hosted by Hudhud.",
+            "description": "Qwen3 VL 32B is a large vision-language model with advanced multimodal capabilities hosted by SaaS Platform.",
             "supportedModalities": ["text", "image"],
             "maxContextTokens": 128000,
             "modelConfiguration": {
@@ -1552,10 +1552,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "gemma3-4b",
             "displayName": "Gemma3 4B",
-            "description": "Gemma3 4B is a small, efficient model hosted by Hudhud.",
+            "description": "Gemma3 4B is a small, efficient model hosted by SaaS Platform.",
             "supportedModalities": ["text"],
             "maxContextTokens": 128000,
             "modelConfiguration": {
@@ -1569,10 +1569,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "gemma3-12b",
             "displayName": "Gemma3 12B",
-            "description": "Gemma3 12B is a medium-sized balanced model hosted by Hudhud.",
+            "description": "Gemma3 12B is a medium-sized balanced model hosted by SaaS Platform.",
             "supportedModalities": ["text"],
             "maxContextTokens": 128000,
             "modelConfiguration": {
@@ -1586,10 +1586,10 @@ def create_static_data(superuser: User):
             }
         },
         {
-            "modelProvider": "Hudhud Hosted",
+            "modelProvider": "SaaS Platform Hosted",
             "modelKey": "gemma3-27b",
             "displayName": "Gemma3 27B",
-            "description": "Gemma3 27B is a large model with strong capabilities hosted by Hudhud.",
+            "description": "Gemma3 27B is a large model with strong capabilities hosted by SaaS Platform.",
             "supportedModalities": ["text"],
             "maxContextTokens": 128000,
             "modelConfiguration": {
@@ -1650,7 +1650,7 @@ def seed_test_data(superuser_id: Optional[int] = None, measure_timing: bool = Fa
     seed_section_start = time.time()
     
     # User = get_user_model()
-    superuser_email = os.getenv("ADMIN_EMAIL", "admin@hudhud.ai")
+    superuser_email = os.getenv("ADMIN_EMAIL", "admin@saas-platform.ai")
     superuser_password = os.getenv("ADMIN_PASSWORD", "admin123")
     superuser_full_name = os.getenv("ADMIN_FULL_NAME", "Super Admin")
 
@@ -2040,7 +2040,7 @@ def truncate_test_data(request, transactional_db):
         return time.time()
     
     # Get superuser email to preserve
-    superuser_email = os.getenv("ADMIN_EMAIL", "admin@hudhud.ai")
+    superuser_email = os.getenv("ADMIN_EMAIL", "admin@saas-platform.ai")
     
     # Get superuser ID to preserve (or create if it doesn't exist)
     # This must happen BEFORE truncation and must be committed

@@ -26,7 +26,7 @@ from apps.users.tests.factories import SuperUserFactory, UserFactory, UserOrgani
 def superadmin_request():
     factory = APIRequestFactory()
     request = factory.post("/api/users/")
-    request.user = SuperUserFactory(email="superadmin@hudhud.ai")
+    request.user = SuperUserFactory(email="superadmin@saas-platform.ai")
     return request
 
 

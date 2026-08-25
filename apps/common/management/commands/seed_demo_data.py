@@ -65,14 +65,14 @@ class Command(BaseCommand):
 
     DEMO_USERS: Dict[str, SeedUser] = {
         "superadmin": SeedUser(
-            email="admin@hudhud.ai",
+            email="admin@saas-platform.ai",
             password="Admin123!",
-            full_name="HudHud Platform Admin",
+            full_name="SaaS Platform Admin",
             is_staff=True,
             is_superuser=True,
         ),
         "account_manager": SeedUser(
-            email="manager@hudhud.ai",
+            email="manager@saas-platform.ai",
             password="Manager123!",
             full_name="SaaS Account Manager",
             is_staff=True,
@@ -418,7 +418,7 @@ class Command(BaseCommand):
             name="Customer Support Agent",
             defaults={
                 "description": "Primary agent used for regression tests.",
-                "system_prompts": ["You are HudHud's tier-1 support agent. Be concise and friendly."],
+                "system_prompts": ["You are SaaS Platform's tier-1 support agent. Be concise and friendly."],
                 "llm_configuration": {},
                 "tools_configuration": {"tools": []},
                 "created_by": agent_manager,
@@ -426,7 +426,7 @@ class Command(BaseCommand):
             },
         )
         agent.description = "Primary agent used for regression tests."
-        agent.system_prompts = ["You are HudHud's tier-1 support agent. Be concise and friendly."]
+        agent.system_prompts = ["You are SaaS Platform's tier-1 support agent. Be concise and friendly."]
 
         llm_payload = {
             "modelKey": "gpt-4o-mini",

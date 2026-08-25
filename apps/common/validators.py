@@ -14,7 +14,7 @@ def email_has_allowed_system_domain(email: str) -> bool:
     if not email or "@" not in email:
         return False
     domain = email.split("@", 1)[1].lower()
-    configured = getattr(settings, "SYSTEM_EMAIL_DOMAINS", {"hudhud.ai"})
+    configured = getattr(settings, "SYSTEM_EMAIL_DOMAINS", {"saas-platform.ai"})
 
     if isinstance(configured, str):
         configured = {item.strip().lower() for item in configured.split(",") if item.strip()}

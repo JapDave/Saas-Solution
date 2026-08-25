@@ -27,8 +27,8 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       GUNICORN_PORT: 8000
-      CERT_FILE: /app/certs/hudhud.local.pem
-      KEY_FILE: /app/certs/hudhud.local-key.pem
+      CERT_FILE: /app/certs/saas-platform.local.pem
+      KEY_FILE: /app/certs/saas-platform.local-key.pem
       GUNICORN_WORKERS: 3
       OTEL_EXPORTER_OTLP_ENDPOINT: ${APM_OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${APM_OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}

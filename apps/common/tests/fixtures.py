@@ -13,7 +13,7 @@ from apps.users.tests.factories import UserFactory, StaffUserFactory, SuperUserF
 @pytest.fixture(autouse=True)
 def _allow_staff_domains(settings):
     """Ensure staff/superuser email domain checks never fail in tests."""
-    allowed = ["hudhud.ai", "example.com", "test.com", "local.test"]
+    allowed = ["saas-platform.ai", "example.com", "test.com", "local.test"]
     settings.ALLOWED_STAFF_EMAIL_DOMAINS = allowed
     settings.ALLOWED_SYSTEM_EMAIL_DOMAINS = allowed
     settings.ALLOWED_ADMIN_EMAIL_DOMAINS = allowed
@@ -47,13 +47,13 @@ def _authed_client(user):
 @pytest.fixture
 @pytest.mark.django_db
 def superadmin_user():
-    return SuperUserFactory(email="superadmin@hudhud.ai")
+    return SuperUserFactory(email="superadmin@saas-platform.ai")
 
 
 @pytest.fixture
 @pytest.mark.django_db
 def manager_user():
-    return StaffUserFactory(email="manager@hudhud.ai")
+    return StaffUserFactory(email="manager@saas-platform.ai")
 
 
 @pytest.fixture
