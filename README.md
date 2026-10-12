@@ -49,3 +49,7 @@ This is a backend portfolio/reference codebase. Before deployment, review depend
 See the existing environment and observability documents for the broader configuration options.
 
 A GitHub Actions compile/system-check template is provided in `docs/ci/checks.yml`. To enable it, copy it to `.github/workflows/checks.yml`; it does not run the PostgreSQL test suite.
+
+## Maintainer
+
+[Jap Dave](https://github.com/JapDave) · Python Backend Developer · [Contact](mailto:japdavev@gmail.com)
