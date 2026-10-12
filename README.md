@@ -1,44 +1,51 @@
-## Setup & run
+# Modular SaaS backend
 
-### Docker (recommended)
+A Django REST backend for account and organization management, teams, roles, subscriptions and configurable agent workflows. This repository shows how a larger business API is organized into domain modules with shared services, permissions and test fixtures.
+
+## What to inspect
+
+| Area | Source |
+| --- | --- |
+| Tenant and account boundaries | `apps/accounts`, `apps/organizations`, `apps/teams` |
+| Authentication and permissions | `apps/authentication`, `apps/users`, `apps/roles` |
+| Product access and subscriptions | `apps/products`, `apps/subscriptions` |
+| Agent, flow and integration configuration | `apps/agents`, `apps/flows`, `apps/integrations`, `apps/llms`, `apps/tools` |
+| Shared errors, middleware and tests | `apps/common` |
+
+Stack: Python, Django REST Framework, PostgreSQL, Redis, Docker and OpenAPI. Optional storage and observability integrations require their own configuration. Agent configuration APIs do not by themselves demonstrate a complete hosted inference system.
+
+## Local demo
+
+Use Docker Compose. The demo binds the API to localhost and uses development settings.
 
 ```bash
-# 1) Copy project, then:
 cp .env.example .env
-
-# 2) (Optional) auto-create superuser on boot
-# In .env:
-# AUTO_CREATE_SUPERUSER=1
-# DJANGO_SUPERUSER_USERNAME=admin
-# DJANGO_SUPERUSER_EMAIL=admin@example.com
-# DJANGO_SUPERUSER_PASSWORD=admin123
-
-# 3) Start
-docker compose -f docker/compose.yaml up --build
+docker compose -f docker/compose.demo.yaml up --build
 ```
 
-Endpoints:
-- Swagger: `http://localhost:8000/api/docs`  
-- Redoc:   `http://localhost:8000/api/redoc`  
-- Admin:   `http://localhost:8000/admin/`
-
-
-> Static files: **WhiteNoise** + `collectstatic` is wired in the entrypoint so admin/Swagger assets are served even under Gunicorn.
-
-### Local (venv) — optional
+Open http://localhost:8000/api/docs/ for Swagger, or http://localhost:8000/api/redoc/ for ReDoc. Create an administrator interactively:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # (Windows: .venv\Scripts\activate)
-pip install -r requirements.txt
-
-cp .env.example .env        # adjust DB vars for your local Postgres
-
-python manage.py migrate
-python manage.py runserver 0.0.0.0:8000
+docker compose -f docker/compose.demo.yaml exec web python manage.py createsuperuser
 ```
 
----
+The entrypoint runs migrations, initializes roles and LLM records, and collects static files. The original `docker/docker-compose.yml` remains available for the Nginx/TLS layout; it requires separate certificate configuration.
 
-## For running Test Cases
-docker compose -f docker/compose.yaml run --rm web pytest -q
+## Local tests
+
+With Python 3.12 in a virtual environment:
+
+```bash
+pip install -r requirements.txt
+pytest apps --ds=config.settings.test
+```
+
+The test settings use PostgreSQL, an in-memory cache and local email. Set `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST` and `DB_PORT` for a local database with test-database creation privileges. PostgreSQL is required by the existing SQL migrations. Real external services require separate integration testing. Network acceptance tests have a separate configuration in `pytest-acceptance.ini`.
+
+## Deployment scope
+
+This is a backend portfolio/reference codebase. Before deployment, review dependency support, tenant authorization, CORS, secrets, database migrations, backups and provider integrations for the target environment. Never deploy the development settings or example secrets. `.env` is intentionally excluded; provision secrets outside source control.
+
+See the existing environment and observability documents for the broader configuration options.
+
+A GitHub Actions compile/system-check template is provided in `docs/ci/checks.yml`. To enable it, copy it to `.github/workflows/checks.yml`; it does not run the PostgreSQL test suite.

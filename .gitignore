@@ -32,3 +32,8 @@ Business-Requirements/
 loc.py
 docker/*/tmp/
 *.code-workspace
+
+# Local configuration must never be committed
+.env
+.env.*
+!.env.example
